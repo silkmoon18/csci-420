@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <cstring>
+#include <vector>
 
 #if defined(WIN32) || defined(_WIN32)
 #ifdef _DEBUG
@@ -30,6 +31,7 @@ char shaderBasePath[1024] = "../openGLHelper-starterCode";
 #endif
 
 using namespace std;
+using namespace glm;
 
 int mousePos[2]; // x,y coordinate of the mouse position
 
@@ -39,6 +41,7 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
+
 
 // state of the world
 float landRotate[3] = { 0.0f, 0.0f, 0.0f };
@@ -51,11 +54,10 @@ char windowTitle[512] = "CSCI 420 homework I";
 
 ImageIO* heightmapImage;
 
-GLuint vertexPositionBuffer, vertexColorBuffer;
-GLuint vertexArray;
-int numVertices;
-glm::vec3 fieldCenter;
-glm::vec3 fieldOffset;
+vec4 defaultColor = vec4(0.18, 0.75, 0.98, 1);
+float heightScalar = 0.3f;
+vec3 fieldCenter;
+vec3 fieldOffset;
 
 OpenGLMatrix matrix;
 BasicPipelineProgram* pipelineProgram;
@@ -65,6 +67,69 @@ float translateSpeed = 0.1f;
 float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
+
+class VertexArrayObject {
+public:
+	GLuint positionBuffer, colorBuffer;
+	GLuint indexBuffer;
+	GLuint vertexArray;
+	int numVertices;
+	GLenum drawMode = GL_POINTS;
+
+	vector<int> indices;
+
+	VertexArrayObject(vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
+		numVertices = positions.size();
+		if (numVertices == 0) {
+			printf("error: number of vertices cannot be 0. ");
+			return;
+		}
+
+		this->indices = indices;
+		this->drawMode = drawMode;
+
+		// position data
+		glGenBuffers(1, &positionBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numVertices, &positions[0], GL_STATIC_DRAW);
+
+		// color data
+		glGenBuffers(1, &colorBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numVertices, &colors[0], GL_STATIC_DRAW);
+
+		// vertex array
+		glGenVertexArrays(1, &vertexArray);
+		glBindVertexArray(vertexArray);
+
+		// position attribute
+		GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
+		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+		glEnableVertexAttribArray(loc);
+		glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+		// color attribute
+		loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
+		glEnableVertexAttribArray(loc);
+		glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+	}
+
+	void Draw() {
+		glBindVertexArray(vertexArray);
+		glDrawElements(drawMode, indices.size(), GL_UNSIGNED_INT, &indices[0]);
+	}
+};
+
+// 0: points, 1: lines, 2: triangles 
+VertexArrayObject* vaos[3];
+int currentVaoIndex = 0;
+
+// calculate color value based on given height value
+vec4 calculateColor(float value) {
+	//return defaultColor * value / 255.0f;
+	return defaultColor;
+}
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char* filename) {
@@ -118,8 +183,7 @@ void displayFunc() {
 	pipelineProgram->SetModelViewMatrix(m);
 	pipelineProgram->SetProjectionMatrix(p);
 
-	glBindVertexArray(vertexArray);
-	glDrawArrays(GL_POINTS, 0, numVertices);
+	vaos[currentVaoIndex]->Draw();
 
 	glutSwapBuffers();
 }
@@ -137,6 +201,18 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case 'x':
 			// take a screenshot
 			saveScreenshot("screenshot.jpg");
+			break;
+
+		case '1':
+			currentVaoIndex = 0;
+			break;
+
+		case '2':
+			currentVaoIndex = 1;
+			break;
+
+		case '3':
+			currentVaoIndex = 2;
 			break;
 	}
 }
@@ -260,67 +336,88 @@ void initScene(int argc, char* argv[]) {
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-	// modify the following code accordingly
+	// create pipeline
+	pipelineProgram = new BasicPipelineProgram;
+	int ret = pipelineProgram->Init(shaderBasePath);
+	if (ret != 0) abort();
 
+	// read image
 	int width = heightmapImage->getWidth();
 	int height = heightmapImage->getHeight();
-	numVertices = width * height;
-	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i. \n\n", width, height, numVertices);
+	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i. \n\n", width, height, width * height);
 
-	glm::vec3* triangle = new glm::vec3[numVertices];
-	glm::vec4* color = new glm::vec4[numVertices];
+	vector<vec3> pointPositions;
+	vector<vec4> pointColors;
+	vector<int> pointIndices;
+
+	vector<vec3> linePositions;
+	vector<vec4> lineColors;
+	vector<int> lineIndices;
+
+	vector<vec3> trianglePositions;
+	vector<vec4> triangleColors;
 
 	float xOffset = -width / 2.0;
 	float yOffset = 0;
 	float zOffset = height / 2.0;
 
+	// init
 	for (int i = 0; i < width; i++) {
 		for (int j = 0; j < height; j++) {
 			int index = i * width + j;
 
-			float h = 0.3 * heightmapImage->getPixel(i, j, 0);
-			triangle[index] = glm::vec3(i + xOffset, h + yOffset, -j + zOffset);
-			color[index] = glm::vec4(0.18, 0.75, 0.98, 1);
+			float pixelValue = heightmapImage->getPixel(i, j, 0);
+
+			float x = i + xOffset;
+			float y = heightScalar * pixelValue + yOffset;
+			float z = -j + zOffset;
+
+			// points
+			pointPositions.push_back(vec3(x, y, z));
+			pointColors.push_back(calculateColor(pixelValue));
+			pointIndices.push_back(index);
+
+			// lines
+			if (i > 0) {
+				// add left lines
+				lineIndices.push_back(index - height);
+				lineIndices.push_back(index);
+			}
+
+			if (j > 0) {
+				// add bottom lines
+				lineIndices.push_back(index - 1);
+				lineIndices.push_back(index);
+			}
+
+			//// triangles
+			//if (i > 0 && j > 0) {
+			//	if (i % 2 == 0) {
+			//		index = height - j - 1;
+			//	}
+			//	trianglePositions.push_back(pointPositions[index - height]);
+			//	trianglePositions.push_back(pointPositions[index - height - 1]);
+			//	trianglePositions.push_back(pointPositions[index]);
+			//	trianglePositions.push_back(pointPositions[index - 1]);
+
+			//	triangleColors.push_back(pointColors[index - height]);
+			//	triangleColors.push_back(pointColors[index - height - 1]);
+			//	triangleColors.push_back(pointColors[index]);
+			//	triangleColors.push_back(pointColors[index - 1]);
+			//}
 		}
 	}
-	fieldCenter = glm::vec3(width / 2.0 + xOffset, yOffset, -height / 2.0 + zOffset);
+	fieldCenter = vec3(width / 2.0 + xOffset, yOffset, -height / 2.0 + zOffset);
 
-	// position data
-	glGenBuffers(1, &vertexPositionBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexPositionBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * numVertices, triangle, GL_STATIC_DRAW);
+	vaos[0] = new VertexArrayObject(pointPositions, pointColors, pointIndices, GL_POINTS);
+	vaos[1] = new VertexArrayObject(pointPositions, pointColors, lineIndices, GL_LINES);
+	//vaos[2] = new VertexArrayObject(trianglePositions, triangleColors, GL_TRIANGLE_STRIP);
 
-	// color data
-	glGenBuffers(1, &vertexColorBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexColorBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * numVertices, color, GL_STATIC_DRAW);
-
-	// pipeline
-	pipelineProgram = new BasicPipelineProgram;
-	int ret = pipelineProgram->Init(shaderBasePath);
-	if (ret != 0) abort();
-
-	// vertex array
-	glGenVertexArrays(1, &vertexArray);
-	glBindVertexArray(vertexArray);
-
-	// position attribute
-	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-	glBindBuffer(GL_ARRAY_BUFFER, vertexPositionBuffer);
-	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-	// color attribute
-	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-	glBindBuffer(GL_ARRAY_BUFFER, vertexColorBuffer);
-	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
 	glEnable(GL_DEPTH_TEST);
 
 	std::cout << "GL error: " << glGetError() << std::endl;
 }
-
 
 int main(int argc, char* argv[]) {
 	if (argc != 2) {
