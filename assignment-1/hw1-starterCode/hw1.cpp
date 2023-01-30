@@ -33,6 +33,7 @@ char shaderBasePath[1024] = "../openGLHelper-starterCode";
 using namespace std;
 using namespace glm;
 
+
 int mousePos[2]; // x,y coordinate of the mouse position
 
 int leftMouseButton = 0; // 1 if pressed, 0 if not 
@@ -67,26 +68,27 @@ float translateSpeed = 0.1f;
 float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
+const int restartIndex = -1;
 
 class VertexArrayObject {
 public:
-	GLuint positionBuffer, colorBuffer;
-	GLuint indexBuffer;
+	GLuint positionBuffer, colorBuffer, indexBuffer;
+
 	GLuint vertexArray;
-	int numVertices;
+
 	GLenum drawMode = GL_POINTS;
 
-	vector<int> indices;
+	int numVertices, numIndices;
 
 	VertexArrayObject(vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
 		numVertices = positions.size();
-		if (numVertices == 0) {
-			printf("error: number of vertices cannot be 0. ");
-			return;
-		}
+		numIndices = indices.size();
 
-		this->indices = indices;
 		this->drawMode = drawMode;
+
+		// vertex array
+		glGenVertexArrays(1, &vertexArray);
+		glBindVertexArray(vertexArray);
 
 		// position data
 		glGenBuffers(1, &positionBuffer);
@@ -98,9 +100,10 @@ public:
 		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numVertices, &colors[0], GL_STATIC_DRAW);
 
-		// vertex array
-		glGenVertexArrays(1, &vertexArray);
-		glBindVertexArray(vertexArray);
+		// index data
+		glGenBuffers(1, &indexBuffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * numIndices, &indices[0], GL_STATIC_DRAW);
 
 		// position attribute
 		GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
@@ -117,7 +120,7 @@ public:
 
 	void Draw() {
 		glBindVertexArray(vertexArray);
-		glDrawElements(drawMode, indices.size(), GL_UNSIGNED_INT, &indices[0]);
+		glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
 	}
 };
 
@@ -127,8 +130,8 @@ int currentVaoIndex = 0;
 
 // calculate color value based on given height value
 vec4 calculateColor(float value) {
-	//return defaultColor * value / 255.0f;
-	return defaultColor;
+	return defaultColor * value / 255.0f;
+	//return defaultColor;
 }
 
 // write a screenshot to the specified filename
@@ -335,6 +338,8 @@ void initScene(int argc, char* argv[]) {
 	}
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glEnable(GL_PRIMITIVE_RESTART);
+	glPrimitiveRestartIndex(restartIndex);
 
 	// create pipeline
 	pipelineProgram = new BasicPipelineProgram;
@@ -348,14 +353,10 @@ void initScene(int argc, char* argv[]) {
 
 	vector<vec3> pointPositions;
 	vector<vec4> pointColors;
+
 	vector<int> pointIndices;
-
-	vector<vec3> linePositions;
-	vector<vec4> lineColors;
 	vector<int> lineIndices;
-
-	vector<vec3> trianglePositions;
-	vector<vec4> triangleColors;
+	vector<int> triangleIndices;
 
 	float xOffset = -width / 2.0;
 	float yOffset = 0;
@@ -390,28 +391,24 @@ void initScene(int argc, char* argv[]) {
 				lineIndices.push_back(index);
 			}
 
-			//// triangles
-			//if (i > 0 && j > 0) {
-			//	if (i % 2 == 0) {
-			//		index = height - j - 1;
-			//	}
-			//	trianglePositions.push_back(pointPositions[index - height]);
-			//	trianglePositions.push_back(pointPositions[index - height - 1]);
-			//	trianglePositions.push_back(pointPositions[index]);
-			//	trianglePositions.push_back(pointPositions[index - 1]);
+			// triangles
+			if (i > 0 && j > 0) {
+				triangleIndices.push_back(index - height - 1);
+				triangleIndices.push_back(index - 1);
+				triangleIndices.push_back(index - height);
+				triangleIndices.push_back(index);
 
-			//	triangleColors.push_back(pointColors[index - height]);
-			//	triangleColors.push_back(pointColors[index - height - 1]);
-			//	triangleColors.push_back(pointColors[index]);
-			//	triangleColors.push_back(pointColors[index - 1]);
-			//}
+				if (j == height - 1) {
+					triangleIndices.push_back(restartIndex);
+				}
+			}
 		}
 	}
 	fieldCenter = vec3(width / 2.0 + xOffset, yOffset, -height / 2.0 + zOffset);
 
 	vaos[0] = new VertexArrayObject(pointPositions, pointColors, pointIndices, GL_POINTS);
 	vaos[1] = new VertexArrayObject(pointPositions, pointColors, lineIndices, GL_LINES);
-	//vaos[2] = new VertexArrayObject(trianglePositions, triangleColors, GL_TRIANGLE_STRIP);
+	vaos[2] = new VertexArrayObject(pointPositions, pointColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 
 	glEnable(GL_DEPTH_TEST);
