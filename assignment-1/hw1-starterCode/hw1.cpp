@@ -70,19 +70,31 @@ float scaleSpeed = 0.01f;
 
 const int restartIndex = -1;
 
+// object that handles VAO related operations
 class VertexArrayObject {
 public:
 	GLuint positionBuffer, colorBuffer, indexBuffer;
-
 	GLuint vertexArray;
-
 	GLenum drawMode = GL_POINTS;
-
-	int numVertices, numIndices;
+	int numVertices, numColors, numIndices;
 
 	VertexArrayObject(vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
 		numVertices = positions.size();
+		numColors = colors.size();
 		numIndices = indices.size();
+		if (numVertices == 0) {
+			printf("\nerror: the number of vertices cannot be 0. \n");
+			return;
+		}if (numColors == 0) {
+			printf("\nerror: the number of colors cannot be 0. \n");
+			return;
+		}if (numIndices == 0) {
+			printf("\nerror: the number of indices cannot be 0. \n");
+			return;
+		}if (numVertices != numColors) {
+			printf("\nerror: the number of vertices %i does not match the number of colors %i. \n", numVertices, numColors);
+			return;
+		}
 
 		this->drawMode = drawMode;
 
@@ -116,6 +128,8 @@ public:
 		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 		glEnableVertexAttribArray(loc);
 		glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+		printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 	}
 
 	void Draw() {
@@ -166,6 +180,7 @@ void displayFunc() {
 	matrix.LookAt(0, 0, 5, 0, 0, 0, 0, 1, 0);
 
 	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
+	cout << landTranslate[0] << endl;
 	matrix.Rotate(landRotate[0], 1, 0, 0);
 	matrix.Rotate(landRotate[1], 0, 1, 0);
 	matrix.Rotate(landRotate[2], 0, 0, 1);
@@ -338,6 +353,8 @@ void initScene(int argc, char* argv[]) {
 	}
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	// set restart index
 	glEnable(GL_PRIMITIVE_RESTART);
 	glPrimitiveRestartIndex(restartIndex);
 
@@ -351,13 +368,16 @@ void initScene(int argc, char* argv[]) {
 	int height = heightmapImage->getHeight();
 	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i. \n\n", width, height, width * height);
 
-	vector<vec3> pointPositions;
-	vector<vec4> pointColors;
+	// vertex attributes
+	vector<vec3> vertexPositions;
+	vector<vec4> vertexColors;
 
+	// vertex indices
 	vector<int> pointIndices;
 	vector<int> lineIndices;
 	vector<int> triangleIndices;
 
+	// position offsets
 	float xOffset = -width / 2.0;
 	float yOffset = 0;
 	float zOffset = height / 2.0;
@@ -365,39 +385,43 @@ void initScene(int argc, char* argv[]) {
 	// init
 	for (int i = 0; i < width; i++) {
 		for (int j = 0; j < height; j++) {
+
 			int index = i * width + j;
 
 			float pixelValue = heightmapImage->getPixel(i, j, 0);
 
+			// vertex position
 			float x = i + xOffset;
 			float y = heightScalar * pixelValue + yOffset;
 			float z = -j + zOffset;
 
-			// points
-			pointPositions.push_back(vec3(x, y, z));
-			pointColors.push_back(calculateColor(pixelValue));
+			// add vertex attributes
+			vertexPositions.push_back(vec3(x, y, z));
+			vertexColors.push_back(calculateColor(pixelValue));
+
+			// add point index
 			pointIndices.push_back(index);
 
-			// lines
+			// add line indices
 			if (i > 0) {
 				// add left lines
 				lineIndices.push_back(index - height);
 				lineIndices.push_back(index);
 			}
-
 			if (j > 0) {
 				// add bottom lines
 				lineIndices.push_back(index - 1);
 				lineIndices.push_back(index);
 			}
 
-			// triangles
+			// add triangle indices
 			if (i > 0 && j > 0) {
 				triangleIndices.push_back(index - height - 1);
 				triangleIndices.push_back(index - 1);
 				triangleIndices.push_back(index - height);
 				triangleIndices.push_back(index);
 
+				// restart after each column
 				if (j == height - 1) {
 					triangleIndices.push_back(restartIndex);
 				}
@@ -406,14 +430,15 @@ void initScene(int argc, char* argv[]) {
 	}
 	fieldCenter = vec3(width / 2.0 + xOffset, yOffset, -height / 2.0 + zOffset);
 
-	vaos[0] = new VertexArrayObject(pointPositions, pointColors, pointIndices, GL_POINTS);
-	vaos[1] = new VertexArrayObject(pointPositions, pointColors, lineIndices, GL_LINES);
-	vaos[2] = new VertexArrayObject(pointPositions, pointColors, triangleIndices, GL_TRIANGLE_STRIP);
+	// create VAOs
+	vaos[0] = new VertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
+	vaos[1] = new VertexArrayObject(vertexPositions, vertexColors, lineIndices, GL_LINES);
+	vaos[2] = new VertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 
 	glEnable(GL_DEPTH_TEST);
 
-	std::cout << "GL error: " << glGetError() << std::endl;
+	cout << "\nGL error: " << glGetError() << endl;
 }
 
 int main(int argc, char* argv[]) {
