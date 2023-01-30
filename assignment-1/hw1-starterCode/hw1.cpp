@@ -58,7 +58,7 @@ ImageIO* heightmapImage;
 vec4 defaultColor = vec4(0.18, 0.75, 0.98, 1);
 float heightScalar = 0.3f;
 vec3 fieldCenter;
-vec3 fieldOffset;
+vec3 eyePosition;
 
 OpenGLMatrix matrix;
 BasicPipelineProgram* pipelineProgram;
@@ -110,7 +110,7 @@ public:
 		// color data
 		glGenBuffers(1, &colorBuffer);
 		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numVertices, &colors[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numColors, &colors[0], GL_STATIC_DRAW);
 
 		// index data
 		glGenBuffers(1, &indexBuffer);
@@ -129,6 +129,7 @@ public:
 		glEnableVertexAttribArray(loc);
 		glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
+
 		printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 	}
 
@@ -138,14 +139,17 @@ public:
 	}
 };
 
-// 0: points, 1: lines, 2: triangles 
-VertexArrayObject* vaos[3];
+// 0: points, 1: lines, 2: triangles, 3: smoothened
+VertexArrayObject* vaos[4];
 int currentVaoIndex = 0;
+
+
+
 
 // calculate color value based on given height value
 vec4 calculateColor(float value) {
-	return defaultColor * value / 255.0f;
-	//return defaultColor;
+	vec4 normalized = defaultColor * value / 255.0f;
+	return vec4(normalized.x, normalized.y, normalized.z, defaultColor.w);
 }
 
 // write a screenshot to the specified filename
@@ -177,10 +181,11 @@ void displayFunc() {
 
 	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	matrix.LoadIdentity();
-	matrix.LookAt(0, 0, 5, 0, 0, 0, 0, 1, 0);
+	matrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
+				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
+				  0, 1, 0);
 
 	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
-	cout << landTranslate[0] << endl;
 	matrix.Rotate(landRotate[0], 1, 0, 0);
 	matrix.Rotate(landRotate[1], 0, 1, 0);
 	matrix.Rotate(landRotate[2], 0, 0, 1);
@@ -207,6 +212,8 @@ void displayFunc() {
 }
 
 void keyboardFunc(unsigned char key, int x, int y) {
+	GLint modeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "mode");
+
 	switch (key) {
 		case 27: // ESC key
 			exit(0); // exit the program
@@ -223,14 +230,22 @@ void keyboardFunc(unsigned char key, int x, int y) {
 
 		case '1':
 			currentVaoIndex = 0;
+			glUniform1i(modeLoc, 0);
 			break;
 
 		case '2':
 			currentVaoIndex = 1;
+			glUniform1i(modeLoc, 0);
 			break;
 
 		case '3':
 			currentVaoIndex = 2;
+			glUniform1i(modeLoc, 0);
+			break;
+
+		case '4':
+			currentVaoIndex = 3;
+			glUniform1i(modeLoc, 1);
 			break;
 	}
 }
@@ -372,18 +387,24 @@ void initScene(int argc, char* argv[]) {
 	vector<vec3> vertexPositions;
 	vector<vec4> vertexColors;
 
+	// for mode 0
 	// vertex indices
 	vector<int> pointIndices;
 	vector<int> lineIndices;
 	vector<int> triangleIndices;
 
 	// position offsets
-	float xOffset = -width / 2.0;
-	float yOffset = 0;
-	float zOffset = height / 2.0;
+	float xOffset = -width / 2.0f;
+	float yOffset = 1.0f;
+	float zOffset = height / 2.0f;
+
+	vector<vector<float>> heights;
+	float maxHeight = 0;
 
 	// init
 	for (int i = 0; i < width; i++) {
+		heights.push_back(vector<float>());
+
 		for (int j = 0; j < height; j++) {
 
 			int index = i * width + j;
@@ -395,21 +416,28 @@ void initScene(int argc, char* argv[]) {
 			float y = heightScalar * pixelValue + yOffset;
 			float z = -j + zOffset;
 
+			heights[i].push_back(y);
+
+			if (y > maxHeight) {
+				maxHeight = y;
+			}
+
 			// add vertex attributes
 			vertexPositions.push_back(vec3(x, y, z));
 			vertexColors.push_back(calculateColor(pixelValue));
+
 
 			// add point index
 			pointIndices.push_back(index);
 
 			// add line indices
 			if (i > 0) {
-				// add left lines
+				// add left line indices
 				lineIndices.push_back(index - height);
 				lineIndices.push_back(index);
 			}
 			if (j > 0) {
-				// add bottom lines
+				// add bottom line indices
 				lineIndices.push_back(index - 1);
 				lineIndices.push_back(index);
 			}
@@ -428,7 +456,8 @@ void initScene(int argc, char* argv[]) {
 			}
 		}
 	}
-	fieldCenter = vec3(width / 2.0 + xOffset, yOffset, -height / 2.0 + zOffset);
+	fieldCenter = vec3(width / 2.0f + xOffset, yOffset, -height / 2.0f + zOffset);
+	eyePosition = vec3(fieldCenter.x, fieldCenter.y + maxHeight, height * 1.25f);
 
 	// create VAOs
 	vaos[0] = new VertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
@@ -436,10 +465,49 @@ void initScene(int argc, char* argv[]) {
 	vaos[2] = new VertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 
+
+	// init mode 1
+	// heights of points of top, bottom, left, right
+	vector<vec4> neighborHeights;
+
+	for (int i = 0; i < width; i++) {
+		for (int j = 0; j < height; j++) {
+			vec4 neighborHeight;
+
+			// get neighbors' heights.
+			// top 
+			neighborHeight.x = j == height - 1 ? heights[i][j - 1] : heights[i][j + 1];
+
+			// bottom 
+			neighborHeight.y = j == 0 ? heights[i][j + 1] : heights[i][j - 1];
+
+			// left 
+			neighborHeight.z = i == 0 ? heights[i + 1][j] : heights[i - 1][j];
+
+			// right 
+			neighborHeight.w = i == width - 1 ? heights[i - 1][j] : heights[i + 1][j];
+
+			neighborHeights.push_back(neighborHeight);
+		}
+	}
+	vaos[3] = new VertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
+
+	GLuint heightsBuffer;
+	glGenBuffers(1, &heightsBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);  // bind the VBO buffer
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * neighborHeights.size(), &neighborHeights[0], GL_STATIC_DRAW);
+
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
+	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+
 	glEnable(GL_DEPTH_TEST);
 
 	cout << "\nGL error: " << glGetError() << endl;
 }
+
 
 int main(int argc, char* argv[]) {
 	if (argc != 2) {
