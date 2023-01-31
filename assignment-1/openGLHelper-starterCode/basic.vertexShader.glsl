@@ -37,5 +37,7 @@ void main()
 		break;
 		
   }
+
+  col /= 255.0f;
 }
 

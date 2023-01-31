@@ -148,7 +148,7 @@ int currentVaoIndex = 0;
 
 // calculate color value based on given height value
 vec4 calculateColor(float value) {
-	vec4 normalized = defaultColor * value / 255.0f;
+	vec4 normalized = defaultColor * value;
 	return vec4(normalized.x, normalized.y, normalized.z, defaultColor.w);
 }
 
@@ -381,7 +381,7 @@ void initScene(int argc, char* argv[]) {
 	// read image
 	int width = heightmapImage->getWidth();
 	int height = heightmapImage->getHeight();
-	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i. \n\n", width, height, width * height);
+	printf("\nImage info: \n\tfilename: %s, width: %i, height: %i, number of pixels: %i. \n\n", argv[1], width, height, width * height);
 
 	// vertex attributes
 	vector<vec3> vertexPositions;
@@ -395,7 +395,7 @@ void initScene(int argc, char* argv[]) {
 
 	// position offsets
 	float xOffset = -width / 2.0f;
-	float yOffset = 1.0f;
+	float yOffset = 0;
 	float zOffset = height / 2.0f;
 
 	vector<vector<float>> heights;
