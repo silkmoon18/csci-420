@@ -222,8 +222,8 @@ void saveScreenshot() {
 // find images in directory
 void FindImages() {
 	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
-		imagePaths.push_back(entry.path().string());
 		printf("Image found: %s\n", entry.path().string().c_str());
+		imagePaths.push_back(entry.path().string());
 	}
 	if (imagePaths.size() == 0) {
 		printf("error: no images found. \n");
@@ -281,7 +281,7 @@ void generateField() {
 				float r = heightmapImage->getPixel(i, j, 0);
 				float g = heightmapImage->getPixel(i, j, 1);
 				float b = heightmapImage->getPixel(i, j, 2);
-				lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+				lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 				color = vec4(r, g, b, 255);
 				color.w = 1;
 			}
@@ -380,9 +380,9 @@ void generateField() {
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
-	vector<vec4> wireframeColors;
-	for (int i = 0; i < vertexColors.size(); i++) {
-		wireframeColors.push_back(vec4(1));
+	vector<vec4> wireframeColors(vertexColors.size());
+	for (vec4 color : wireframeColors) {
+		color = vec4(1);
 	}
 	vaos[4] = new SimpleVertexArrayObject(vertexPositions, wireframeColors, lineIndices, GL_LINES);
 
@@ -689,11 +689,12 @@ void initScene() {
 
 
 int main(int argc, char* argv[]) {
-	if (argc != 2) {
-		cout << "The arguments are incorrect." << endl;
-		cout << "usage: ./hw1 <heightmap file>" << endl;
+	if (argc < 2) {
+		cout << "Please specify image directory. " << endl;
 		exit(EXIT_FAILURE);
 	}
+
+	imageDirectory = argv[1];
 
 	cout << "Initializing GLUT..." << endl;
 	glutInit(&argc, argv);

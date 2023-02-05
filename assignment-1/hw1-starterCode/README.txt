@@ -1,6 +1,10 @@
 Author: Baihua Yang
 
+
 Description: Create a heightfield based on given input image.
+
+To run the program, specify the path of image directory. For instance: hw1.exe C:\heightmap.
+
 
 Features:
 1. Render with lighting.
@@ -8,6 +12,7 @@ Features:
 3. Support color. 
 4. Support wireframe on triangles.
 5. Switch images when program is running. 
+
 
 Controls:
 1. Press '1' to render with Points.
