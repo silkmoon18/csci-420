@@ -172,6 +172,9 @@ public:
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightSpecular");
 		glUniform4f(loc, light_specular[0], light_specular[1], light_specular[2], light_specular[3]);
 
+		// send height scalar
+		GLint heightScaleLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "heightScale");
+		glUniform1f(heightScaleLoc, heightScalar);
 
 		glBindVertexArray(vertexArray);
 		glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
@@ -179,7 +182,7 @@ public:
 };
 
 // 0: points, 1: lines, 2: triangles, 3: smoothened
-VertexArrayObject* vaos[4];
+VertexArrayObject* vaos[5];
 int currentVaoIndex = 0;
 
 
@@ -242,7 +245,6 @@ void generateField() {
 
 	// position offsets
 	float xOffset = -width / 2.0f;
-	float yOffset = 0;
 	float zOffset = height / 2.0f;
 
 	vector<vector<float>> heights;
@@ -258,9 +260,7 @@ void generateField() {
 		heights.push_back(vector<float>());
 
 		for (int j = 0; j < height; j++) {
-
 			int index = i * height + j;
-
 			float x, y, z, lum;
 
 			// vertex color
@@ -270,20 +270,19 @@ void generateField() {
 				float g = heightmapImage->getPixel(i, j, 1);
 				float b = heightmapImage->getPixel(i, j, 2);
 				lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-				color = vec4(r, g, b, 1) / 255.0f * lum;
-
+				color = vec4(r, g, b, 255);
 				color.w = 1;
 			}
 			else {
 				lum = heightmapImage->getPixel(i, j, 0);
-				color = vec4(1) * lum;
+				color = vec4(255, 255, 255, 255);
 				color.w = 1;
 			}
 			vertexColors.push_back(color);
 
 			// vertex position
 			x = i + xOffset;
-			y = heightScalar * lum + yOffset;
+			y = lum * heightScalar;
 			z = -j + zOffset;
 			vertexPositions.push_back(vec3(x, y, z));
 
@@ -324,7 +323,7 @@ void generateField() {
 	}
 
 	// set other positions
-	fieldCenter = vec3(width / 2.0f + xOffset, yOffset, -height / 2.0f + zOffset);
+	fieldCenter = vec3(width / 2.0f + xOffset, 0, -height / 2.0f + zOffset);
 	eyePosition = vec3(fieldCenter.x, fieldCenter.y + maxHeight, height * 1.25f);
 	light_pos = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
@@ -333,7 +332,7 @@ void generateField() {
 	vaos[1] = new VertexArrayObject(vertexPositions, vertexColors, lineIndices, GL_LINES);
 	vaos[2] = new VertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
-
+	glPointSize(10);
 
 	// init mode 1
 	// heights of points of top, bottom, left, right
@@ -367,6 +366,19 @@ void generateField() {
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * neighborHeights.size(), &neighborHeights[0], GL_STATIC_DRAW);
 
 	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
+	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	// debug 
+
+	vaos[4] = new VertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
+	 heightsBuffer;
+	glGenBuffers(1, &heightsBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);  // bind the VBO buffer
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4)* neighborHeights.size(), &neighborHeights[0], GL_STATIC_DRAW);
+
+	 loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
 	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
@@ -456,6 +468,13 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		// smoothened mode
 		case '4':
 			currentVaoIndex = 3;
+			glUniform1i(modeLoc, 1);
+			break;
+		
+		// debug
+
+		case '5':
+			currentVaoIndex = 4;
 			glUniform1i(modeLoc, 1);
 			break;
 
@@ -600,7 +619,9 @@ void initScene() {
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
 
+
 	generateField();
+
 
 	glEnable(GL_DEPTH_TEST);
 

@@ -7,6 +7,7 @@ in vec4 color;
 out vec4 col;
 
 in vec4 neighborHeights;
+uniform float heightScale;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
@@ -34,14 +35,15 @@ void main()
   switch (mode) {
 	case 0:
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0f);
-		col = color;
+		col = color * (position.y / heightScale) / 255;
+		
 		break;
 
 	case 1:
 		float smoothenedHeight = (neighborHeights.x + neighborHeights.y + neighborHeights.z + neighborHeights.w) / 4.0f;
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, smoothenedHeight, position.z, 1.0f);
 
-		vec4 smoothenedColor = smoothenedHeight * max(color, vec4(eps)) / max(position.y, eps);
+		vec4 smoothenedColor = (smoothenedHeight / heightScale) / 255 * color;
 		col = smoothenedColor;
 
 		break;
