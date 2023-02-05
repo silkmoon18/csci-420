@@ -22,7 +22,6 @@ out vec3 lightVector;
 
 void main()
 {
-
   eyePosition = modelViewMatrix * vec4(position, 1.0);
   normalMatrix = transpose(inverse(modelViewMatrix));
 

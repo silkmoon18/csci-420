@@ -259,11 +259,9 @@ void generateField() {
 
 		for (int j = 0; j < height; j++) {
 
-			int index = i * width + j;
+			int index = i * height + j;
 
-			float x, y, z;
-
-			float lum = heightmapImage->getPixel(i, j, 0);
+			float x, y, z, lum;
 
 			// vertex color
 			vec4 color;
@@ -277,6 +275,7 @@ void generateField() {
 				color.w = 1;
 			}
 			else {
+				lum = heightmapImage->getPixel(i, j, 0);
 				color = vec4(1) * lum;
 				color.w = 1;
 			}
