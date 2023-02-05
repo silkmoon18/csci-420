@@ -60,7 +60,7 @@ vec4 light_ambient = vec4( 1, 1, 1, 1);
 vec4 light_diffuse = vec4(.8, .8, .8, 1);
 vec4 light_specular = vec4(1, 1, 1, 1);
 vec4 mat_ambient = vec4(1, 1, 1, 1);
-vec4 mat_diffuse = vec4(1, 1, 0, 1);
+vec4 mat_diffuse = vec4(1, 1, 1, 1);
 vec4 mat_specular = vec4(.9, .9, .9, 1);
 float mat_shine = 50;
 
@@ -229,7 +229,6 @@ void generateField() {
 	// read image
 	int width = heightmapImage->getWidth();
 	int height = heightmapImage->getHeight();
-	printf("\nImage info: \n\tfilename: %s, width: %i, height: %i, number of pixels: %i. \n\n", imagePath.c_str(), width, height, width * height);
 
 	// vertex attributes
 	vector<vec3> vertexPositions;
@@ -249,6 +248,11 @@ void generateField() {
 	vector<vector<float>> heights;
 	float maxHeight = 0;
 
+	bool isRGB = !(heightmapImage->getBytesPerPixel() == 1);
+
+	printf("\nImage info: \n\tfilename: %s, width: %i, height: %i, number of pixels: %i, rgb: %s. \n\n", 
+		   imagePath.c_str(), width, height, width * height, isRGB ? "true" : "false");
+
 	// init
 	for (int i = 0; i < width; i++) {
 		heights.push_back(vector<float>());
@@ -257,23 +261,38 @@ void generateField() {
 
 			int index = i * width + j;
 
-			float pixelValue = heightmapImage->getPixel(i, j, 0);
+			float x, y, z;
+
+			float lum = heightmapImage->getPixel(i, j, 0);
+
+			// vertex color
+			vec4 color;
+			if (isRGB) {
+				float r = heightmapImage->getPixel(i, j, 0);
+				float g = heightmapImage->getPixel(i, j, 1);
+				float b = heightmapImage->getPixel(i, j, 2);
+				lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+				color = vec4(r, g, b, 1) / 255.0f * lum;
+
+				color.w = 1;
+			}
+			else {
+				color = vec4(1) * lum;
+				color.w = 1;
+			}
+			vertexColors.push_back(color);
 
 			// vertex position
-			float x = i + xOffset;
-			float y = heightScalar * pixelValue + yOffset;
-			float z = -j + zOffset;
+			x = i + xOffset;
+			y = heightScalar * lum + yOffset;
+			z = -j + zOffset;
+			vertexPositions.push_back(vec3(x, y, z));
 
+			// add height
 			heights[i].push_back(y);
-
 			if (y > maxHeight) {
 				maxHeight = y;
 			}
-
-			// add vertex attributes
-			vertexPositions.push_back(vec3(x, y, z));
-			vertexColors.push_back(calculateColor(pixelValue));
-
 
 			// add point index
 			pointIndices.push_back(index);
