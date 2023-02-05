@@ -1,0 +1,27 @@
+Author: Baihua Yang
+
+Description: Create a heightfield based on given input image.
+
+Features:
+1. Render with lighting.
+2. Draw with element arrays.
+3. Support color. 
+4. Support wireframe on triangles.
+5. Switch images when program is running. 
+
+Controls:
+1. Press '1' to render with Points.
+2. Press '2' to render with Lines. 
+3. Press '3' to render with Triangles.
+4. Press '4' to render with Triangles and smoothened height.
+5. Press 'o' to switch to previous image.
+6. Press 'p' to switch to next image.
+7. Press 'l' to toggle wirefram display when render mode is Triangles.
+8. Press 'v' to render with defualt lighting. 
+9. Press'b' to render with ambient only.
+10. Press 'n' to render with diffuse only.
+11. Press 'm' to render with specular only.
+12. Rotate with mouse drag.
+13. Move with Ctrl + mouse drag.
+14. Scale with Shift + mouse drag.
+15. Press 'x' to toggle screenshots recording (15 screenshots per second under 120 fps). 

@@ -7,6 +7,7 @@ in vec4 eyePosition;
 in vec3 vertexNormal;
 in vec3 lightVector;
 
+uniform int lightMode = 0;
     
 uniform vec4 lightAmbient; 
 uniform vec4 lightDiffuse; 
@@ -19,6 +20,7 @@ uniform float materialShininess;
 
 void main()
 {
+  // calculate lighting
   vec3 eye_vector = normalize(-vec3(eyePosition));
   
   vec4 ambient = ambientCoef * lightAmbient; 
@@ -35,6 +37,22 @@ void main()
   }
 
   // compute the final pixel color
-  c = (ambient + diffuse) * col + specular;
+  switch (lightMode) {
+    case 0:
+        c = (ambient + diffuse) * col + specular;
+        break;
+
+    case 1:
+        c = ambient;
+        break;
+    
+    case 2:
+        c = diffuse;
+        break;
+
+    case 3:
+        c = specular;
+        break;
+  }
 }
 

@@ -14,7 +14,7 @@ uniform mat4 projectionMatrix;
 
 uniform vec4 lightPosition;
 
-uniform int mode = 0;
+uniform int polygonMode = 0;
 
 out vec4 eyePosition;
 out mat4 normalMatrix;
@@ -23,22 +23,22 @@ out vec3 lightVector;
 
 void main()
 {
+  // calculate lighting 
   eyePosition = modelViewMatrix * vec4(position, 1.0);
   normalMatrix = transpose(inverse(modelViewMatrix));
-
   vertexNormal = normalize(vec3(normalMatrix * vec4(position, 0.0)));
-
   lightVector = normalize(vec3(lightPosition - eyePosition));
 
-  // compute the transformed and projected vertex position (into gl_Position) 
-  // compute the vertex color (into col)
-  switch (mode) {
+
+  switch (polygonMode) {
+    // regular mode
 	case 0:
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0f);
 		col = color * (position.y / heightScale) / 255;
 		
 		break;
 
+	// smoothened mode
 	case 1:
 		float smoothenedHeight = (neighborHeights.x + neighborHeights.y + neighborHeights.z + neighborHeights.w) / 4.0f;
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, smoothenedHeight, position.z, 1.0f);

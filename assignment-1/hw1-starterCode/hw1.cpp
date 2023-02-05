@@ -62,7 +62,7 @@ vec4 light_specular = vec4(1, 1, 1, 1);
 vec4 mat_ambient = vec4(1, 1, 1, 1);
 vec4 mat_diffuse = vec4(1, 1, 1, 1);
 vec4 mat_specular = vec4(.9, .9, .9, 1);
-float mat_shine = 50;
+float mat_shine = 5;
 
 // display window
 int windowWidth = 1280;
@@ -76,17 +76,21 @@ vector<string> imagePaths;
 int currentImageIndex = 0;
 int screenshotIndex = 0;
 
-float heightScalar = 0.3f;
-vec3 fieldCenter;
-vec3 eyePosition;
-
 // control speeds
 float translateSpeed = 0.1f;
 float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
+//float lightTranslateSpeed = 1.0f;
+
+// other params
+const float heightScalar = 0.3f;
+vec3 fieldCenter;
+vec3 eyePosition;
 const int restartIndex = -1;
 bool wireframeEnabled = false;
+bool isTakingScreenshot = false;
+
 
 
 // object that handles VAO related operations
@@ -189,7 +193,18 @@ int currentVaoIndex = 0;
 
 // write a screenshot to the specified filename
 void saveScreenshot() {
-	string filename = "screenshot_" + to_string(screenshotIndex + 1) + ".jpg";
+	if (screenshotIndex > 999) {
+		cout << "Num of screenshots has reached limit 999. " << endl;
+		return;
+	}
+
+	int digit = to_string(screenshotIndex).length();
+	string filename = "./screenshots/";
+	for (int i = digit; i < 3; i++) {
+		filename += "0";
+	}
+	filename += to_string(screenshotIndex + 1) + ".jpg";
+
 	unsigned char* screenshotData = new unsigned char[windowWidth * windowHeight * 3];
 	glReadPixels(0, 0, windowWidth, windowHeight, GL_RGB, GL_UNSIGNED_BYTE, screenshotData);
 
@@ -204,6 +219,7 @@ void saveScreenshot() {
 	delete[] screenshotData;
 }
 
+// find images in directory
 void FindImages() {
 	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
 		imagePaths.push_back(entry.path().string());
@@ -214,6 +230,7 @@ void FindImages() {
 	}
 }
 
+// generate heightfield
 void generateField() {
 	// load the image from a jpeg disk file to main memory
 	string imagePath = imagePaths[currentImageIndex];
@@ -380,31 +397,40 @@ void generateField() {
 }
 
 
-
+int delay = 8; // hard coded for recording on 120 fps monitor
+int currentFrame = 0;
 void idleFunc() {
+	// save 15 screenshots per second
+	if (isTakingScreenshot && currentFrame % 8 == 0) {
+		saveScreenshot();
+	}
+
 	// make the screen update 
 	glutPostRedisplay();
+	currentFrame++;
 }
 
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	// reset
 	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	matrix.LoadIdentity();
 	matrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
 				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
 				  0, 1, 0);
 
+	// apply transformations
 	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
 	matrix.Rotate(landRotate[0], 1, 0, 0);
 	matrix.Rotate(landRotate[1], 0, 1, 0);
 	matrix.Rotate(landRotate[2], 0, 0, 1);
 	matrix.Scale(landScale[0], landScale[1], landScale[2]);
 
+	// get matrices
 	float m[16];
 	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	matrix.GetMatrix(m);
-
 	float p[16];
 	matrix.SetMatrixMode(OpenGLMatrix::Projection);
 	matrix.GetMatrix(p);
@@ -416,6 +442,7 @@ void displayFunc() {
 	pipelineProgram->SetModelViewMatrix(m);
 	pipelineProgram->SetProjectionMatrix(p);
 
+	// draw
 	vaos[currentVaoIndex]->Draw();
 	if ((currentVaoIndex == 2 || currentVaoIndex == 3) && wireframeEnabled) {
 		vaos[4]->Draw();
@@ -425,7 +452,8 @@ void displayFunc() {
 }
 
 void keyboardFunc(unsigned char key, int x, int y) {
-	GLint modeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "mode");
+	GLint polygonModeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "polygonMode");
+	GLint lightModeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightMode");
 
 	switch (key) {
 		case 27: // ESC key
@@ -436,33 +464,53 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			cout << "You pressed the spacebar." << endl;
 			break;
 
+		// change light position
+		//case 'w':
+		//	light_pos[2] += lightTranslateSpeed;
+		//	break;
+		//case 's':
+		//	light_pos[2] -= lightTranslateSpeed;
+		//	break;
+		//case 'a':
+		//	light_pos[0] -= lightTranslateSpeed;
+		//	break;
+		//case 'd':
+		//	light_pos[0] += lightTranslateSpeed;
+		//	break;
+		//case 'q':
+		//	light_pos[1] -= lightTranslateSpeed;
+		//	break;
+		//case 'e':
+		//	light_pos[1] += lightTranslateSpeed;
+		//	break;
+
+		// toggle screenshots recording
 		case 'x':
-			// take a screenshot
-			saveScreenshot();
+			isTakingScreenshot = !isTakingScreenshot;
 			break;
 
 		// point mode
 		case '1':
 			currentVaoIndex = 0;
-			glUniform1i(modeLoc, 0);
+			glUniform1i(polygonModeLoc, 0);
 			break;
 
 		// line mode
 		case '2':
 			currentVaoIndex = 1;
-			glUniform1i(modeLoc, 0);
+			glUniform1i(polygonModeLoc, 0);
 			break;
 
 		// triangle mode
 		case '3':
 			currentVaoIndex = 2;
-			glUniform1i(modeLoc, 0);
+			glUniform1i(polygonModeLoc, 0);
 			break;
 
 		// smoothened mode
 		case '4':
 			currentVaoIndex = 3;
-			glUniform1i(modeLoc, 1);
+			glUniform1i(polygonModeLoc, 1);
 			break;
 	
 		// previous image
@@ -487,6 +535,24 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case 'l':
 			wireframeEnabled = !wireframeEnabled;
 			break;
+
+		// default lighting
+		case 'v':
+			glUniform1i(lightModeLoc, 0);
+			break;
+		// default lighting
+		case 'b':
+			glUniform1i(lightModeLoc, 1);
+			break;
+		// default lighting
+		case 'n':
+			glUniform1i(lightModeLoc, 2);
+			break;
+		// default lighting
+		case 'm':
+			glUniform1i(lightModeLoc, 3);
+			break;
+
 	}
 }
 
@@ -601,25 +667,22 @@ void reshapeFunc(int w, int h) {
 
 void initScene() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glEnable(GL_DEPTH_TEST);
 
-	// enable polygon offset
+	// polygon offset
 	glEnable(GL_POLYGON_OFFSET_FILL);
 	glPolygonOffset(1, 1);
 
-	// set restart index
+	// restart index
 	glEnable(GL_PRIMITIVE_RESTART);
 	glPrimitiveRestartIndex(restartIndex);
 
-	// create pipeline
+	// pipeline
 	pipelineProgram = new BasicPipelineProgram;
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
 
-
 	generateField();
-
-
-	glEnable(GL_DEPTH_TEST);
 
 	cout << "\nGL error: " << glGetError() << endl;
 }
