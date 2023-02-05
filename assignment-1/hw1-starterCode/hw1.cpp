@@ -54,7 +54,7 @@ float landRotate[3] = { 0.0f, 0.0f, 0.0f };
 float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
-// set up the parameters for lighting 
+// lighting 
 vec4 light_pos = vec4(0, 0, 0, 1);
 vec4 light_ambient = vec4( 1, 1, 1, 1);
 vec4 light_diffuse = vec4(.8, .8, .8, 1);
@@ -64,17 +64,17 @@ vec4 mat_diffuse = vec4(1, 1, 1, 1);
 vec4 mat_specular = vec4(.9, .9, .9, 1);
 float mat_shine = 50;
 
+// display window
 int windowWidth = 1280;
 int windowHeight = 720;
 char windowTitle[512] = "CSCI 420 homework I";
 
+// images
 ImageIO* heightmapImage;
 string imageDirectory = "./heightmap";
 vector<string> imagePaths;
 int currentImageIndex = 0;
-
-vec4 defaultColor = vec4(0.18, 0.75, 0.98, 1);
-//vec4 defaultColor = vec4(1);
+int screenshotIndex = 0;
 
 float heightScalar = 0.3f;
 vec3 fieldCenter;
@@ -86,17 +86,18 @@ float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
 const int restartIndex = -1;
+bool wireframeEnabled = false;
 
 
 // object that handles VAO related operations
-class VertexArrayObject {
+class SimpleVertexArrayObject {
 public:
 	GLuint positionBuffer, colorBuffer, indexBuffer;
 	GLuint vertexArray;
 	GLenum drawMode = GL_POINTS;
 	int numVertices, numColors, numIndices;
 
-	VertexArrayObject(vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
+	SimpleVertexArrayObject(vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
 		numVertices = positions.size();
 		numColors = colors.size();
 		numIndices = indices.size();
@@ -181,29 +182,26 @@ public:
 	}
 };
 
-// 0: points, 1: lines, 2: triangles, 3: smoothened
-VertexArrayObject* vaos[5];
+// 0: points, 1: lines, 2: triangles, 3: smoothened, 4: wireframe for 2
+SimpleVertexArrayObject* vaos[5];
 int currentVaoIndex = 0;
 
 
 // write a screenshot to the specified filename
-void saveScreenshot(const char* filename) {
+void saveScreenshot() {
+	string filename = "screenshot_" + to_string(screenshotIndex + 1) + ".jpg";
 	unsigned char* screenshotData = new unsigned char[windowWidth * windowHeight * 3];
 	glReadPixels(0, 0, windowWidth, windowHeight, GL_RGB, GL_UNSIGNED_BYTE, screenshotData);
 
 	ImageIO screenshotImg(windowWidth, windowHeight, 3, screenshotData);
 
-	if (screenshotImg.save(filename, ImageIO::FORMAT_JPEG) == ImageIO::OK)
+	if (screenshotImg.save(filename.c_str(), ImageIO::FORMAT_JPEG) == ImageIO::OK) {
 		cout << "File " << filename << " saved successfully." << endl;
+		screenshotIndex++;
+	}
 	else cout << "Failed to save file " << filename << '.' << endl;
 
 	delete[] screenshotData;
-}
-
-// calculate color value based on given height value
-vec4 calculateColor(float value) {
-	vec4 normalized = defaultColor * value;
-	return vec4(normalized.x, normalized.y, normalized.z, defaultColor.w);
 }
 
 void FindImages() {
@@ -219,9 +217,6 @@ void FindImages() {
 void generateField() {
 	// load the image from a jpeg disk file to main memory
 	string imagePath = imagePaths[currentImageIndex];
-
-	// debug
-	//imagePath = "./heightmap/GrandTeton-768.jpg";
 
 	heightmapImage = new ImageIO();
 	if (heightmapImage->loadJPEG(imagePath.c_str()) != ImageIO::OK) {
@@ -328,11 +323,9 @@ void generateField() {
 	light_pos = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
 	// create VAOs
-	vaos[0] = new VertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
-	vaos[1] = new VertexArrayObject(vertexPositions, vertexColors, lineIndices, GL_LINES);
-	vaos[2] = new VertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
-
-	glPointSize(10);
+	vaos[0] = new SimpleVertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
+	vaos[1] = new SimpleVertexArrayObject(vertexPositions, vertexColors, lineIndices, GL_LINES);
+	vaos[2] = new SimpleVertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 	// init mode 1
 	// heights of points of top, bottom, left, right
@@ -358,7 +351,7 @@ void generateField() {
 			neighborHeights.push_back(neighborHeight);
 		}
 	}
-	vaos[3] = new VertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
+	vaos[3] = new SimpleVertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 	GLuint heightsBuffer;
 	glGenBuffers(1, &heightsBuffer);
@@ -370,15 +363,17 @@ void generateField() {
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
-	// debug 
+	vector<vec4> wireframeColors;
+	for (int i = 0; i < vertexColors.size(); i++) {
+		wireframeColors.push_back(vec4(1));
+	}
+	vaos[4] = new SimpleVertexArrayObject(vertexPositions, wireframeColors, lineIndices, GL_LINES);
 
-	vaos[4] = new VertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
-	 heightsBuffer;
 	glGenBuffers(1, &heightsBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);  // bind the VBO buffer
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4)* neighborHeights.size(), &neighborHeights[0], GL_STATIC_DRAW);
 
-	 loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
+	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
 	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
@@ -387,10 +382,6 @@ void generateField() {
 
 
 void idleFunc() {
-	// do some stuff... 
-
-	// for example, here, you can save the screenshots to disk (to make the animation)
-
 	// make the screen update 
 	glutPostRedisplay();
 }
@@ -426,6 +417,9 @@ void displayFunc() {
 	pipelineProgram->SetProjectionMatrix(p);
 
 	vaos[currentVaoIndex]->Draw();
+	if ((currentVaoIndex == 2 || currentVaoIndex == 3) && wireframeEnabled) {
+		vaos[4]->Draw();
+	}
 
 	glutSwapBuffers();
 }
@@ -444,7 +438,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 
 		case 'x':
 			// take a screenshot
-			saveScreenshot("screenshot.jpg");
+			saveScreenshot();
 			break;
 
 		// point mode
@@ -470,14 +464,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			currentVaoIndex = 3;
 			glUniform1i(modeLoc, 1);
 			break;
-		
-		// debug
-
-		case '5':
-			currentVaoIndex = 4;
-			glUniform1i(modeLoc, 1);
-			break;
-
+	
 		// previous image
 		case 'o':
 			currentImageIndex--;
@@ -494,6 +481,11 @@ void keyboardFunc(unsigned char key, int x, int y) {
 				currentImageIndex = 0;
 			}
 			generateField();
+			break;
+
+		// toggle wireframe display
+		case 'l':
+			wireframeEnabled = !wireframeEnabled;
 			break;
 	}
 }
@@ -609,6 +601,10 @@ void reshapeFunc(int w, int h) {
 
 void initScene() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	// enable polygon offset
+	glEnable(GL_POLYGON_OFFSET_FILL);
+	glPolygonOffset(1, 1);
 
 	// set restart index
 	glEnable(GL_PRIMITIVE_RESTART);
