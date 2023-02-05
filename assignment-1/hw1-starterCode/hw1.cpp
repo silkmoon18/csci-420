@@ -54,6 +54,16 @@ float landRotate[3] = { 0.0f, 0.0f, 0.0f };
 float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
+// set up the parameters for lighting 
+vec4 light_pos = vec4(0, 0, 0, 1);
+vec4 light_ambient = vec4( 1, 1, 1, 1);
+vec4 light_diffuse = vec4(.8, .8, .8, 1);
+vec4 light_specular = vec4(1, 1, 1, 1);
+vec4 mat_ambient = vec4(1, 1, 1, 1);
+vec4 mat_diffuse = vec4(1, 1, 0, 1);
+vec4 mat_specular = vec4(.9, .9, .9, 1);
+float mat_shine = 50;
+
 int windowWidth = 1280;
 int windowHeight = 720;
 char windowTitle[512] = "CSCI 420 homework I";
@@ -64,6 +74,7 @@ vector<string> imagePaths;
 int currentImageIndex = 0;
 
 vec4 defaultColor = vec4(0.18, 0.75, 0.98, 1);
+//vec4 defaultColor = vec4(1);
 
 float heightScalar = 0.3f;
 vec3 fieldCenter;
@@ -141,6 +152,27 @@ public:
 	}
 
 	void Draw() {
+		// lighting
+		GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
+		glUniform4f(loc, light_pos[0], light_pos[1], light_pos[2], light_pos[3]);
+
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
+		glUniform4f(loc, mat_ambient[0], mat_ambient[1], mat_ambient[2], mat_ambient[3]);
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
+		glUniform4f(loc, mat_diffuse[0], mat_diffuse[1], mat_diffuse[2], mat_diffuse[3]);
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
+		glUniform4f(loc, mat_specular[0], mat_specular[1], mat_specular[2], mat_specular[3]);
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
+		glUniform1f(loc, mat_shine);
+
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightAmbient");
+		glUniform4f(loc, light_ambient[0], light_ambient[1], light_ambient[2], light_ambient[3]);
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightDiffuse");
+		glUniform4f(loc, light_diffuse[0], light_diffuse[1], light_diffuse[2], light_diffuse[3]);
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightSpecular");
+		glUniform4f(loc, light_specular[0], light_specular[1], light_specular[2], light_specular[3]);
+
+
 		glBindVertexArray(vertexArray);
 		glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
 	}
@@ -272,8 +304,11 @@ void generateField() {
 			}
 		}
 	}
+
+	// set other positions
 	fieldCenter = vec3(width / 2.0f + xOffset, yOffset, -height / 2.0f + zOffset);
 	eyePosition = vec3(fieldCenter.x, fieldCenter.y + maxHeight, height * 1.25f);
+	light_pos = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
 	// create VAOs
 	vaos[0] = new VertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);

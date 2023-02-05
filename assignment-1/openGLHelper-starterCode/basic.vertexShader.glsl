@@ -11,10 +11,25 @@ in vec4 neighborHeights;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
+uniform vec4 lightPosition;
+
 uniform int mode = 0;
+
+out vec4 eyePosition;
+out mat4 normalMatrix;
+out vec3 vertexNormal;
+out vec3 lightVector;
 
 void main()
 {
+
+  eyePosition = modelViewMatrix * vec4(position, 1.0);
+  normalMatrix = transpose(inverse(modelViewMatrix));
+
+  vertexNormal = normalize(vec3(normalMatrix * vec4(position, 0.0)));
+
+  lightVector = normalize(vec3(lightPosition - eyePosition));
+
   // compute the transformed and projected vertex position (into gl_Position) 
   // compute the vertex color (into col)
   switch (mode) {
