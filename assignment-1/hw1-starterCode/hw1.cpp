@@ -15,6 +15,7 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include <filesystem>
 
 #if defined(WIN32) || defined(_WIN32)
 #ifdef _DEBUG
@@ -34,6 +35,11 @@ using namespace std;
 using namespace glm;
 
 
+
+
+OpenGLMatrix matrix;
+BasicPipelineProgram* pipelineProgram;
+
 int mousePos[2]; // x,y coordinate of the mouse position
 
 int leftMouseButton = 0; // 1 if pressed, 0 if not 
@@ -42,7 +48,6 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
-
 
 // state of the world
 float landRotate[3] = { 0.0f, 0.0f, 0.0f };
@@ -54,14 +59,15 @@ int windowHeight = 720;
 char windowTitle[512] = "CSCI 420 homework I";
 
 ImageIO* heightmapImage;
+string imageDirectory = "./heightmap";
+vector<string> imagePaths;
+int currentImageIndex = 0;
 
 vec4 defaultColor = vec4(0.18, 0.75, 0.98, 1);
+
 float heightScalar = 0.3f;
 vec3 fieldCenter;
 vec3 eyePosition;
-
-OpenGLMatrix matrix;
-BasicPipelineProgram* pipelineProgram;
 
 // control speeds
 float translateSpeed = 0.1f;
@@ -69,6 +75,7 @@ float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
 const int restartIndex = -1;
+
 
 // object that handles VAO related operations
 class VertexArrayObject {
@@ -144,14 +151,6 @@ VertexArrayObject* vaos[4];
 int currentVaoIndex = 0;
 
 
-
-
-// calculate color value based on given height value
-vec4 calculateColor(float value) {
-	vec4 normalized = defaultColor * value;
-	return vec4(normalized.x, normalized.y, normalized.z, defaultColor.w);
-}
-
 // write a screenshot to the specified filename
 void saveScreenshot(const char* filename) {
 	unsigned char* screenshotData = new unsigned char[windowWidth * windowHeight * 3];
@@ -166,222 +165,39 @@ void saveScreenshot(const char* filename) {
 	delete[] screenshotData;
 }
 
-
-void idleFunc() {
-	// do some stuff... 
-
-	// for example, here, you can save the screenshots to disk (to make the animation)
-
-	// make the screen update 
-	glutPostRedisplay();
+// calculate color value based on given height value
+vec4 calculateColor(float value) {
+	vec4 normalized = defaultColor * value;
+	return vec4(normalized.x, normalized.y, normalized.z, defaultColor.w);
 }
 
-void displayFunc() {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.LoadIdentity();
-	matrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
-				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
-				  0, 1, 0);
-
-	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
-	matrix.Rotate(landRotate[0], 1, 0, 0);
-	matrix.Rotate(landRotate[1], 0, 1, 0);
-	matrix.Rotate(landRotate[2], 0, 0, 1);
-	matrix.Scale(landScale[0], landScale[1], landScale[2]);
-
-	float m[16];
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.GetMatrix(m);
-
-	float p[16];
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.GetMatrix(p);
-
-	// bind shader
-	pipelineProgram->Bind();
-
-	// set variable
-	pipelineProgram->SetModelViewMatrix(m);
-	pipelineProgram->SetProjectionMatrix(p);
-
-	vaos[currentVaoIndex]->Draw();
-
-	glutSwapBuffers();
-}
-
-void keyboardFunc(unsigned char key, int x, int y) {
-	GLint modeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "mode");
-
-	switch (key) {
-		case 27: // ESC key
-			exit(0); // exit the program
-			break;
-
-		case ' ':
-			cout << "You pressed the spacebar." << endl;
-			break;
-
-		case 'x':
-			// take a screenshot
-			saveScreenshot("screenshot.jpg");
-			break;
-
-		case '1':
-			currentVaoIndex = 0;
-			glUniform1i(modeLoc, 0);
-			break;
-
-		case '2':
-			currentVaoIndex = 1;
-			glUniform1i(modeLoc, 0);
-			break;
-
-		case '3':
-			currentVaoIndex = 2;
-			glUniform1i(modeLoc, 0);
-			break;
-
-		case '4':
-			currentVaoIndex = 3;
-			glUniform1i(modeLoc, 1);
-			break;
+void FindImages() {
+	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
+		imagePaths.push_back(entry.path().string());
+		printf("Image found: %s\n", entry.path().string().c_str());
+	}
+	if (imagePaths.size() == 0) {
+		printf("error: no images found. \n");
 	}
 }
 
-void mouseButtonFunc(int button, int state, int x, int y) {
-	// a mouse button has has been pressed or depressed
-
-	// keep track of the mouse button state, in leftMouseButton, middleMouseButton, rightMouseButton variables
-	switch (button) {
-		case GLUT_LEFT_BUTTON:
-			leftMouseButton = (state == GLUT_DOWN);
-			break;
-
-		case GLUT_MIDDLE_BUTTON:
-			middleMouseButton = (state == GLUT_DOWN);
-			break;
-
-		case GLUT_RIGHT_BUTTON:
-			rightMouseButton = (state == GLUT_DOWN);
-			break;
-	}
-
-	// keep track of whether CTRL and SHIFT keys are pressed
-	switch (glutGetModifiers()) {
-		case GLUT_ACTIVE_CTRL:
-			controlState = TRANSLATE;
-			break;
-
-		case GLUT_ACTIVE_SHIFT:
-			controlState = SCALE;
-			break;
-
-			// if CTRL and SHIFT are not pressed, we are in rotate mode
-		default:
-			controlState = ROTATE;
-			break;
-	}
-
-	// store the new mouse position
-	mousePos[0] = x;
-	mousePos[1] = y;
-}
-
-void mouseMotionDragFunc(int x, int y) {
-	// mouse has moved and one of the mouse buttons is pressed (dragging)
-
-	// the change in mouse position since the last invocation of this function
-	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
-
-	switch (controlState) {
-		// translate the landscape
-		case TRANSLATE:
-			if (leftMouseButton) {
-				// control x,y translation via the left mouse button
-				landTranslate[0] += mousePosDelta[0] * translateSpeed;
-				landTranslate[1] -= mousePosDelta[1] * translateSpeed;
-			}
-			if (middleMouseButton) {
-				// control z translation via the middle mouse button
-				landTranslate[2] += mousePosDelta[1] * translateSpeed;
-			}
-			break;
-
-			// rotate the landscape
-		case ROTATE:
-			if (leftMouseButton) {
-				// control x,y rotation via the left mouse button
-				landRotate[0] += mousePosDelta[1] * rotateSpeed;
-				landRotate[1] += mousePosDelta[0] * rotateSpeed;
-			}
-			if (middleMouseButton) {
-				// control z rotation via the middle mouse button
-				landRotate[2] += mousePosDelta[1] * rotateSpeed;
-			}
-			break;
-
-			// scale the landscape
-		case SCALE:
-			if (leftMouseButton) {
-				// control x,y scaling via the left mouse button
-				landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
-				landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-			}
-			if (middleMouseButton) {
-				// control z scaling via the middle mouse button
-				landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-			}
-			break;
-	}
-
-	// store the new mouse position
-	mousePos[0] = x;
-	mousePos[1] = y;
-}
-
-void mouseMotionFunc(int x, int y) {
-	// mouse has moved
-	// store the new mouse position
-	mousePos[0] = x;
-	mousePos[1] = y;
-}
-
-void reshapeFunc(int w, int h) {
-	glViewport(0, 0, w, h);
-
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.LoadIdentity();
-	matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
-
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-
-}
-
-void initScene(int argc, char* argv[]) {
+void generateField() {
 	// load the image from a jpeg disk file to main memory
+	string imagePath = imagePaths[currentImageIndex];
+
+	// debug
+	//imagePath = "./heightmap/GrandTeton-768.jpg";
+
 	heightmapImage = new ImageIO();
-	if (heightmapImage->loadJPEG(argv[1]) != ImageIO::OK) {
-		cout << "Error reading image " << argv[1] << "." << endl;
+	if (heightmapImage->loadJPEG(imagePath.c_str()) != ImageIO::OK) {
+		cout << "Error reading image " << imagePath << "." << endl;
 		exit(EXIT_FAILURE);
 	}
-
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-	// set restart index
-	glEnable(GL_PRIMITIVE_RESTART);
-	glPrimitiveRestartIndex(restartIndex);
-
-	// create pipeline
-	pipelineProgram = new BasicPipelineProgram;
-	int ret = pipelineProgram->Init(shaderBasePath);
-	if (ret != 0) abort();
 
 	// read image
 	int width = heightmapImage->getWidth();
 	int height = heightmapImage->getHeight();
-	printf("\nImage info: \n\tfilename: %s, width: %i, height: %i, number of pixels: %i. \n\n", argv[1], width, height, width * height);
+	printf("\nImage info: \n\tfilename: %s, width: %i, height: %i, number of pixels: %i. \n\n", imagePath.c_str(), width, height, width * height);
 
 	// vertex attributes
 	vector<vec3> vertexPositions;
@@ -501,7 +317,237 @@ void initScene(int argc, char* argv[]) {
 	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+}
 
+
+
+void idleFunc() {
+	// do some stuff... 
+
+	// for example, here, you can save the screenshots to disk (to make the animation)
+
+	// make the screen update 
+	glutPostRedisplay();
+}
+
+void displayFunc() {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	matrix.LoadIdentity();
+	matrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
+				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
+				  0, 1, 0);
+
+	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
+	matrix.Rotate(landRotate[0], 1, 0, 0);
+	matrix.Rotate(landRotate[1], 0, 1, 0);
+	matrix.Rotate(landRotate[2], 0, 0, 1);
+	matrix.Scale(landScale[0], landScale[1], landScale[2]);
+
+	float m[16];
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	matrix.GetMatrix(m);
+
+	float p[16];
+	matrix.SetMatrixMode(OpenGLMatrix::Projection);
+	matrix.GetMatrix(p);
+
+	// bind shader
+	pipelineProgram->Bind();
+
+	// set variable
+	pipelineProgram->SetModelViewMatrix(m);
+	pipelineProgram->SetProjectionMatrix(p);
+
+	vaos[currentVaoIndex]->Draw();
+
+	glutSwapBuffers();
+}
+
+void keyboardFunc(unsigned char key, int x, int y) {
+	GLint modeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "mode");
+
+	switch (key) {
+		case 27: // ESC key
+			exit(0); // exit the program
+			break;
+
+		case ' ':
+			cout << "You pressed the spacebar." << endl;
+			break;
+
+		case 'x':
+			// take a screenshot
+			saveScreenshot("screenshot.jpg");
+			break;
+
+		// point mode
+		case '1':
+			currentVaoIndex = 0;
+			glUniform1i(modeLoc, 0);
+			break;
+
+		// line mode
+		case '2':
+			currentVaoIndex = 1;
+			glUniform1i(modeLoc, 0);
+			break;
+
+		// triangle mode
+		case '3':
+			currentVaoIndex = 2;
+			glUniform1i(modeLoc, 0);
+			break;
+
+		// smoothened mode
+		case '4':
+			currentVaoIndex = 3;
+			glUniform1i(modeLoc, 1);
+			break;
+
+		// previous image
+		case 'o':
+			currentImageIndex--;
+			if (currentImageIndex < 0) {
+				currentImageIndex = imagePaths.size() - 1;
+			}
+			generateField();
+			break;
+
+		// next image
+		case 'p':
+			currentImageIndex++;
+			if (currentImageIndex == imagePaths.size()) {
+				currentImageIndex = 0;
+			}
+			generateField();
+			break;
+	}
+}
+
+void mouseButtonFunc(int button, int state, int x, int y) {
+	// a mouse button has has been pressed or depressed
+
+	// keep track of the mouse button state, in leftMouseButton, middleMouseButton, rightMouseButton variables
+	switch (button) {
+		case GLUT_LEFT_BUTTON:
+			leftMouseButton = (state == GLUT_DOWN);
+			break;
+
+		case GLUT_MIDDLE_BUTTON:
+			middleMouseButton = (state == GLUT_DOWN);
+			break;
+
+		case GLUT_RIGHT_BUTTON:
+			rightMouseButton = (state == GLUT_DOWN);
+			break;
+	}
+
+	// keep track of whether CTRL and SHIFT keys are pressed
+	switch (glutGetModifiers()) {
+		case GLUT_ACTIVE_CTRL:
+			controlState = TRANSLATE;
+			break;
+
+		case GLUT_ACTIVE_SHIFT:
+			controlState = SCALE;
+			break;
+
+			// if CTRL and SHIFT are not pressed, we are in rotate mode
+		default:
+			controlState = ROTATE;
+			break;
+	}
+
+	// store the new mouse position
+	mousePos[0] = x;
+	mousePos[1] = y;
+}
+
+void mouseMotionDragFunc(int x, int y) {
+	// mouse has moved and one of the mouse buttons is pressed (dragging)
+
+	// the change in mouse position since the last invocation of this function
+	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
+
+	switch (controlState) {
+		// translate the landscape
+		case TRANSLATE:
+			if (leftMouseButton) {
+				// control x,y translation via the left mouse button
+				landTranslate[0] += mousePosDelta[0] * translateSpeed;
+				landTranslate[1] -= mousePosDelta[1] * translateSpeed;
+			}
+			if (middleMouseButton) {
+				// control z translation via the middle mouse button
+				landTranslate[2] += mousePosDelta[1] * translateSpeed;
+			}
+			break;
+
+			// rotate the landscape
+		case ROTATE:
+			if (leftMouseButton) {
+				// control x,y rotation via the left mouse button
+				landRotate[0] += mousePosDelta[1] * rotateSpeed;
+				landRotate[1] += mousePosDelta[0] * rotateSpeed;
+			}
+			if (middleMouseButton) {
+				// control z rotation via the middle mouse button
+				landRotate[2] += mousePosDelta[1] * rotateSpeed;
+			}
+			break;
+
+			// scale the landscape
+		case SCALE:
+			if (leftMouseButton) {
+				// control x,y scaling via the left mouse button
+				landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
+				landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
+			}
+			if (middleMouseButton) {
+				// control z scaling via the middle mouse button
+				landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
+			}
+			break;
+	}
+
+	// store the new mouse position
+	mousePos[0] = x;
+	mousePos[1] = y;
+}
+
+void mouseMotionFunc(int x, int y) {
+	// mouse has moved
+	// store the new mouse position
+	mousePos[0] = x;
+	mousePos[1] = y;
+}
+
+void reshapeFunc(int w, int h) {
+	glViewport(0, 0, w, h);
+
+	matrix.SetMatrixMode(OpenGLMatrix::Projection);
+	matrix.LoadIdentity();
+	matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 3000.0f);
+
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+
+}
+
+void initScene() {
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	// set restart index
+	glEnable(GL_PRIMITIVE_RESTART);
+	glPrimitiveRestartIndex(restartIndex);
+
+	// create pipeline
+	pipelineProgram = new BasicPipelineProgram;
+	int ret = pipelineProgram->Init(shaderBasePath);
+	if (ret != 0) abort();
+
+	generateField();
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -573,7 +619,8 @@ int main(int argc, char* argv[]) {
 #endif
 
 	// do initialization
-	initScene(argc, argv);
+	FindImages();
+	initScene();
 
 	// sink forever into the glut loop
 	glutMainLoop();

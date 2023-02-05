@@ -28,7 +28,6 @@ void main()
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, smoothenedHeight, position.z, 1.0f);
 
 		vec4 smoothenedColor = smoothenedHeight * max(color, vec4(eps)) / max(position.y, eps);
-		smoothenedColor.w = 1.0f;
 		col = smoothenedColor;
 
 		break;
@@ -37,7 +36,7 @@ void main()
 		break;
 		
   }
-
   col /= 255.0f;
+  col.w = 1.0f;
 }
 
