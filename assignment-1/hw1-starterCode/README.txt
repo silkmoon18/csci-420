@@ -3,6 +3,8 @@ Author: Baihua Yang
 
 Description: Create a heightfield based on given input image.
 
+c++ version: ISO C++17 Standard
+
 To run the program, specify the path of image directory. For instance: hw1.exe C:\heightmap.
 
 

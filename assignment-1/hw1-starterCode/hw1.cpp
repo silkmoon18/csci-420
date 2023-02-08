@@ -55,14 +55,14 @@ float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
 // lighting 
-vec4 light_pos = vec4(0, 0, 0, 1);
-vec4 light_ambient = vec4( 1, 1, 1, 1);
-vec4 light_diffuse = vec4(.8, .8, .8, 1);
-vec4 light_specular = vec4(1, 1, 1, 1);
-vec4 mat_ambient = vec4(1, 1, 1, 1);
-vec4 mat_diffuse = vec4(1, 1, 1, 1);
-vec4 mat_specular = vec4(.9, .9, .9, 1);
-float mat_shine = 5;
+vec4 lightPosition = vec4(0, 0, 0, 1);
+vec4 lightAmbient = vec4( 1, 1, 1, 1);
+vec4 lightDiffuse = vec4(.8, .8, .8, 1);
+vec4 lightSpecular = vec4(1, 1, 1, 1);
+vec4 ambientCoef = vec4(0.5, 0.5, 0.5, 1);
+vec4 diffuseCoef = vec4(1, 1, 1, 1);
+vec4 specularCoef = vec4(.9, .9, .9, 1);
+float materialShininess = 1;
 
 // display window
 int windowWidth = 1280;
@@ -159,23 +159,23 @@ public:
 	void Draw() {
 		// lighting
 		GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
-		glUniform4f(loc, light_pos[0], light_pos[1], light_pos[2], light_pos[3]);
+		glUniform4f(loc, lightPosition[0], lightPosition[1], lightPosition[2], lightPosition[3]);
 
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
-		glUniform4f(loc, mat_ambient[0], mat_ambient[1], mat_ambient[2], mat_ambient[3]);
+		glUniform4f(loc, ambientCoef[0], ambientCoef[1], ambientCoef[2], ambientCoef[3]);
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
-		glUniform4f(loc, mat_diffuse[0], mat_diffuse[1], mat_diffuse[2], mat_diffuse[3]);
+		glUniform4f(loc, diffuseCoef[0], diffuseCoef[1], diffuseCoef[2], diffuseCoef[3]);
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
-		glUniform4f(loc, mat_specular[0], mat_specular[1], mat_specular[2], mat_specular[3]);
+		glUniform4f(loc, specularCoef[0], specularCoef[1], specularCoef[2], specularCoef[3]);
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
-		glUniform1f(loc, mat_shine);
+		glUniform1f(loc, materialShininess);
 
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightAmbient");
-		glUniform4f(loc, light_ambient[0], light_ambient[1], light_ambient[2], light_ambient[3]);
+		glUniform4f(loc, lightAmbient[0], lightAmbient[1], lightAmbient[2], lightAmbient[3]);
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightDiffuse");
-		glUniform4f(loc, light_diffuse[0], light_diffuse[1], light_diffuse[2], light_diffuse[3]);
+		glUniform4f(loc, lightDiffuse[0], lightDiffuse[1], lightDiffuse[2], lightDiffuse[3]);
 		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightSpecular");
-		glUniform4f(loc, light_specular[0], light_specular[1], light_specular[2], light_specular[3]);
+		glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
 
 		// send height scalar
 		GLint heightScaleLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "heightScale");
@@ -337,7 +337,7 @@ void generateField() {
 	// set other positions
 	fieldCenter = vec3(width / 2.0f + xOffset, 0, -height / 2.0f + zOffset);
 	eyePosition = vec3(fieldCenter.x, fieldCenter.y + maxHeight, height * 1.25f);
-	light_pos = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
+	lightPosition = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
 	// create VAOs
 	vaos[0] = new SimpleVertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
