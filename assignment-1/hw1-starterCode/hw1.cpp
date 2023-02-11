@@ -1,7 +1,6 @@
 ﻿/*
   CSCI 420 Computer Graphics, USC
   Assignment 1: Height Fields with Shaders.
-  C++ starter code
 
   Student username: Baihua Yang
 */
@@ -11,6 +10,7 @@
 #include "imageIO.h"
 #include "openGLHeader.h"
 #include "glutHeader.h"
+#include "Utility.h"
 
 #include <iostream>
 #include <cstring>
@@ -91,101 +91,6 @@ const int restartIndex = -1;
 bool wireframeEnabled = false;
 bool isTakingScreenshot = false;
 
-
-
-// object that handles VAO related operations
-class SimpleVertexArrayObject {
-public:
-	GLuint positionBuffer, colorBuffer, indexBuffer;
-	GLuint vertexArray;
-	GLenum drawMode = GL_POINTS;
-	int numVertices, numColors, numIndices;
-
-	SimpleVertexArrayObject(vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
-		numVertices = positions.size();
-		numColors = colors.size();
-		numIndices = indices.size();
-		if (numVertices == 0) {
-			printf("\nerror: the number of vertices cannot be 0. \n");
-			return;
-		}if (numColors == 0) {
-			printf("\nerror: the number of colors cannot be 0. \n");
-			return;
-		}if (numIndices == 0) {
-			printf("\nerror: the number of indices cannot be 0. \n");
-			return;
-		}if (numVertices != numColors) {
-			printf("\nerror: the number of vertices %i does not match the number of colors %i. \n", numVertices, numColors);
-			return;
-		}
-
-		this->drawMode = drawMode;
-
-		// vertex array
-		glGenVertexArrays(1, &vertexArray);
-		glBindVertexArray(vertexArray);
-
-		// position data
-		glGenBuffers(1, &positionBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numVertices, &positions[0], GL_STATIC_DRAW);
-
-		// color data
-		glGenBuffers(1, &colorBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numColors, &colors[0], GL_STATIC_DRAW);
-
-		// index data
-		glGenBuffers(1, &indexBuffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * numIndices, &indices[0], GL_STATIC_DRAW);
-
-		// position attribute
-		GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
-		glEnableVertexAttribArray(loc);
-		glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-		// color attribute
-		loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-		glEnableVertexAttribArray(loc);
-		glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-
-		printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
-	}
-
-	void Draw() {
-		// lighting
-		GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
-		glUniform4f(loc, lightPosition[0], lightPosition[1], lightPosition[2], lightPosition[3]);
-
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
-		glUniform4f(loc, ambientCoef[0], ambientCoef[1], ambientCoef[2], ambientCoef[3]);
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
-		glUniform4f(loc, diffuseCoef[0], diffuseCoef[1], diffuseCoef[2], diffuseCoef[3]);
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
-		glUniform4f(loc, specularCoef[0], specularCoef[1], specularCoef[2], specularCoef[3]);
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
-		glUniform1f(loc, materialShininess);
-
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightAmbient");
-		glUniform4f(loc, lightAmbient[0], lightAmbient[1], lightAmbient[2], lightAmbient[3]);
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightDiffuse");
-		glUniform4f(loc, lightDiffuse[0], lightDiffuse[1], lightDiffuse[2], lightDiffuse[3]);
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightSpecular");
-		glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
-
-		// send height scalar
-		GLint heightScaleLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "heightScale");
-		glUniform1f(heightScaleLoc, heightScalar);
-
-		glBindVertexArray(vertexArray);
-		glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
-	}
-};
-
 // 0: points, 1: lines, 2: triangles, 3: smoothened, 4: wireframe for 2
 SimpleVertexArrayObject* vaos[5];
 int currentVaoIndex = 0;
@@ -228,6 +133,32 @@ void FindImages() {
 	if (imagePaths.size() == 0) {
 		printf("error: no images found. \n");
 	}
+}
+
+void setUniforms() {
+	// set height scalar
+	GLint heightScaleLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "heightScale");
+	glUniform1f(heightScaleLoc, heightScalar);
+
+	// set lightings
+	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
+	glUniform4f(loc, lightPosition[0], lightPosition[1], lightPosition[2], lightPosition[3]);
+
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
+	glUniform4f(loc, ambientCoef[0], ambientCoef[1], ambientCoef[2], ambientCoef[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
+	glUniform4f(loc, diffuseCoef[0], diffuseCoef[1], diffuseCoef[2], diffuseCoef[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
+	glUniform4f(loc, specularCoef[0], specularCoef[1], specularCoef[2], specularCoef[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
+	glUniform1f(loc, materialShininess);
+
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightAmbient");
+	glUniform4f(loc, lightAmbient[0], lightAmbient[1], lightAmbient[2], lightAmbient[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightDiffuse");
+	glUniform4f(loc, lightDiffuse[0], lightDiffuse[1], lightDiffuse[2], lightDiffuse[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightSpecular");
+	glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
 }
 
 // generate heightfield
@@ -340,9 +271,9 @@ void generateField() {
 	lightPosition = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
 	// create VAOs
-	vaos[0] = new SimpleVertexArrayObject(vertexPositions, vertexColors, pointIndices, GL_POINTS);
-	vaos[1] = new SimpleVertexArrayObject(vertexPositions, vertexColors, lineIndices, GL_LINES);
-	vaos[2] = new SimpleVertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
+	vaos[0] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, pointIndices, GL_POINTS);
+	vaos[1] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, lineIndices, GL_LINES);
+	vaos[2] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 	// init mode 1
 	// heights of points of top, bottom, left, right
@@ -368,7 +299,7 @@ void generateField() {
 			neighborHeights.push_back(neighborHeight);
 		}
 	}
-	vaos[3] = new SimpleVertexArrayObject(vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
+	vaos[3] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
 	GLuint heightsBuffer;
 	glGenBuffers(1, &heightsBuffer);
@@ -384,7 +315,7 @@ void generateField() {
 	for (vec4 color : wireframeColors) {
 		color = vec4(1);
 	}
-	vaos[4] = new SimpleVertexArrayObject(vertexPositions, wireframeColors, lineIndices, GL_LINES);
+	vaos[4] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, wireframeColors, lineIndices, GL_LINES);
 
 	glGenBuffers(1, &heightsBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);  // bind the VBO buffer
@@ -442,10 +373,13 @@ void displayFunc() {
 	pipelineProgram->SetModelViewMatrix(m);
 	pipelineProgram->SetProjectionMatrix(p);
 
+	// set uniforms
+	setUniforms();
+
 	// draw
-	vaos[currentVaoIndex]->Draw();
+	vaos[currentVaoIndex]->draw();
 	if ((currentVaoIndex == 2 || currentVaoIndex == 3) && wireframeEnabled) {
-		vaos[4]->Draw();
+		vaos[4]->draw();
 	}
 
 	glutSwapBuffers();
@@ -540,15 +474,15 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case 'v':
 			glUniform1i(lightModeLoc, 0);
 			break;
-		// default lighting
+		// ambient lighting
 		case 'b':
 			glUniform1i(lightModeLoc, 1);
 			break;
-		// default lighting
+		// diffuse lighting
 		case 'n':
 			glUniform1i(lightModeLoc, 2);
 			break;
-		// default lighting
+		// specular lighting
 		case 'm':
 			glUniform1i(lightModeLoc, 3);
 			break;
@@ -660,9 +594,6 @@ void reshapeFunc(int w, int h) {
 	matrix.SetMatrixMode(OpenGLMatrix::Projection);
 	matrix.LoadIdentity();
 	matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 3000.0f);
-
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-
 }
 
 void initScene() {

@@ -16,6 +16,7 @@
     <ClCompile Include="..\openGLHelper-starterCode\openGLMatrix.cpp" />
     <ClCompile Include="..\openGLHelper-starterCode\pipelineProgram.cpp" />
     <ClCompile Include="hw1.cpp" />
+    <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\external\imageIO\imageFormats.h" />
@@ -24,6 +25,7 @@
     <ClInclude Include="..\openGLHelper-starterCode\openGLHeader.h" />
     <ClInclude Include="..\openGLHelper-starterCode\openGLMatrix.h" />
     <ClInclude Include="..\openGLHelper-starterCode\pipelineProgram.h" />
+    <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\openGLHelper-starterCode\basic.fragmentShader.glsl" />

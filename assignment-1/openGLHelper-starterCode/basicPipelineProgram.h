@@ -1,4 +1,6 @@
-﻿#include "pipelineProgram.h"
+﻿#ifndef _BASIC_PIPELINE_PROGRAM_H_
+#define _BASIC_PIPELINE_PROGRAM_H_
+#include "pipelineProgram.h"
 
 class BasicPipelineProgram : public PipelineProgram
 {
@@ -15,3 +17,4 @@ protected:
   // Note: we use the following naming convention: h_name is a handle to the shader variable "name".
 };
 
+#endif
