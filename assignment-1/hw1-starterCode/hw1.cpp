@@ -54,6 +54,10 @@ float landRotate[3] = { 0.0f, 0.0f, 0.0f };
 float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
+// timer
+float previousTime;
+float deltaTime;
+
 // lighting 
 vec4 lightPosition = vec4(0, 0, 0, 1);
 vec4 lightAmbient = vec4( 1, 1, 1, 1);
@@ -365,6 +369,10 @@ void generateField() {
 int delay = 8; // hard coded for recording on 120 fps monitor
 int currentFrame = 0;
 void idleFunc() {
+	float currentTime = glutGet(GLUT_ELAPSED_TIME);
+	deltaTime = (currentTime - previousTime) / 1000.0f;
+	previousTime = currentTime;
+
 	// save 15 screenshots per second
 	if (isTakingScreenshot && currentFrame % 8 == 0) {
 		saveScreenshot();
