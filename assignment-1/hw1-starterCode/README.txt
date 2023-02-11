@@ -3,9 +3,11 @@ Author: Baihua Yang
 
 Description: Create a heightfield based on given input image.
 
+Platform: Windows 11
 c++ version: ISO C++17 Standard
 
-To run the program, specify the path of image directory. For instance: hw1.exe C:\heightmap.
+To run the program, specify the path of image directory. For instance: hw1.exe C:\heightmap. If run without specifying, the program will ask for one in terminal.
+
 
 
 Features:

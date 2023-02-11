@@ -70,9 +70,8 @@ int windowHeight = 720;
 char windowTitle[512] = "CSCI 420 homework I";
 
 // images
-ImageIO* heightmapImage;
-string imageDirectory = "./heightmap";
 vector<string> imagePaths;
+string imageDirectory;
 int currentImageIndex = 0;
 int screenshotIndex = 0;
 
@@ -124,15 +123,50 @@ void saveScreenshot() {
 	delete[] screenshotData;
 }
 
+ImageIO* tryReadImage(string imagePath) {
+	ImageIO* image = new ImageIO();
+	if (image->loadJPEG(imagePath.c_str()) != ImageIO::OK) {
+		return NULL;
+	}
+	return image;
+}
+
 // find images in directory
-void FindImages() {
+bool FindImages() {
+	printf("\n");
+	if (imageDirectory.empty()) {
+		printf("Error: image directory is not specified. \n");
+		return false;
+	}
+	if (!filesystem::exists(imageDirectory)) {
+		printf("Error: directory %s does not exist. \n", imageDirectory.c_str());
+		return false;
+	}
+
+	printf("Finding images...\n");
 	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
-		printf("Image found: %s\n", entry.path().string().c_str());
-		imagePaths.push_back(entry.path().string());
+		filesystem::path path = entry.path();
+
+		string extension = path.extension().string();
+		if (extension == ".jpg" || extension == ".jpeg") {
+			printf("Image found: %s\n", path.string().c_str());
+			imagePaths.push_back(path.string());
+		}
+		else {
+			printf("Error: file %s is not jpg. \n", path.string().c_str());
+		}
 	}
-	if (imagePaths.size() == 0) {
-		printf("error: no images found. \n");
+
+	int size = imagePaths.size();
+	if (size == 0) {
+		printf("Error: no images found. \n");
+		return false;
 	}
+	else {
+		printf("Found %i images in %s\n", size, imageDirectory.c_str());
+	}
+	printf("\n");
+	return true;
 }
 
 void setUniforms() {
@@ -161,20 +195,20 @@ void setUniforms() {
 	glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
 }
 
+
 // generate heightfield
 void generateField() {
 	// load the image from a jpeg disk file to main memory
-	string imagePath = imagePaths[currentImageIndex];
-
-	heightmapImage = new ImageIO();
-	if (heightmapImage->loadJPEG(imagePath.c_str()) != ImageIO::OK) {
-		cout << "Error reading image " << imagePath << "." << endl;
-		exit(EXIT_FAILURE);
+	string path = imagePaths[currentImageIndex];
+	ImageIO* image = tryReadImage(path);
+	if (!image) {
+		printf("Error: cannot read image %s. \n", path.c_str());
+		return;
 	}
 
 	// read image
-	int width = heightmapImage->getWidth();
-	int height = heightmapImage->getHeight();
+	int width = image->getWidth();
+	int height = image->getHeight();
 
 	// vertex attributes
 	vector<vec3> vertexPositions;
@@ -193,10 +227,10 @@ void generateField() {
 	vector<vector<float>> heights;
 	float maxHeight = 0;
 
-	bool isRGB = !(heightmapImage->getBytesPerPixel() == 1);
+	bool isRGB = !(image->getBytesPerPixel() == 1);
 
-	printf("\nImage info: \n\tfilename: %s, width: %i, height: %i, number of pixels: %i, rgb: %s. \n\n", 
-		   imagePath.c_str(), width, height, width * height, isRGB ? "true" : "false");
+	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i, rgb: %s. \n\n", 
+		   width, height, width * height, isRGB ? "true" : "false");
 
 	// init
 	for (int i = 0; i < width; i++) {
@@ -209,15 +243,15 @@ void generateField() {
 			// vertex color
 			vec4 color;
 			if (isRGB) {
-				float r = heightmapImage->getPixel(i, j, 0);
-				float g = heightmapImage->getPixel(i, j, 1);
-				float b = heightmapImage->getPixel(i, j, 2);
+				float r = image->getPixel(i, j, 0);
+				float g = image->getPixel(i, j, 1);
+				float b = image->getPixel(i, j, 2);
 				lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 				color = vec4(r, g, b, 255);
 				color.w = 1;
 			}
 			else {
-				lum = heightmapImage->getPixel(i, j, 0);
+				lum = image->getPixel(i, j, 0);
 				color = vec4(255, 255, 255, 255);
 				color.w = 1;
 			}
@@ -620,12 +654,16 @@ void initScene() {
 
 
 int main(int argc, char* argv[]) {
-	if (argc < 2) {
-		cout << "Please specify image directory. " << endl;
-		exit(EXIT_FAILURE);
+	if (argc > 1) {
+		imageDirectory = argv[1];
 	}
 
-	imageDirectory = argv[1];
+	bool isValid = FindImages();
+	while (!isValid) {
+		cout << "Please specify a directory that contains at least one jpg image: \n" << endl;
+		cin >> imageDirectory;
+		isValid = FindImages();
+	}
 
 	cout << "Initializing GLUT..." << endl;
 	glutInit(&argc, argv);
@@ -684,7 +722,6 @@ int main(int argc, char* argv[]) {
 #endif
 
 	// do initialization
-	FindImages();
 	initScene();
 
 	// sink forever into the glut loop
