@@ -15,7 +15,7 @@
     <ClCompile Include="..\openGLHelper-starterCode\basicPipelineProgram.cpp" />
     <ClCompile Include="..\openGLHelper-starterCode\openGLMatrix.cpp" />
     <ClCompile Include="..\openGLHelper-starterCode\pipelineProgram.cpp" />
-    <ClCompile Include="hw1.cpp" />
+    <ClCompile Include="hw2.cpp" />
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -35,6 +35,7 @@
     <ProjectGuid>{15913627-D497-4AA0-BD7E-734F0D40F7C9}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <ProjectName>hw2</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

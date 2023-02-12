@@ -24,34 +24,35 @@ out vec3 lightVector;
 void main()
 {
   // calculate lighting 
-  eyePosition = modelViewMatrix * vec4(position, 1.0);
-  normalMatrix = transpose(inverse(modelViewMatrix));
-  vertexNormal = normalize(vec3(normalMatrix * vec4(position, 0.0)));
-  lightVector = normalize(vec3(lightPosition - eyePosition));
+//  eyePosition = modelViewMatrix * vec4(position, 1.0);
+//  normalMatrix = transpose(inverse(modelViewMatrix));
+//  vertexNormal = normalize(vec3(normalMatrix * vec4(position, 0.0)));
+//  lightVector = normalize(vec3(lightPosition - eyePosition));
 
 
-  switch (polygonMode) {
-    // regular mode
-	case 0:
-		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0f);
-		col = color * (position.y / heightScale) / 255;
-		
-		break;
-
-	// smoothened mode
-	case 1:
-		float smoothenedHeight = (neighborHeights.x + neighborHeights.y + neighborHeights.z + neighborHeights.w) / 4.0f;
-		gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, smoothenedHeight, position.z, 1.0f);
-
-		vec4 smoothenedColor = (smoothenedHeight / heightScale) / 255 * color;
-		col = smoothenedColor;
-
-		break;
-
-	default:
-		break;
-		
-  }
+//  switch (polygonMode) {
+//    // regular mode
+//	case 0:
+//		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0f);
+//		col = color * (position.y / heightScale) / 255;
+//		
+//		break;
+//
+//	// smoothened mode
+//	case 1:
+//		float smoothenedHeight = (neighborHeights.x + neighborHeights.y + neighborHeights.z + neighborHeights.w) / 4.0f;
+//		gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, smoothenedHeight, position.z, 1.0f);
+//
+//		vec4 smoothenedColor = (smoothenedHeight / heightScale) / 255 * color;
+//		col = smoothenedColor;
+//
+//		break;
+//
+//	default:
+//		break;
+//		
+//  }
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0f);
   col /= 255.0f;
   col.w = 1.0f;
 }

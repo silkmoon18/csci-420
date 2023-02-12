@@ -21,38 +21,39 @@ uniform float materialShininess;
 void main()
 {
   // calculate lighting
-  vec3 eye_vector = normalize(-vec3(eyePosition));
-  
-  vec4 ambient = ambientCoef * lightAmbient; 
-  float ndotl = max(dot(vertexNormal, lightVector), 0.0); 
-  
-  vec4 diffuse = diffuseCoef * lightDiffuse * ndotl;
-  
-  vec3 R = normalize(2.0 * ndotl * vertexNormal - lightVector);
-  float rdotv = max(dot(R, eye_vector), 0.0);
-  
-  vec4 specular = vec4(0, 0, 0, 1);
-  if (ndotl > 0.0) {
-    specular = specularCoef * lightSpecular * pow(rdotv, materialShininess);
-  }
-
-  // compute the final pixel color
-  switch (lightMode) {
-    case 0:
-        c = (ambient + diffuse) * col + specular;
-        break;
-
-    case 1:
-        c = ambient;
-        break;
-    
-    case 2:
-        c = diffuse;
-        break;
-
-    case 3:
-        c = specular;
-        break;
-  }
+//  vec3 eye_vector = normalize(-vec3(eyePosition));
+//  
+//  vec4 ambient = ambientCoef * lightAmbient; 
+//  float ndotl = max(dot(vertexNormal, lightVector), 0.0); 
+//  
+//  vec4 diffuse = diffuseCoef * lightDiffuse * ndotl;
+//  
+//  vec3 R = normalize(2.0 * ndotl * vertexNormal - lightVector);
+//  float rdotv = max(dot(R, eye_vector), 0.0);
+//  
+//  vec4 specular = vec4(0, 0, 0, 1);
+//  if (ndotl > 0.0) {
+//    specular = specularCoef * lightSpecular * pow(rdotv, materialShininess);
+//  }
+//
+//  // compute the final pixel color
+//  switch (lightMode) {
+//    case 0:
+//        c = (ambient + diffuse) * col + specular;
+//        break;
+//
+//    case 1:
+//        c = ambient;
+//        break;
+//    
+//    case 2:
+//        c = diffuse;
+//        break;
+//
+//    case 3:
+//        c = specular;
+//        break;
+//  }
+    c = col;
 }
 
