@@ -55,8 +55,8 @@ float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
 // timer
-float previousTime;
-float deltaTime;
+float previousTime = 0;
+float deltaTime = 0;
 
 // lighting 
 vec4 lightPosition = vec4(0, 0, 0, 1);
@@ -84,15 +84,14 @@ float translateSpeed = 0.1f;
 float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
-//float lightTranslateSpeed = 1.0f;
+// physics
+float rcSpeed = 1.0f;
 
 // other params
-const float heightScalar = 0.3f;
-vec3 fieldCenter;
-vec3 eyePosition;
 const int restartIndex = -1;
-bool wireframeEnabled = false;
 bool isTakingScreenshot = false;
+int delay = 8; // hard coded for recording on 120 fps monitor
+int currentFrame = 0;
 
 // vertex arrays
 vector<SimpleVertexArrayObject*> vaos;
@@ -100,19 +99,6 @@ int currentVaoIndex = 0;
 
 
 // ---assignment-2---
-// represents one control point along the spline 
-struct Point {
-	double x;
-	double y;
-	double z;
-};
-
-// spline struct 
-// contains how many control points the spline has, and an array of control points 
-struct Spline {
-	int numControlPoints;
-	Point* points;
-};
 
 // the spline array 
 Spline* splines;
@@ -318,10 +304,6 @@ bool FindImages() {
 }
 
 void setUniforms() {
-	// set height scalar
-	GLint heightScaleLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "heightScale");
-	glUniform1f(heightScaleLoc, heightScalar);
-
 	// set lightings
 	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
 	glUniform4f(loc, lightPosition[0], lightPosition[1], lightPosition[2], lightPosition[3]);
@@ -347,45 +329,64 @@ void setUniforms() {
 
 int numOfStepsPerSegment = 1000;
 float s = 0.5f;
-SimpleVertexArrayObject* vao;
-void drawSpline() {
-	vector<vec3> pointPositions;
+vector<SplineObject*> splineObjects;
+int currentSplineObjectIndex = -1;
+
+void createSplineObjects() {
+	vector<vec3> positions;
 	vector<int> indices;
-	//for (int i = 0; i < numSplines; i++) {
-	//	Spline spline = splines[i];
-	//	for (int j = 1; j < spline.numControlPoints - 2; j++) {
-	//		mat3x4 control = mat3x4(
-	//			spline.points[j - 1].x, spline.points[j].x, spline.points[j + 1].x, spline.points[j + 2].x,
-	//			spline.points[j - 1].y, spline.points[j].y, spline.points[j + 1].y, spline.points[j + 2].y,
-	//			spline.points[j - 1].z, spline.points[j].z, spline.points[j + 1].z, spline.points[j + 2].z
-	//		);
+	for (int i = 0; i < numSplines; i++) {
+		Spline spline = splines[i];
 
-	//		float delta = 1.0f / numOfStepsPerSegment;
-	//		for (int k = 0; k < numOfStepsPerSegment + 1; k++) {
-	//			float u = k * 1.0f / numOfStepsPerSegment;
-	//			vec4 uVector(u * u * u, u * u, u, 1);
-	//			vec3 point = uVector * basis * control;
-	//			pointPositions.push_back(point);
-	//			indices.push_back(k);
+		vector<vec3> tangents;
+		for (int j = 1; j < spline.numControlPoints - 2; j++) {
+			mat3x4 control = mat3x4(
+				spline.points[j - 1].x, spline.points[j].x, spline.points[j + 1].x, spline.points[j + 2].x,
+				spline.points[j - 1].y, spline.points[j].y, spline.points[j + 1].y, spline.points[j + 2].y,
+				spline.points[j - 1].z, spline.points[j].z, spline.points[j + 1].z, spline.points[j + 2].z
+			);
 
-	//			u += delta;
-	//		}
-	//	}
-	//}
+			float delta = 1.0f / numOfStepsPerSegment;
+			for (int k = 0; k < numOfStepsPerSegment + 1; k++) {
+				float u = k * 1.0f / numOfStepsPerSegment;
+				vec4 uVector(u * u * u, u * u, u, 1);
+				vec3 point = uVector * basis * control;
+				positions.push_back(point);
+				indices.push_back(indices.size());
 
-	pointPositions = { vec3(0, 0, 0), vec3(1, 0, 0), vec3(1, 1, 0) };
-	glPointSize(5);
-	indices = { 0, 1, 2 };
-	vector<vec4> colors(pointPositions.size(), vec4(255));
+				vec4 uPrime(3 * u * u, 2 * u, 1, 0);
+				tangents.push_back(normalize(uPrime * basis * control));
 
-	vao = new SimpleVertexArrayObject(pipelineProgram, pointPositions, colors, indices, GL_TRIANGLES);
+				u += delta;
+			}
+		}
+		vector<vec4> colors(positions.size(), vec4(255));
 
+		vaos.push_back(new SimpleVertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
+		splineObjects.push_back(new SplineObject(spline, positions, tangents));
+	}
+
+	if (splineObjects.size() > 0) {
+		currentSplineObjectIndex = 0;
+	}
 }
 
-int delay = 8; // hard coded for recording on 120 fps monitor
-int currentFrame = 0;
+void HandleCameraMotion() {
+	SplineObject* splineObject = splineObjects[currentSplineObjectIndex];
+
+	float step = rcSpeed * deltaTime;
+	vec3 position = splineObject->moveForward(step);
+
+	vec3 direction = splineObject->getDirection();
+
+	matrix.LookAt(position.x, position.y, position.z,
+				  direction.x, direction.y, direction.z,
+				  0, 1, 0);
+}
+
 void idleFunc() {
-	float currentTime = glutGet(GLUT_ELAPSED_TIME);
+	// calculate delta time
+	int currentTime = glutGet(GLUT_ELAPSED_TIME);
 	deltaTime = (currentTime - previousTime) / 1000.0f;
 	previousTime = currentTime;
 
@@ -405,9 +406,6 @@ void displayFunc() {
 	// reset
 	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	matrix.LoadIdentity();
-	matrix.LookAt(eyePosition.x, eyePosition.y, 5,
-				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
-				  0, 1, 0);
 
 	// apply transformations
 	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
@@ -415,6 +413,8 @@ void displayFunc() {
 	matrix.Rotate(landRotate[1], 0, 1, 0);
 	matrix.Rotate(landRotate[2], 0, 0, 1);
 	matrix.Scale(landScale[0], landScale[1], landScale[2]);
+
+	HandleCameraMotion();
 
 	// get matrices
 	float m[16];
@@ -435,11 +435,9 @@ void displayFunc() {
 	setUniforms();
 
 	// draw
-	vao->draw();
-	//vaos[currentVaoIndex]->draw();
-	//if ((currentVaoIndex == 2 || currentVaoIndex == 3) && wireframeEnabled) {
-	//	vaos[4]->draw();
-	//}
+	for (int i = 0; i < vaos.size(); i++) {
+		vaos[i]->draw();
+	}
 
 	glutSwapBuffers();
 }
@@ -607,7 +605,6 @@ void initScene() {
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
 
-
 	basis = mat4(
 		-s, 2 * s, -s, 0,
 		2 - s, s - 3, 0, 1,
@@ -615,7 +612,7 @@ void initScene() {
 		s, -s, 0, 0
 	);
 
-	drawSpline();
+	createSplineObjects();
 	cout << "\nGL error: " << glGetError() << endl;
 }
 

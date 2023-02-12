@@ -32,7 +32,7 @@
     <None Include="..\openGLHelper-starterCode\basic.vertexShader.glsl" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{15913627-D497-4AA0-BD7E-734F0D40F7C9}</ProjectGuid>
+    <ProjectGuid>{14A47A0E-7A6F-404B-93BE-FC1C1EDB1D39}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <ProjectName>hw2</ProjectName>

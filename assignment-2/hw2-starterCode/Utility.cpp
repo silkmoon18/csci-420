@@ -61,3 +61,84 @@ void SimpleVertexArrayObject::draw() {
 	glBindVertexArray(vertexArray);
 	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
 }
+
+
+
+SplineObject::SplineObject(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents) {
+	this->spline = spline;
+	this->vertexPositions = vertexPositions;
+	this->vertexTangents = vertexTangents;
+
+	currentVertexIndex = 0;
+	numOfVertices = vertexPositions.size();
+
+	for (int i = 0; i < vertexPositions.size() - 1; i++) {
+		float distanceToNext = distance(vertexPositions[i], vertexPositions[i + 1]);
+		vertexDistances.push_back(distanceToNext);
+	}
+	vertexDistances.push_back(-1);
+}
+
+vec3 SplineObject::getDirection() {
+	return vertexTangents[currentVertexIndex];
+}
+
+vec3 SplineObject::moveForward(float step) {
+	if (currentVertexIndex == numOfVertices - 1) {
+		return vertexPositions[currentVertexIndex];
+	}
+
+	// consume step
+	while (step > 0) {
+		float distanceToNext = vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
+		if (step < distanceToNext) break;
+
+		step -= distanceToNext;
+		// move to the next vertex and reset distance from current vertex
+		currentSegmentProgress = 0;
+		currentVertexIndex++;
+
+		// if reach the end, return the end point position
+		if (currentVertexIndex == numOfVertices - 1) {
+			return vertexPositions[currentVertexIndex];
+		}
+	}
+
+	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+	return mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
+}
+
+
+
+Object::Object(SimpleVertexArrayObject* vao) {
+	this->vao = vao;
+}
+
+void Object::translate(float x, float y, float z) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform.position += vec3(x, y, z);
+}
+
+void Object::rotate(float xDegree, float yDegree, float zDegree) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform.rotation += vec3(xDegree, yDegree, zDegree);
+	fmod(transform.rotation.x, 360);
+	fmod(transform.rotation.y, 360);
+	fmod(transform.rotation.z, 360);
+}
+
+void Object::scale(float x, float y, float z) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform.scale = vec3(x, y, z);
+}
+
+
+void Object::update() {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	matrix.LoadIdentity();
+	matrix.Translate(transform.position.x, transform.position.y, transform.position.z);
+	matrix.Rotate(transform.rotation.x, 1, 0, 0);
+	matrix.Rotate(transform.rotation.y, 0, 1, 0);
+	matrix.Rotate(transform.rotation.z, 0, 0, 1);
+	matrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
+}

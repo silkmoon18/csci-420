@@ -3,14 +3,8 @@
 
 #include "basicPipelineProgram.h"
 #include "openGLMatrix.h"
-#include "imageIO.h"
-#include "openGLHeader.h"
-#include "glutHeader.h"
 
-#include <iostream>
-#include <cstring>
 #include <vector>
-#include <filesystem>
 
 using namespace std;
 using namespace glm;
@@ -29,4 +23,63 @@ public:
 	void draw();
 };
 
+
+// represents one control point along the spline 
+struct Point {
+	double x;
+	double y;
+	double z;
+};
+
+// spline struct 
+// contains how many control points the spline has, and an array of control points 
+struct Spline {
+	int numControlPoints;
+	Point* points;
+};
+class SplineObject {
+public:
+	Spline spline;
+	vector<vec3> vertexPositions;
+	vector<vec3> vertexTangents;
+	vector<float> vertexDistances;
+	int currentVertexIndex = -1;
+	float currentSegmentProgress = 0;
+	int numOfVertices;
+
+	SplineObject(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents);
+
+	vec3 getDirection();
+	vec3 moveForward(float step);
+};
+
+
+struct Transform {
+	vec3 position;
+	vec3 rotation;
+	vec3 scale;
+
+	Transform() {
+		position = vec3(0);
+		rotation = vec3(0);
+		scale = vec3(1);
+	}
+};
+
+class Object {
+public:
+	Transform transform;
+
+	Object(SimpleVertexArrayObject* vao);
+
+	void translate(float x, float y, float z);
+	void rotate(float xDegree, float yDegree, float zDegree);
+	void scale(float x, float y, float z);
+
+	void update();
+
+private:
+	OpenGLMatrix matrix;
+	SimpleVertexArrayObject* vao;
+};
 #endif
