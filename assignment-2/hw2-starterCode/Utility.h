@@ -9,6 +9,73 @@
 using namespace std;
 using namespace glm;
 
+class EntityManager;
+class Entity;
+class SimpleVertexArrayObject;
+class SplineObject;
+
+/// <summary>
+/// Entity
+/// </summary>
+
+class EntityManager {
+public:
+	vector<Entity*> objects;
+
+	EntityManager();
+
+	void update();
+	Entity* createEntity();
+	Entity* createEntity(SimpleVertexArrayObject* vao);
+};
+
+
+struct Transform {
+	vec3 position;
+	vec3 rotation;
+	vec3 scale;
+	Transform() {
+		position = vec3(0);
+		rotation = vec3(0);
+		scale = vec3(1);
+	}
+};
+
+class Entity {
+public:
+	Transform transform;
+
+	void translate(float x, float y, float z);
+	void rotate(float xDegree, float yDegree, float zDegree); // in degrees
+	void scale(float x, float y, float z);
+	void lookAt(vec3 target, vec3 up);
+
+	friend EntityManager;
+
+protected:
+	OpenGLMatrix matrix;
+	SimpleVertexArrayObject* vao;
+
+	Entity();
+	Entity(SimpleVertexArrayObject* vao);
+
+	virtual void update();
+};
+
+class Camera : public Entity {
+public:
+	float fieldOfView; // in degrees
+	float aspect; // width / height
+	float zNear;
+	float zFar;
+
+	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
+
+protected:
+	void update() override;
+};
+
+
 // a simple object that handles VAO related operations
 class SimpleVertexArrayObject {
 public:
@@ -54,32 +121,4 @@ public:
 };
 
 
-struct Transform {
-	vec3 position;
-	vec3 rotation;
-	vec3 scale;
-
-	Transform() {
-		position = vec3(0);
-		rotation = vec3(0);
-		scale = vec3(1);
-	}
-};
-
-class Object {
-public:
-	Transform transform;
-
-	Object(SimpleVertexArrayObject* vao);
-
-	void translate(float x, float y, float z);
-	void rotate(float xDegree, float yDegree, float zDegree);
-	void scale(float x, float y, float z);
-
-	void update();
-
-private:
-	OpenGLMatrix matrix;
-	SimpleVertexArrayObject* vao;
-};
 #endif

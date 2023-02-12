@@ -1,5 +1,89 @@
 #include "Utility.h"
 
+
+EntityManager::EntityManager() {
+
+}
+void EntityManager::update() {
+	for (int i = 0; i < objects.size(); i++) {
+		objects[i]->update();
+	}
+}
+Entity* EntityManager::createEntity() {
+	Entity* object = new Entity();
+	objects.push_back(object);
+	return object;
+}
+Entity* EntityManager::createEntity(SimpleVertexArrayObject* vao) {
+	Entity* object = new Entity(vao);
+	objects.push_back(object);
+	return object;
+}
+
+
+Entity::Entity() {
+}
+Entity::Entity(SimpleVertexArrayObject* vao) {
+	this->vao = vao;
+}
+
+void Entity::translate(float x, float y, float z) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform.position += vec3(x, y, z);
+}
+
+void Entity::rotate(float xDegree, float yDegree, float zDegree) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform.rotation += vec3(xDegree, yDegree, zDegree);
+	fmod(transform.rotation.x, 360);
+	fmod(transform.rotation.y, 360);
+	fmod(transform.rotation.z, 360);
+}
+
+void Entity::scale(float x, float y, float z) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform.scale = vec3(x, y, z);
+}
+void Entity::lookAt(vec3 target, vec3 up = vec3(0, 1, 0)) {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+
+	vec3 position = transform.position;
+	vec3 direction = normalize(target - position);
+	matrix.LookAt(position.x, position.y, position.z,
+				  direction.x, direction.y, direction.z,
+				  up.x, up.y, up.z);
+}
+
+void Entity::update() {
+	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	matrix.LoadIdentity();
+	matrix.Translate(transform.position.x, transform.position.y, transform.position.z);
+	matrix.Rotate(transform.rotation.x, 1, 0, 0);
+	matrix.Rotate(transform.rotation.y, 0, 1, 0);
+	matrix.Rotate(transform.rotation.z, 0, 0, 1);
+	matrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
+
+	if (vao) {
+		vao->draw();
+	}
+}
+
+void Camera::setPerspective(float fieldOfView, float aspect, float zNear, float zFar) {
+	this->fieldOfView = fieldOfView;
+	this->aspect = aspect;
+	this->zNear = zNear;
+	this->zFar = zFar;
+}
+
+void Camera::update() {
+	Entity::update();
+
+	matrix.SetMatrixMode(OpenGLMatrix::Projection);
+	matrix.LoadIdentity();
+	matrix.Perspective(fieldOfView, aspect, zNear, zFar);
+}
+
+
 SimpleVertexArrayObject::SimpleVertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
 	numVertices = positions.size();
 	numColors = colors.size();
@@ -110,35 +194,4 @@ vec3 SplineObject::moveForward(float step) {
 
 
 
-Object::Object(SimpleVertexArrayObject* vao) {
-	this->vao = vao;
-}
 
-void Object::translate(float x, float y, float z) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	transform.position += vec3(x, y, z);
-}
-
-void Object::rotate(float xDegree, float yDegree, float zDegree) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	transform.rotation += vec3(xDegree, yDegree, zDegree);
-	fmod(transform.rotation.x, 360);
-	fmod(transform.rotation.y, 360);
-	fmod(transform.rotation.z, 360);
-}
-
-void Object::scale(float x, float y, float z) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	transform.scale = vec3(x, y, z);
-}
-
-
-void Object::update() {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.LoadIdentity();
-	matrix.Translate(transform.position.x, transform.position.y, transform.position.z);
-	matrix.Rotate(transform.rotation.x, 1, 0, 0);
-	matrix.Rotate(transform.rotation.y, 0, 1, 0);
-	matrix.Rotate(transform.rotation.z, 0, 0, 1);
-	matrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
-}

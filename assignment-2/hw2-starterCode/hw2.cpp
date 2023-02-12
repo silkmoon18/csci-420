@@ -37,7 +37,6 @@ using namespace glm;
 
 
 
-OpenGLMatrix matrix;
 BasicPipelineProgram* pipelineProgram;
 
 int mousePos[2]; // x,y coordinate of the mouse position
@@ -57,6 +56,11 @@ float landScale[3] = { 1.0f, 1.0f, 1.0f };
 // timer
 float previousTime = 0;
 float deltaTime = 0;
+
+// entities
+EntityManager entityManager;
+Entity* cameraEntity;
+Entity* trackEntity;
 
 // lighting 
 vec4 lightPosition = vec4(0, 0, 0, 1);
@@ -92,10 +96,6 @@ const int restartIndex = -1;
 bool isTakingScreenshot = false;
 int delay = 8; // hard coded for recording on 120 fps monitor
 int currentFrame = 0;
-
-// vertex arrays
-vector<SimpleVertexArrayObject*> vaos;
-int currentVaoIndex = 0;
 
 
 // ---assignment-2---
@@ -334,6 +334,7 @@ int currentSplineObjectIndex = -1;
 
 void createSplineObjects() {
 	vector<vec3> positions;
+	vector<vec4> colors;
 	vector<int> indices;
 	for (int i = 0; i < numSplines; i++) {
 		Spline spline = splines[i];
@@ -360,9 +361,9 @@ void createSplineObjects() {
 				u += delta;
 			}
 		}
-		vector<vec4> colors(positions.size(), vec4(255));
+		colors = vector<vec4>(positions.size(), vec4(255));
 
-		vaos.push_back(new SimpleVertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
+		trackEntity = entityManager.createEntity(new SimpleVertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
 		splineObjects.push_back(new SplineObject(spline, positions, tangents));
 	}
 
@@ -588,6 +589,7 @@ void reshapeFunc(int w, int h) {
 	matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
+
 void initScene() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_DEPTH_TEST);
@@ -605,6 +607,12 @@ void initScene() {
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
 
+	cout << "\nGL error: " << glGetError() << endl;
+}
+
+void initObjects() {
+	cameraEntity = entityManager.createEntity();
+
 	basis = mat4(
 		-s, 2 * s, -s, 0,
 		2 - s, s - 3, 0, 1,
@@ -613,7 +621,7 @@ void initScene() {
 	);
 
 	createSplineObjects();
-	cout << "\nGL error: " << glGetError() << endl;
+
 }
 
 
@@ -630,16 +638,6 @@ int main(int argc, char* argv[]) {
 	for (int i = 0; i < numSplines; i++)
 		printf("Num control points in spline %d: %d.\n", i, splines[i].numControlPoints);
 
-	//if (argc > 1) {
-	//	imageDirectory = argv[1];
-	//}
-
-	//bool isValid = FindImages();
-	//while (!isValid) {
-	//	cout << "Please specify a directory that contains at least one jpg image: \n" << endl;
-	//	cin >> imageDirectory;
-	//	isValid = FindImages();
-	//}
 
 	cout << "Initializing GLUT..." << endl;
 	glutInit(&argc, argv);
@@ -699,6 +697,7 @@ int main(int argc, char* argv[]) {
 
 	// do initialization
 	initScene();
+	initObjects();
 
 	// sink forever into the glut loop
 	glutMainLoop();
