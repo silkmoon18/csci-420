@@ -1,39 +1,67 @@
 #include "Utility.h"
 
 
+
+
+
+static float degreeToRadian(float degree) {
+	return degree * PI / 180.0f;
+}
+static float radianToDegree(float radian) {
+	return radian * (180.0f / PI);
+}
+
+
+
+#pragma region EntityManager
 EntityManager::EntityManager() {
 
 }
 void EntityManager::update() {
-	for (int i = 0; i < objects.size(); i++) {
-		objects[i]->update();
+	Camera* camera = Camera::currentCamera;
+	vec3 position = camera->transform.position;
+	vec3 center = position + camera->getForwardVector();
+	vec3 up = camera->getUpVector();
+
+	for (int i = 0; i < entities.size(); i++) {
+		Entity* entity = entities[i];
+
+		entity->initMatrix(position, center, up);
+		entity->update();
 	}
 }
 Entity* EntityManager::createEntity() {
 	Entity* object = new Entity();
-	objects.push_back(object);
+	entities.push_back(object);
 	return object;
 }
-Entity* EntityManager::createEntity(SimpleVertexArrayObject* vao) {
+Entity* EntityManager::createEntity(VertexArrayObject* vao) {
 	Entity* object = new Entity(vao);
-	objects.push_back(object);
+	entities.push_back(object);
 	return object;
 }
-
-
-Entity::Entity() {
+Camera* EntityManager::createCamera() {
+	Camera* camera = new Camera();
+	entities.push_back(camera);
+	return camera;
 }
-Entity::Entity(SimpleVertexArrayObject* vao) {
+#pragma endregion
+
+
+
+#pragma region Entity 
+Entity::Entity() {
+	modelViewMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
+}
+Entity::Entity(VertexArrayObject* vao) : Entity() {
 	this->vao = vao;
 }
 
 void Entity::translate(float x, float y, float z) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	transform.position += vec3(x, y, z);
 }
 
 void Entity::rotate(float xDegree, float yDegree, float zDegree) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	transform.rotation += vec3(xDegree, yDegree, zDegree);
 	fmod(transform.rotation.x, 360);
 	fmod(transform.rotation.y, 360);
@@ -41,50 +69,94 @@ void Entity::rotate(float xDegree, float yDegree, float zDegree) {
 }
 
 void Entity::scale(float x, float y, float z) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 	transform.scale = vec3(x, y, z);
 }
 void Entity::lookAt(vec3 target, vec3 up = vec3(0, 1, 0)) {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-
 	vec3 position = transform.position;
 	vec3 direction = normalize(target - position);
-	matrix.LookAt(position.x, position.y, position.z,
-				  direction.x, direction.y, direction.z,
-				  up.x, up.y, up.z);
+	modelViewMatrix.LookAt(position.x, position.y, position.z,
+						   direction.x, direction.y, direction.z,
+						   up.x, up.y, up.z);
+}
+vec3 Entity::getForwardVector() {
+	float x = sin(degreeToRadian(transform.rotation.y)) * cos(degreeToRadian(transform.rotation.x));
+	float y = sin(degreeToRadian(-transform.rotation.x));
+	float z = -cos(degreeToRadian(transform.rotation.x)) * cos(degreeToRadian(transform.rotation.y));
+	return vec3(x, y, z);
+}
+vec3 Entity::getRightVector() {
+	float x = cos(degreeToRadian(transform.rotation.x));
+	float y = 0;
+	float z = -sin(degreeToRadian(transform.rotation.x));
+	return vec3(x, y, z);
+}
+vec3 Entity::getUpVector() {
+	float x = sin(degreeToRadian(transform.rotation.y)) * sin(degreeToRadian(transform.rotation.x));
+	float y = cos(degreeToRadian(-transform.rotation.x));
+	float z = -sin(degreeToRadian(transform.rotation.x)) * cos(degreeToRadian(transform.rotation.y));
+	return vec3(x, y, z);
+}
+void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
+	modelViewMatrix.LoadIdentity();
+	modelViewMatrix.LookAt(eye.x, eye.y, eye.z,
+						   center.x, center.y, center.z,
+						   up.x, up.y, up.z);
 }
 
 void Entity::update() {
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.LoadIdentity();
-	matrix.Translate(transform.position.x, transform.position.y, transform.position.z);
-	matrix.Rotate(transform.rotation.x, 1, 0, 0);
-	matrix.Rotate(transform.rotation.y, 0, 1, 0);
-	matrix.Rotate(transform.rotation.z, 0, 0, 1);
-	matrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
+	// apply transformations
+	modelViewMatrix.Translate(transform.position.x, transform.position.y, transform.position.z);
+	modelViewMatrix.Rotate(transform.rotation.x, 1, 0, 0);
+	modelViewMatrix.Rotate(transform.rotation.y, 0, 1, 0);
+	modelViewMatrix.Rotate(transform.rotation.z, 0, 0, 1);
+	modelViewMatrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
 
+	// draw if has vao
 	if (vao) {
-		vao->draw();
+		vao->draw(modelViewMatrix);
 	}
 }
+#pragma endregion
 
+
+
+#pragma region Camera
+Camera* Camera::currentCamera = nullptr;
+
+Camera::Camera() : Entity() {
+	projectionMatrix.SetMatrixMode(OpenGLMatrix::Projection);
+}
+void Camera::getProjectionMatrix(float* pMatrix) {
+	projectionMatrix.GetMatrix(pMatrix);
+}
 void Camera::setPerspective(float fieldOfView, float aspect, float zNear, float zFar) {
 	this->fieldOfView = fieldOfView;
 	this->aspect = aspect;
 	this->zNear = zNear;
 	this->zFar = zFar;
+	projectionMatrix.LoadIdentity();
+	projectionMatrix.Perspective(fieldOfView, aspect, zNear, zFar);
 }
-
+void Camera::enable() {
+	Camera::currentCamera = this;
+}
+bool Camera::isCurrentCamera() {
+	return Camera::currentCamera == this;
+}
 void Camera::update() {
+	if (!isCurrentCamera()) return;
 	Entity::update();
-
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.LoadIdentity();
-	matrix.Perspective(fieldOfView, aspect, zNear, zFar);
 }
+#pragma endregion
 
 
-SimpleVertexArrayObject::SimpleVertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
+
+#pragma region VertexArrayObject
+VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
+	if (!pipelineProgram) {
+		printf("error: pipeline program cannot be null. \n");
+		return;
+	}
 	numVertices = positions.size();
 	numColors = colors.size();
 	numIndices = indices.size();
@@ -140,14 +212,26 @@ SimpleVertexArrayObject::SimpleVertexArrayObject(BasicPipelineProgram* pipelineP
 	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 }
 
-void SimpleVertexArrayObject::draw() {
+void VertexArrayObject::draw(OpenGLMatrix modelViewMatrix) {
+	// get matrices
+	float m[16];
+	modelViewMatrix.GetMatrix(m);
+	float p[16];
+	Camera::currentCamera->getProjectionMatrix(p);
+
 	pipelineProgram->Bind();
+	// set variable
+	pipelineProgram->SetModelViewMatrix(m);
+	pipelineProgram->SetProjectionMatrix(p);
+
 	glBindVertexArray(vertexArray);
 	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
 }
+#pragma endregion
 
 
 
+#pragma region SplineObject
 SplineObject::SplineObject(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents) {
 	this->spline = spline;
 	this->vertexPositions = vertexPositions;
@@ -191,7 +275,7 @@ vec3 SplineObject::moveForward(float step) {
 	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
 	return mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
 }
-
+#pragma endregion
 
 
 

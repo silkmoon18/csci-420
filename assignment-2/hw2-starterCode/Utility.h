@@ -11,22 +11,27 @@ using namespace glm;
 
 class EntityManager;
 class Entity;
-class SimpleVertexArrayObject;
+class Camera;
+class VertexArrayObject;
 class SplineObject;
 
-/// <summary>
-/// Entity
-/// </summary>
 
+
+static const float PI = 3.14159265359f;
+static float degreeToRadian(float degree);
+static float radianToDegree(float radian);
+
+// manager for all entities
 class EntityManager {
 public:
-	vector<Entity*> objects;
+	vector<Entity*> entities;
 
 	EntityManager();
 
 	void update();
 	Entity* createEntity();
-	Entity* createEntity(SimpleVertexArrayObject* vao);
+	Entity* createEntity(VertexArrayObject* vao);
+	Camera* createCamera();
 };
 
 
@@ -41,6 +46,8 @@ struct Transform {
 	}
 };
 
+
+// basic entity
 class Entity {
 public:
 	Transform transform;
@@ -49,35 +56,52 @@ public:
 	void rotate(float xDegree, float yDegree, float zDegree); // in degrees
 	void scale(float x, float y, float z);
 	void lookAt(vec3 target, vec3 up);
+	vec3 getForwardVector();
+	vec3 getRightVector();
+	vec3 getUpVector();
 
 	friend EntityManager;
 
 protected:
-	OpenGLMatrix matrix;
-	SimpleVertexArrayObject* vao;
+	OpenGLMatrix modelViewMatrix;
+	VertexArrayObject* vao = nullptr;
 
 	Entity();
-	Entity(SimpleVertexArrayObject* vao);
+	Entity(VertexArrayObject* vao);
 
+	void initMatrix(vec3 eye, vec3 center, vec3 up);
 	virtual void update();
 };
 
+
+// camera entity
 class Camera : public Entity {
 public:
-	float fieldOfView; // in degrees
-	float aspect; // width / height
-	float zNear;
-	float zFar;
+	float fieldOfView = 80.0f; // in degrees
+	float aspect = 1920 / 1080.0f; // width / height
+	float zNear = 0.01f;
+	float zFar = 1000.0f;
 
+	static Camera* currentCamera;
+
+	void getProjectionMatrix(float* pMatrix);
 	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
+	void enable();
+	bool isCurrentCamera();
+
+	friend EntityManager;
 
 protected:
-	void update() override;
+	OpenGLMatrix projectionMatrix;
+
+	Camera();
+
+	void update();
 };
 
 
-// a simple object that handles VAO related operations
-class SimpleVertexArrayObject {
+// object that handles VAO related operations
+class VertexArrayObject {
 public:
 	BasicPipelineProgram* pipelineProgram;
 	GLuint positionBuffer, colorBuffer, indexBuffer;
@@ -85,9 +109,9 @@ public:
 	GLenum drawMode = GL_POINTS;
 	int numVertices, numColors, numIndices;
 
-	SimpleVertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode);
+	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode);
 
-	void draw();
+	void draw(OpenGLMatrix modelViewMatrix);
 };
 
 
@@ -112,7 +136,7 @@ public:
 	vector<float> vertexDistances;
 	int currentVertexIndex = -1;
 	float currentSegmentProgress = 0;
-	int numOfVertices;
+	int numOfVertices = 0;
 
 	SplineObject(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents);
 

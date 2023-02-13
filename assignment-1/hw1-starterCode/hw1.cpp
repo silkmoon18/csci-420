@@ -37,7 +37,8 @@ using namespace glm;
 
 
 
-OpenGLMatrix matrix;
+OpenGLMatrix mvMatrix;
+OpenGLMatrix pMatrix;
 BasicPipelineProgram* pipelineProgram;
 
 int mousePos[2]; // x,y coordinate of the mouse position
@@ -387,26 +388,23 @@ void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// reset
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.LoadIdentity();
-	matrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
+	mvMatrix.LoadIdentity();
+	mvMatrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
 				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
 				  0, 1, 0);
 
 	// apply transformations
-	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
-	matrix.Rotate(landRotate[0], 1, 0, 0);
-	matrix.Rotate(landRotate[1], 0, 1, 0);
-	matrix.Rotate(landRotate[2], 0, 0, 1);
-	matrix.Scale(landScale[0], landScale[1], landScale[2]);
+	mvMatrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
+	mvMatrix.Rotate(landRotate[0], 1, 0, 0);
+	mvMatrix.Rotate(landRotate[1], 0, 1, 0);
+	mvMatrix.Rotate(landRotate[2], 0, 0, 1);
+	mvMatrix.Scale(landScale[0], landScale[1], landScale[2]);
 
 	// get matrices
 	float m[16];
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.GetMatrix(m);
+	mvMatrix.GetMatrix(m);
 	float p[16];
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.GetMatrix(p);
+	pMatrix.GetMatrix(p);
 
 	// bind shader
 	pipelineProgram->Bind();
@@ -633,9 +631,8 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.LoadIdentity();
-	matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 3000.0f);
+	pMatrix.LoadIdentity();
+	pMatrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 3000.0f);
 }
 
 void initScene() {
@@ -654,6 +651,10 @@ void initScene() {
 	pipelineProgram = new BasicPipelineProgram;
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
+
+
+	mvMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	pMatrix.SetMatrixMode(OpenGLMatrix::Projection);
 
 	generateField();
 

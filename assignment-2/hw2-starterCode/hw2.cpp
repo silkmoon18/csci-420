@@ -37,6 +37,7 @@ using namespace glm;
 
 
 
+
 BasicPipelineProgram* pipelineProgram;
 
 int mousePos[2]; // x,y coordinate of the mouse position
@@ -48,18 +49,13 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
-// state of the world
-float landRotate[3] = { 0.0f, 0.0f, 0.0f };
-float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
-float landScale[3] = { 1.0f, 1.0f, 1.0f };
-
 // timer
 float previousTime = 0;
 float deltaTime = 0;
 
 // entities
 EntityManager entityManager;
-Entity* cameraEntity;
+Camera* cameraEntity;
 Entity* trackEntity;
 
 // lighting 
@@ -83,7 +79,9 @@ string imageDirectory;
 int currentImageIndex = 0;
 int screenshotIndex = 0;
 
-// control speeds
+// controls
+float mouseSensitivity = 5.0f;
+vec2 xAngleLimit(-90, 80);
 float translateSpeed = 0.1f;
 float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
@@ -257,52 +255,6 @@ void saveScreenshot() {
 	delete[] screenshotData;
 }
 
-ImageIO* tryReadImage(string imagePath) {
-	ImageIO* image = new ImageIO();
-	if (image->loadJPEG(imagePath.c_str()) != ImageIO::OK) {
-		return NULL;
-	}
-	return image;
-}
-
-// find images in directory
-bool FindImages() {
-	printf("\n");
-	if (imageDirectory.empty()) {
-		printf("Error: image directory is not specified. \n");
-		return false;
-	}
-	if (!filesystem::exists(imageDirectory)) {
-		printf("Error: directory %s does not exist. \n", imageDirectory.c_str());
-		return false;
-	}
-
-	printf("Finding images...\n");
-	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
-		filesystem::path path = entry.path();
-
-		string extension = path.extension().string();
-		if (extension == ".jpg" || extension == ".jpeg") {
-			printf("Image found: %s\n", path.string().c_str());
-			imagePaths.push_back(path.string());
-		}
-		else {
-			printf("Error: file %s is not jpg. \n", path.string().c_str());
-		}
-	}
-
-	int size = imagePaths.size();
-	if (size == 0) {
-		printf("Error: no images found. \n");
-		return false;
-	}
-	else {
-		printf("Found %i images in %s\n", size, imageDirectory.c_str());
-	}
-	printf("\n");
-	return true;
-}
-
 void setUniforms() {
 	// set lightings
 	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
@@ -363,7 +315,7 @@ void createSplineObjects() {
 		}
 		colors = vector<vec4>(positions.size(), vec4(255));
 
-		trackEntity = entityManager.createEntity(new SimpleVertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
+		trackEntity = entityManager.createEntity(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
 		splineObjects.push_back(new SplineObject(spline, positions, tangents));
 	}
 
@@ -380,9 +332,7 @@ void HandleCameraMotion() {
 
 	vec3 direction = splineObject->getDirection();
 
-	matrix.LookAt(position.x, position.y, position.z,
-				  direction.x, direction.y, direction.z,
-				  0, 1, 0);
+	cameraEntity->lookAt(direction, vec3(0, 1, 0));
 }
 
 void idleFunc() {
@@ -404,49 +354,19 @@ void idleFunc() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// reset
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.LoadIdentity();
-
-	// apply transformations
-	matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
-	matrix.Rotate(landRotate[0], 1, 0, 0);
-	matrix.Rotate(landRotate[1], 0, 1, 0);
-	matrix.Rotate(landRotate[2], 0, 0, 1);
-	matrix.Scale(landScale[0], landScale[1], landScale[2]);
-
-	HandleCameraMotion();
-
-	// get matrices
-	float m[16];
-	matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	matrix.GetMatrix(m);
-	float p[16];
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.GetMatrix(p);
-
-	// bind shader
-	pipelineProgram->Bind();
-
-	// set variable
-	pipelineProgram->SetModelViewMatrix(m);
-	pipelineProgram->SetProjectionMatrix(p);
+	//HandleCameraMotion();
+	cameraEntity->lookAt(vec3(0, 0, 0), vec3(0, 1, 0));
 
 	// set uniforms
 	setUniforms();
 
-	// draw
-	for (int i = 0; i < vaos.size(); i++) {
-		vaos[i]->draw();
-	}
+	// update entities
+	entityManager.update();
 
 	glutSwapBuffers();
 }
 
 void keyboardFunc(unsigned char key, int x, int y) {
-	GLint polygonModeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "polygonMode");
-	GLint lightModeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightMode");
-
 	switch (key) {
 		case 27: // ESC key
 			exit(0); // exit the program
@@ -502,20 +422,20 @@ void mouseButtonFunc(int button, int state, int x, int y) {
 	}
 
 	// keep track of whether CTRL and SHIFT keys are pressed
-	switch (glutGetModifiers()) {
-		case GLUT_ACTIVE_CTRL:
-			controlState = TRANSLATE;
-			break;
+	//switch (glutGetModifiers()) {
+	//	case GLUT_ACTIVE_CTRL:
+	//		controlState = TRANSLATE;
+	//		break;
 
-		case GLUT_ACTIVE_SHIFT:
-			controlState = SCALE;
-			break;
+	//	case GLUT_ACTIVE_SHIFT:
+	//		controlState = SCALE;
+	//		break;
 
-			// if CTRL and SHIFT are not pressed, we are in rotate mode
-		default:
-			controlState = ROTATE;
-			break;
-	}
+	//		// if CTRL and SHIFT are not pressed, we are in rotate mode
+	//	default:
+	//		controlState = ROTATE;
+	//		break;
+	//}
 
 	// store the new mouse position
 	mousePos[0] = x;
@@ -528,50 +448,56 @@ void mouseMotionDragFunc(int x, int y) {
 	// the change in mouse position since the last invocation of this function
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
 
-	switch (controlState) {
-		// translate the landscape
-		case TRANSLATE:
-			if (leftMouseButton) {
-				// control x,y translation via the left mouse button
-				landTranslate[0] += mousePosDelta[0] * translateSpeed;
-				landTranslate[1] -= mousePosDelta[1] * translateSpeed;
-			}
-			if (middleMouseButton) {
-				// control z translation via the middle mouse button
-				landTranslate[2] += mousePosDelta[1] * translateSpeed;
-			}
-			break;
+	float lookStep = mouseSensitivity * deltaTime;
+	cameraEntity->transform.rotation.x += mousePosDelta[1] * lookStep;
+	cameraEntity->transform.rotation.y += mousePosDelta[0] * lookStep;
+	cameraEntity->transform.rotation.x = std::clamp(cameraEntity->transform.rotation.x, xAngleLimit.x, xAngleLimit.y);
 
-			// rotate the landscape
-		case ROTATE:
-			if (leftMouseButton) {
-				// control x,y rotation via the left mouse button
-				landRotate[0] += mousePosDelta[1] * rotateSpeed;
-				landRotate[1] += mousePosDelta[0] * rotateSpeed;
-			}
-			if (middleMouseButton) {
-				// control z rotation via the middle mouse button
-				landRotate[2] += mousePosDelta[1] * rotateSpeed;
-			}
-			break;
+	//switch (controlState) {
+	//	// translate the landscape
+	//	case TRANSLATE:
+	//		if (leftMouseButton) {
+	//			// control x,y translation via the left mouse button
+	//			landTranslate[0] += mousePosDelta[0] * translateSpeed;
+	//			landTranslate[1] -= mousePosDelta[1] * translateSpeed;
+	//		}
+	//		if (middleMouseButton) {
+	//			// control z translation via the middle mouse button
+	//			landTranslate[2] += mousePosDelta[1] * translateSpeed;
+	//		}
+	//		break;
 
-			// scale the landscape
-		case SCALE:
-			if (leftMouseButton) {
-				// control x,y scaling via the left mouse button
-				landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
-				landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-			}
-			if (middleMouseButton) {
-				// control z scaling via the middle mouse button
-				landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-			}
-			break;
-	}
+	//		// rotate the landscape
+	//	case ROTATE:
+	//		if (leftMouseButton) {
+	//			// control x,y rotation via the left mouse button
+	//			landRotate[0] += mousePosDelta[1] * rotateSpeed;
+	//			landRotate[1] += mousePosDelta[0] * rotateSpeed;
+	//		}
+	//		if (middleMouseButton) {
+	//			// control z rotation via the middle mouse button
+	//			landRotate[2] += mousePosDelta[1] * rotateSpeed;
+	//		}
+	//		break;
+
+	//		// scale the landscape
+	//	case SCALE:
+	//		if (leftMouseButton) {
+	//			// control x,y scaling via the left mouse button
+	//			landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
+	//			landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
+	//		}
+	//		if (middleMouseButton) {
+	//			// control z scaling via the middle mouse button
+	//			landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
+	//		}
+	//		break;
+	//}
 
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
+	cout << 2 << endl;
 }
 
 void mouseMotionFunc(int x, int y) {
@@ -579,14 +505,13 @@ void mouseMotionFunc(int x, int y) {
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
+	cout << 1 << endl;
 }
 
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	matrix.SetMatrixMode(OpenGLMatrix::Projection);
-	matrix.LoadIdentity();
-	matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	cameraEntity->setPerspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
 
@@ -611,7 +536,9 @@ void initScene() {
 }
 
 void initObjects() {
-	cameraEntity = entityManager.createEntity();
+	cameraEntity = entityManager.createCamera();
+	cameraEntity->enable();
+	cameraEntity->translate(0, 0, 5);
 
 	basis = mat4(
 		-s, 2 * s, -s, 0,
@@ -623,7 +550,6 @@ void initObjects() {
 	createSplineObjects();
 
 }
-
 
 int main(int argc, char* argv[]) {
 	if (argc < 2) {
