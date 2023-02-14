@@ -50,8 +50,8 @@ typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
 // timer
-float previousTime = 0;
-float deltaTime = 0;
+int previousTime = 0; // in ms
+float deltaTime = 0; // in s
 
 // entities
 EntityManager entityManager;
@@ -332,7 +332,8 @@ void HandleCameraMotion() {
 
 	vec3 direction = splineObject->getDirection();
 
-	//cameraEntity->lookAt(direction, vec3(0, 1, 0));
+	camera->transform.position = position;
+	camera->faceTo(position + direction);
 }
 
 void idleFunc() {
@@ -545,6 +546,7 @@ void initObjects() {
 	//log(camera->getForwardVector());
 	//log(camera->getRightVector());
 	//log(camera->getUpVector());
+	//camera->faceTo(vec3(10, 10, -10));
 
 	basis = mat4(
 		-s, 2 * s, -s, 0,

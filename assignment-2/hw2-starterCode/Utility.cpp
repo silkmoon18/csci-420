@@ -64,8 +64,8 @@ void Entity::faceTo(vec3 target, vec3 up) {
 	vec3 forward = getForwardVector();
 	up = normalize(up);
 
-	vec3 axis = cross(direction, forward);
-	float angle = radianToDegree(acos(dot(direction, forward)));
+	vec3 axis = cross(forward, direction);
+	float angle = radianToDegree(acos(dot(forward, direction)));
 	transform.rotation = axis * angle;
 }
 vec3 Entity::getForwardVector() {
