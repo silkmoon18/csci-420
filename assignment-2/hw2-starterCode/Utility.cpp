@@ -60,13 +60,40 @@ Entity::Entity(VertexArrayObject* vao) : Entity() {
 }
 
 void Entity::faceTo(vec3 target, vec3 up) {
-	vec3 direction = normalize(target - transform.position);
-	vec3 forward = getForwardVector();
+	//up = normalize(up);
+	//vec3 worldUp = vec3(0, 1, 0);
+	//transform.rotation = vec3(0);
+	//bool isUp = normalize(dot(up, worldUp) * worldUp).y > 0;
+	//if (isUp) {
+	//	transform.rotation.y = 0;
+	//}
+	//else {
+	//	transform.rotation.y = 90;
+	//}
+
+	//vec3 direction = normalize(target - transform.position);
+	//vec3 forward = getForwardVector();
+
+	//vec3 axis = cross(forward, direction);
+	//float angle = radianToDegree(acos(dot(forward, direction)));
+	//transform.rotation = axis * angle;
+	// 
+	// 
+	vec3 forward = normalize(target - transform.position);
 	up = normalize(up);
 
-	vec3 axis = cross(forward, direction);
-	float angle = radianToDegree(acos(dot(forward, direction)));
-	transform.rotation = axis * angle;
+	float x = asin(forward.y);
+	float y = atan2(-forward.x, -forward.z);
+
+	float z = asin(up.z * sin(y) - up.x * cos(y));
+	if (up.y < 0)
+		z = ((0.0f <= z) - (z < 0.0f)) * PI - z;
+
+	x = radianToDegree(x);
+	y = radianToDegree(y);
+	z = radianToDegree(z);
+
+	transform.rotation = vec3(x, y, z);
 }
 vec3 Entity::getForwardVector() {
 	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));

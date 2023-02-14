@@ -512,7 +512,7 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	camera->setPerspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	camera->setPerspective(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
 
@@ -536,6 +536,7 @@ void initScene() {
 	cout << "\nGL error: " << glGetError() << endl;
 }
 
+Entity* debugger;
 void initObjects() {
 	camera = entityManager.createCamera();
 	camera->enable();
@@ -546,7 +547,9 @@ void initObjects() {
 	//log(camera->getForwardVector());
 	//log(camera->getRightVector());
 	//log(camera->getUpVector());
-	//camera->faceTo(vec3(10, 10, -10));
+	//camera->faceTo(vec3(0, 0, 4), vec3(1, 1, 0));
+
+	//debugger = entityManager.createEntity(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
 
 	basis = mat4(
 		-s, 2 * s, -s, 0,
