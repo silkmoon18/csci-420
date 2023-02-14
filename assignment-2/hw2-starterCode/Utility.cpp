@@ -3,14 +3,16 @@
 
 
 
-
-static float degreeToRadian(float degree) {
+float degreeToRadian(float degree) {
 	return degree * PI / 180.0f;
 }
-static float radianToDegree(float radian) {
+float radianToDegree(float radian) {
 	return radian * (180.0f / PI);
 }
-
+void log(vec3 vector, bool endOfLine) {
+	string newLine = endOfLine ? "\n" : "";
+	printf("vec3(%f, %f, %f)%s", vector.x, vector.y, vector.z, newLine.c_str());
+}
 
 
 #pragma region EntityManager
@@ -57,45 +59,37 @@ Entity::Entity(VertexArrayObject* vao) : Entity() {
 	this->vao = vao;
 }
 
-void Entity::translate(float x, float y, float z) {
-	transform.position += vec3(x, y, z);
-}
+void Entity::faceTo(vec3 target, vec3 up) {
+	vec3 direction = normalize(target - transform.position);
+	vec3 forward = getForwardVector();
+	up = normalize(up);
 
-void Entity::rotate(float xDegree, float yDegree, float zDegree) {
-	transform.rotation += vec3(xDegree, yDegree, zDegree);
-	fmod(transform.rotation.x, 360);
-	fmod(transform.rotation.y, 360);
-	fmod(transform.rotation.z, 360);
-}
-
-void Entity::scale(float x, float y, float z) {
-	transform.scale = vec3(x, y, z);
-}
-void Entity::lookAt(vec3 target, vec3 up = vec3(0, 1, 0)) {
-	vec3 position = transform.position;
-	vec3 direction = normalize(target - position);
-	modelViewMatrix.LookAt(position.x, position.y, position.z,
-						   direction.x, direction.y, direction.z,
-						   up.x, up.y, up.z);
+	vec3 axis = cross(direction, forward);
+	float angle = radianToDegree(acos(dot(direction, forward)));
+	transform.rotation = axis * angle;
 }
 vec3 Entity::getForwardVector() {
-	float x = sin(degreeToRadian(transform.rotation.y)) * cos(degreeToRadian(transform.rotation.x));
-	float y = sin(degreeToRadian(-transform.rotation.x));
-	float z = -cos(degreeToRadian(transform.rotation.x)) * cos(degreeToRadian(transform.rotation.y));
+	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));
+	float x = -sin(rotation.y) * cos(rotation.x);
+	float y = sin(rotation.x);
+	float z = -cos(rotation.x) * cos(rotation.y);
 	return vec3(x, y, z);
 }
 vec3 Entity::getRightVector() {
-	float x = cos(degreeToRadian(transform.rotation.x));
-	float y = 0;
-	float z = -sin(degreeToRadian(transform.rotation.x));
+	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));
+	float x = sin(rotation.z) * sin(rotation.x) * sin(rotation.y) + cos(rotation.z) * cos(rotation.y);
+	float y = cos(rotation.x) * sin(rotation.z);
+	float z = sin(rotation.z) * sin(rotation.x) * cos(rotation.y) - cos(rotation.z) * sin(rotation.y);
 	return vec3(x, y, z);
 }
 vec3 Entity::getUpVector() {
-	float x = sin(degreeToRadian(transform.rotation.y)) * sin(degreeToRadian(transform.rotation.x));
-	float y = cos(degreeToRadian(-transform.rotation.x));
-	float z = -sin(degreeToRadian(transform.rotation.x)) * cos(degreeToRadian(transform.rotation.y));
+	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));
+	float x = cos(rotation.z) * sin(rotation.x) * sin(rotation.y) - sin(rotation.z) * cos(rotation.y);
+	float y = cos(rotation.x) * cos(rotation.z);
+	float z = cos(rotation.z) * sin(rotation.x) * cos(rotation.y) + sin(rotation.z) * sin(rotation.y);
 	return vec3(x, y, z);
 }
+
 void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
 	modelViewMatrix.LoadIdentity();
 	modelViewMatrix.LookAt(eye.x, eye.y, eye.z,
@@ -104,6 +98,11 @@ void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
 }
 
 void Entity::update() {
+	// clamp rotation degrees
+	fmod(transform.rotation.x, 360);
+	fmod(transform.rotation.y, 360);
+	fmod(transform.rotation.z, 360);
+
 	// apply transformations
 	modelViewMatrix.Translate(transform.position.x, transform.position.y, transform.position.z);
 	modelViewMatrix.Rotate(transform.rotation.x, 1, 0, 0);
@@ -146,6 +145,10 @@ bool Camera::isCurrentCamera() {
 void Camera::update() {
 	if (!isCurrentCamera()) return;
 	Entity::update();
+}
+void Camera::initMatrix(vec3 eye, vec3 center, vec3 up) {
+	modelViewMatrix.LoadIdentity();
+	//transform.rotation.y++;
 }
 #pragma endregion
 

@@ -391,7 +391,7 @@ void displayFunc() {
 	mvMatrix.LoadIdentity();
 	mvMatrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
 				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
-				  0, 1, 0);
+				  1, 1, 0);
 
 	// apply transformations
 	mvMatrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);

@@ -1,6 +1,6 @@
 ﻿/*
   CSCI 420 Computer Graphics, USC
-  Assignment 1: Height Fields with Shaders.
+  Assignment 2: Roller Coaster
 
   Student username: Baihua Yang
 */
@@ -55,7 +55,7 @@ float deltaTime = 0;
 
 // entities
 EntityManager entityManager;
-Camera* cameraEntity;
+Camera* camera;
 Entity* trackEntity;
 
 // lighting 
@@ -332,7 +332,7 @@ void HandleCameraMotion() {
 
 	vec3 direction = splineObject->getDirection();
 
-	cameraEntity->lookAt(direction, vec3(0, 1, 0));
+	//cameraEntity->lookAt(direction, vec3(0, 1, 0));
 }
 
 void idleFunc() {
@@ -354,11 +354,13 @@ void idleFunc() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	//HandleCameraMotion();
-	cameraEntity->lookAt(vec3(0, 0, 0), vec3(0, 1, 0));
+	HandleCameraMotion();
 
 	// set uniforms
 	setUniforms();
+
+	// debug
+	//cameraEntity->transform.rotation.z++;
 
 	// update entities
 	entityManager.update();
@@ -449,9 +451,9 @@ void mouseMotionDragFunc(int x, int y) {
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
 
 	float lookStep = mouseSensitivity * deltaTime;
-	cameraEntity->transform.rotation.x += mousePosDelta[1] * lookStep;
-	cameraEntity->transform.rotation.y += mousePosDelta[0] * lookStep;
-	cameraEntity->transform.rotation.x = std::clamp(cameraEntity->transform.rotation.x, xAngleLimit.x, xAngleLimit.y);
+	camera->transform.rotation.x += mousePosDelta[1] * lookStep;
+	camera->transform.rotation.y += mousePosDelta[0] * lookStep;
+	camera->transform.rotation.x = std::clamp(camera->transform.rotation.x, xAngleLimit.x, xAngleLimit.y);
 
 	//switch (controlState) {
 	//	// translate the landscape
@@ -497,7 +499,6 @@ void mouseMotionDragFunc(int x, int y) {
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
-	cout << 2 << endl;
 }
 
 void mouseMotionFunc(int x, int y) {
@@ -505,13 +506,12 @@ void mouseMotionFunc(int x, int y) {
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
-	cout << 1 << endl;
 }
 
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	cameraEntity->setPerspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	camera->setPerspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
 
@@ -536,9 +536,15 @@ void initScene() {
 }
 
 void initObjects() {
-	cameraEntity = entityManager.createCamera();
-	cameraEntity->enable();
-	cameraEntity->translate(0, 0, 5);
+	camera = entityManager.createCamera();
+	camera->enable();
+	camera->transform.position = vec3(0, 0, 5);
+
+	//debug 
+	//camera->transform.rotation = vec3(0, 45, 45);
+	//log(camera->getForwardVector());
+	//log(camera->getRightVector());
+	//log(camera->getUpVector());
 
 	basis = mat4(
 		-s, 2 * s, -s, 0,

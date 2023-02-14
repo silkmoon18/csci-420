@@ -9,6 +9,7 @@
 using namespace std;
 using namespace glm;
 
+
 class EntityManager;
 class Entity;
 class Camera;
@@ -17,9 +18,10 @@ class SplineObject;
 
 
 
-static const float PI = 3.14159265359f;
-static float degreeToRadian(float degree);
-static float radianToDegree(float radian);
+const float PI = 3.14159265359f;
+float degreeToRadian(float degree);
+float radianToDegree(float radian);
+void log(vec3 vecto, bool endOfLine = true);
 
 // manager for all entities
 class EntityManager {
@@ -52,10 +54,7 @@ class Entity {
 public:
 	Transform transform;
 
-	void translate(float x, float y, float z);
-	void rotate(float xDegree, float yDegree, float zDegree); // in degrees
-	void scale(float x, float y, float z);
-	void lookAt(vec3 target, vec3 up);
+	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
 	vec3 getForwardVector();
 	vec3 getRightVector();
 	vec3 getUpVector();
@@ -69,7 +68,7 @@ protected:
 	Entity();
 	Entity(VertexArrayObject* vao);
 
-	void initMatrix(vec3 eye, vec3 center, vec3 up);
+	virtual void initMatrix(vec3 eye, vec3 center, vec3 up);
 	virtual void update();
 };
 
@@ -97,6 +96,7 @@ protected:
 	Camera();
 
 	void update();
+	void initMatrix(vec3 eye, vec3 center, vec3 up) override;
 };
 
 
