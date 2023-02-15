@@ -27,6 +27,8 @@ class SplineObject;
 const float PI = 3.14159265359f;
 float degreeToRadian(float degree);
 float radianToDegree(float radian);
+vec3 getProjectionOnVector(vec3 u, vec3 v);
+vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
 template<class T> string getType();
 template<class T> string getType(T obj);
 void log(vec3 vecto, bool endOfLine = true);
@@ -43,22 +45,22 @@ public:
 };
 
 
-struct Transform {
+class Transform {
+public:
 	vec3 position;
 	vec3 rotation;
 	vec3 scale;
-	Transform() {
-		position = vec3(0);
-		rotation = vec3(0);
-		scale = vec3(1);
-	}
+
+	Transform();
+
+	vec3 getRotationInRadians();
 };
 
 
 // basic entity
 class Entity {
 public:
-	Transform transform;
+	Transform* transform;
 
 	void getModelViewMatrix(float m[16]);
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
@@ -125,6 +127,20 @@ protected:
 	void update() override;
 };
 
+class PlayerController : public Component {
+public:
+	void moveOnGround(vec4 input, float step);
+
+	PlayerController();
+
+	friend Entity;
+
+protected:
+	string type = "PlayerController";
+
+	void update() override;
+};
+
 
 // object that handles VAO related operations
 class VertexArrayObject : public Component {
@@ -172,7 +188,7 @@ public:
 
 
 
-
+#pragma region Templates
 template<class T>
 string getType() {
 	return typeid(T).name();
@@ -216,5 +232,6 @@ bool Entity::containsComponent() {
 	}
 	return true;
 }
+#pragma endregion
 
 #endif

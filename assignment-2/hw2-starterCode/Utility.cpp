@@ -11,6 +11,14 @@ float degreeToRadian(float degree) {
 float radianToDegree(float radian) {
 	return radian * (180.0f / PI);
 }
+vec3 getProjectionOnVector(vec3 u, vec3 v) {
+	float vLength = length(v);
+	return v * dot(u, v) / (vLength * vLength);
+}
+vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal) {
+	planeNormal = normalize(planeNormal);
+	return u - getProjectionOnVector(u, planeNormal);
+}
 void log(vec3 vector, bool endOfLine) {
 	string newLine = endOfLine ? "\n" : "";
 	printf("vec3(%f, %f, %f)%s", vector.x, vector.y, vector.z, newLine.c_str());
@@ -23,7 +31,7 @@ EntityManager::EntityManager() {
 }
 void EntityManager::update() {
 	Entity* camera = Camera::currentCamera->getEntity();
-	vec3 position = camera->transform.position;
+	vec3 position = camera->transform->position;
 	vec3 center = position + camera->getForwardVector();
 	vec3 up = camera->getUpVector();
 
@@ -43,15 +51,25 @@ Entity* EntityManager::createEntity() {
 
 
 
+Transform::Transform() {
+	position = vec3(0);
+	rotation = vec3(0);
+	scale = vec3(1);
+}
+vec3 Transform::getRotationInRadians() {
+	return vec3(degreeToRadian(rotation.x), degreeToRadian(rotation.y), degreeToRadian(rotation.z));
+}
+
 #pragma region Entity 
 Entity::Entity() {
+	transform = new Transform();
 	modelViewMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
 void Entity::getModelViewMatrix(float m[16]) {
 	modelViewMatrix.GetMatrix(m);
 }
 void Entity::faceTo(vec3 target, vec3 up) {
-	vec3 forward = normalize(target - transform.position);
+	vec3 forward = normalize(target - transform->position);
 	up = normalize(up);
 
 	float x = asin(forward.y);
@@ -65,24 +83,24 @@ void Entity::faceTo(vec3 target, vec3 up) {
 	y = radianToDegree(y);
 	z = radianToDegree(z);
 
-	transform.rotation = vec3(x, y, z);
+	transform->rotation = vec3(x, y, z);
 }
 vec3 Entity::getForwardVector() {
-	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));
+	vec3 rotation = transform->getRotationInRadians();
 	float x = -sin(rotation.y) * cos(rotation.x);
 	float y = sin(rotation.x);
 	float z = -cos(rotation.x) * cos(rotation.y);
 	return vec3(x, y, z);
 }
 vec3 Entity::getRightVector() {
-	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));
+	vec3 rotation = transform->getRotationInRadians();
 	float x = sin(rotation.z) * sin(rotation.x) * sin(rotation.y) + cos(rotation.z) * cos(rotation.y);
 	float y = cos(rotation.x) * sin(rotation.z);
 	float z = sin(rotation.z) * sin(rotation.x) * cos(rotation.y) - cos(rotation.z) * sin(rotation.y);
 	return vec3(x, y, z);
 }
 vec3 Entity::getUpVector() {
-	vec3 rotation = vec3(degreeToRadian(transform.rotation.x), degreeToRadian(transform.rotation.y), degreeToRadian(transform.rotation.z));
+	vec3 rotation = transform->getRotationInRadians();
 	float x = cos(rotation.z) * sin(rotation.x) * sin(rotation.y) - sin(rotation.z) * cos(rotation.y);
 	float y = cos(rotation.x) * cos(rotation.z);
 	float z = cos(rotation.z) * sin(rotation.x) * cos(rotation.y) + sin(rotation.z) * sin(rotation.y);
@@ -98,16 +116,16 @@ void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
 
 void Entity::update() {
 	// clamp rotation degrees
-	fmod(transform.rotation.x, 360);
-	fmod(transform.rotation.y, 360);
-	fmod(transform.rotation.z, 360);
+	transform->rotation.x = fmod(transform->rotation.x, 360);
+	transform->rotation.y = fmod(transform->rotation.y, 360);
+	transform->rotation.z = fmod(transform->rotation.z, 360);
 
 	// apply transformations
-	modelViewMatrix.Translate(transform.position.x, transform.position.y, transform.position.z);
-	modelViewMatrix.Rotate(transform.rotation.x, 1, 0, 0);
-	modelViewMatrix.Rotate(transform.rotation.y, 0, 1, 0);
-	modelViewMatrix.Rotate(transform.rotation.z, 0, 0, 1);
-	modelViewMatrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
+	modelViewMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
+	modelViewMatrix.Rotate(transform->rotation.x, 1, 0, 0);
+	modelViewMatrix.Rotate(transform->rotation.y, 0, 1, 0);
+	modelViewMatrix.Rotate(transform->rotation.z, 0, 0, 1);
+	modelViewMatrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
 
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
@@ -168,6 +186,23 @@ void Camera::update() {
 #pragma endregion
 
 
+
+PlayerController::PlayerController() {
+
+}
+void PlayerController::moveOnGround(vec4 input, float step) {
+	float z = input.x - input.y;
+	float x = input.w - input.z;
+	if (z == 0 && x == 0) return;
+
+	vec3 forward = normalize(getProjectionOnPlane(entity->getForwardVector()));
+	vec3 right = normalize(getProjectionOnPlane(entity->getRightVector()));
+	vec3 move = normalize(x * right + z * forward) * step;
+	entity->transform->position += move;
+}
+void PlayerController::update() {
+	// to-do: physics
+}
 
 #pragma region VertexArrayObject
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {

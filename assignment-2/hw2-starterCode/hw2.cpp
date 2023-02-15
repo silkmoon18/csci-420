@@ -55,7 +55,7 @@ float deltaTime = 0; // in s
 
 // entities
 EntityManager entityManager;
-Entity* camera;
+Entity* player;
 Entity* trackEntity;
 
 // lighting 
@@ -71,7 +71,7 @@ float materialShininess = 1;
 // display window
 int windowWidth = 1280;
 int windowHeight = 720;
-char windowTitle[512] = "CSCI 420 homework I";
+char windowTitle[512] = "CSCI 420 homework II";
 
 // images
 vector<string> imagePaths;
@@ -80,11 +80,13 @@ int currentImageIndex = 0;
 int screenshotIndex = 0;
 
 // controls
+vec4 moveInput = vec4(0); // w, s, a, d
 float mouseSensitivity = 5.0f;
 vec2 xAngleLimit(-90, 80);
-float translateSpeed = 0.1f;
-float rotateSpeed = 0.5f;
-float scaleSpeed = 0.01f;
+float moveSpeed = 5.0f;
+//float translateSpeed = 0.1f;
+//float rotateSpeed = 0.5f;
+//float scaleSpeed = 0.01f;
 
 // physics
 float rcSpeed = 1.0f;
@@ -104,7 +106,19 @@ Spline* splines;
 int numSplines;
 
 // catmull-rom spline
-mat4 basis;
+int numOfStepsPerSegment = 1000;
+vector<SplineObject*> splineObjects;
+int currentSplineObjectIndex = -1;
+float s = 0.5f;
+mat4 basis = mat4(
+	-s, 2 * s, -s, 0,
+	2 - s, s - 3, 0, 1,
+	s - 2, 3 - 2 * s, s, 0,
+	s, -s, 0, 0
+);
+
+
+
 
 int loadSplines(char* argv) {
 	char* cName = (char*)malloc(128 * sizeof(char));
@@ -279,10 +293,6 @@ void setUniforms() {
 
 
 
-int numOfStepsPerSegment = 1000;
-float s = 0.5f;
-vector<SplineObject*> splineObjects;
-int currentSplineObjectIndex = -1;
 
 void createSplineObjects() {
 	vector<vec3> positions;
@@ -333,8 +343,8 @@ void HandleCameraMotion() {
 
 	vec3 direction = splineObject->getDirection();
 
-	camera->transform.position = position;
-	camera->faceTo(position + direction);
+	player->transform->position = position;
+	player->faceTo(position + direction);
 }
 
 void idleFunc() {
@@ -356,7 +366,7 @@ void idleFunc() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	HandleCameraMotion();
+	//HandleCameraMotion();
 
 	// set uniforms
 	setUniforms();
@@ -364,6 +374,7 @@ void displayFunc() {
 	// debug
 	//cameraEntity->transform.rotation.z++;
 
+	player->getComponent<PlayerController>()->moveOnGround(moveInput, moveSpeed * deltaTime);
 	// update entities
 	entityManager.update();
 
@@ -380,29 +391,50 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			cout << "You pressed the spacebar." << endl;
 			break;
 
-			// change light position
-			//case 'w':
-			//	light_pos[2] += lightTranslateSpeed;
-			//	break;
-			//case 's':
-			//	light_pos[2] -= lightTranslateSpeed;
-			//	break;
-			//case 'a':
-			//	light_pos[0] -= lightTranslateSpeed;
-			//	break;
-			//case 'd':
-			//	light_pos[0] += lightTranslateSpeed;
-			//	break;
-			//case 'q':
-			//	light_pos[1] -= lightTranslateSpeed;
-			//	break;
-			//case 'e':
-			//	light_pos[1] += lightTranslateSpeed;
-			//	break;
-
-			// toggle screenshots recording
+		case 'w':
+			moveInput.x = 1;
+			break;
+		case 's':
+			moveInput.y = 1;
+			break;
+		case 'a':
+			moveInput.z = 1;
+			break;
+		case 'd':
+			moveInput.w = 1;
+			break;
+		// toggle screenshots recording
 		case 'x':
 			isTakingScreenshot = !isTakingScreenshot;
+			break;
+	}
+	//if (key == 'w') {
+	//	moveInput.y = 1;
+	//}
+	//if (key == 's') {
+	//	moveInput.y = -1;
+	//}
+	//if (key == 'a') {
+	//	moveInput.x = -1;
+	//}
+	//if (key == 'd') {
+	//	moveInput.x = 1;
+	//}
+}
+
+void keyboardUpFunc(unsigned char key, int x, int y) {
+	switch (key) {
+		case 'w':
+			moveInput.x = 0;
+			break;
+		case 's':
+			moveInput.y = 0;
+			break;
+		case 'a':
+			moveInput.z = 0;
+			break;
+		case 'd':
+			moveInput.w = 0;
 			break;
 	}
 }
@@ -453,9 +485,9 @@ void mouseMotionDragFunc(int x, int y) {
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
 
 	float lookStep = mouseSensitivity * deltaTime;
-	camera->transform.rotation.x += mousePosDelta[1] * lookStep;
-	camera->transform.rotation.y += mousePosDelta[0] * lookStep;
-	camera->transform.rotation.x = std::clamp(camera->transform.rotation.x, xAngleLimit.x, xAngleLimit.y);
+	player->transform->rotation.x += mousePosDelta[1] * lookStep;
+	player->transform->rotation.y += mousePosDelta[0] * lookStep;
+	player->transform->rotation.x = std::clamp(player->transform->rotation.x, xAngleLimit.x, xAngleLimit.y);
 
 	//switch (controlState) {
 	//	// translate the landscape
@@ -513,7 +545,7 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	camera->getComponent<Camera>()->setPerspective(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	player->getComponent<Camera>()->setPerspective(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
 
@@ -537,12 +569,13 @@ void initScene() {
 	cout << "\nGL error: " << glGetError() << endl;
 }
 
-Entity* debugger;
+
 void initObjects() {
-	camera = entityManager.createEntity();
-	camera->addComponent(new Camera());
-	camera->getComponent<Camera>()->enable();
-	camera->transform.position = vec3(0, 0, 5);
+	player = entityManager.createEntity();
+	player->addComponent(new PlayerController());
+	player->addComponent(new Camera());
+	player->getComponent<Camera>()->enable();
+	player->transform->position = vec3(0, 0, 5);
 
 	//debug 
 	//camera->transform.rotation = vec3(0, 45, 45);
@@ -550,15 +583,6 @@ void initObjects() {
 	//log(camera->getRightVector());
 	//log(camera->getUpVector());
 	//camera->faceTo(vec3(0, 0, 4), vec3(1, 1, 0));
-
-	//debugger = entityManager.createEntity(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
-
-	basis = mat4(
-		-s, 2 * s, -s, 0,
-		2 - s, s - 3, 0, 1,
-		s - 2, 3 - 2 * s, s, 0,
-		s, -s, 0, 0
-	);
 
 	createSplineObjects();
 
@@ -610,6 +634,7 @@ int main(int argc, char* argv[]) {
 
 	// callback for pressing the keys on the keyboard
 	glutKeyboardFunc(keyboardFunc);
+	glutKeyboardUpFunc(keyboardUpFunc);
 
 	// callback for mouse button changes
 	glutMouseFunc(mouseButtonFunc);
