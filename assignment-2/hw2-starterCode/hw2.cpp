@@ -55,7 +55,7 @@ float deltaTime = 0; // in s
 
 // entities
 EntityManager entityManager;
-Camera* camera;
+Entity* camera;
 Entity* trackEntity;
 
 // lighting 
@@ -315,7 +315,8 @@ void createSplineObjects() {
 		}
 		colors = vector<vec4>(positions.size(), vec4(255));
 
-		trackEntity = entityManager.createEntity(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
+		trackEntity = entityManager.createEntity();
+		trackEntity->addComponent(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
 		splineObjects.push_back(new SplineObject(spline, positions, tangents));
 	}
 
@@ -512,7 +513,7 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	camera->setPerspective(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	camera->getComponent<Camera>()->setPerspective(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
 
@@ -538,8 +539,9 @@ void initScene() {
 
 Entity* debugger;
 void initObjects() {
-	camera = entityManager.createCamera();
-	camera->enable();
+	camera = entityManager.createEntity();
+	camera->addComponent(new Camera());
+	camera->getComponent<Camera>()->enable();
 	camera->transform.position = vec3(0, 0, 5);
 
 	//debug 

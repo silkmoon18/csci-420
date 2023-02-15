@@ -3,6 +3,8 @@
 
 
 
+
+
 float degreeToRadian(float degree) {
 	return degree * PI / 180.0f;
 }
@@ -20,7 +22,7 @@ EntityManager::EntityManager() {
 
 }
 void EntityManager::update() {
-	Camera* camera = Camera::currentCamera;
+	Entity* camera = Camera::currentCamera->getEntity();
 	vec3 position = camera->transform.position;
 	vec3 center = position + camera->getForwardVector();
 	vec3 up = camera->getUpVector();
@@ -37,16 +39,6 @@ Entity* EntityManager::createEntity() {
 	entities.push_back(object);
 	return object;
 }
-Entity* EntityManager::createEntity(VertexArrayObject* vao) {
-	Entity* object = new Entity(vao);
-	entities.push_back(object);
-	return object;
-}
-Camera* EntityManager::createCamera() {
-	Camera* camera = new Camera();
-	entities.push_back(camera);
-	return camera;
-}
 #pragma endregion
 
 
@@ -55,30 +47,10 @@ Camera* EntityManager::createCamera() {
 Entity::Entity() {
 	modelViewMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
-Entity::Entity(VertexArrayObject* vao) : Entity() {
-	this->vao = vao;
+void Entity::getModelViewMatrix(float m[16]) {
+	modelViewMatrix.GetMatrix(m);
 }
-
 void Entity::faceTo(vec3 target, vec3 up) {
-	//up = normalize(up);
-	//vec3 worldUp = vec3(0, 1, 0);
-	//transform.rotation = vec3(0);
-	//bool isUp = normalize(dot(up, worldUp) * worldUp).y > 0;
-	//if (isUp) {
-	//	transform.rotation.y = 0;
-	//}
-	//else {
-	//	transform.rotation.y = 90;
-	//}
-
-	//vec3 direction = normalize(target - transform.position);
-	//vec3 forward = getForwardVector();
-
-	//vec3 axis = cross(forward, direction);
-	//float angle = radianToDegree(acos(dot(forward, direction)));
-	//transform.rotation = axis * angle;
-	// 
-	// 
 	vec3 forward = normalize(target - transform.position);
 	up = normalize(up);
 
@@ -137,20 +109,41 @@ void Entity::update() {
 	modelViewMatrix.Rotate(transform.rotation.z, 0, 0, 1);
 	modelViewMatrix.Scale(transform.scale.x, transform.scale.y, transform.scale.z);
 
-	// draw if has vao
-	if (vao) {
-		vao->draw(modelViewMatrix);
+	for (auto const& kvp : typeToComponent) {
+		kvp.second->update();
 	}
+}
+string Entity::toClassKey(string type) {
+	int index = 0;
+	for (int i = 0; type[i]; i++)
+		if (type[i] != ' ' || type[i] != '*')
+			type[index++] = type[i];
+	type[index] = '\0'; 
+	type.erase(std::remove_if(type.begin(), type.end(),
+							  [](auto const& c) -> bool { return !isalnum(c); }), type.end());
+
+	return type;
 }
 #pragma endregion
 
 
 
+Component::Component() {
+	// hided constructor
+}
+Entity* Component::getEntity() {
+	return entity;
+}
+
+
 #pragma region Camera
 Camera* Camera::currentCamera = nullptr;
 
-Camera::Camera() : Entity() {
+Camera::Camera(bool setCurrent) {
 	projectionMatrix.SetMatrixMode(OpenGLMatrix::Projection);
+	if (setCurrent) {
+		enable();
+	}
 }
 void Camera::getProjectionMatrix(float* pMatrix) {
 	projectionMatrix.GetMatrix(pMatrix);
@@ -171,11 +164,6 @@ bool Camera::isCurrentCamera() {
 }
 void Camera::update() {
 	if (!isCurrentCamera()) return;
-	Entity::update();
-}
-void Camera::initMatrix(vec3 eye, vec3 center, vec3 up) {
-	modelViewMatrix.LoadIdentity();
-	//transform.rotation.y++;
 }
 #pragma endregion
 
@@ -242,10 +230,10 @@ VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vect
 	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 }
 
-void VertexArrayObject::draw(OpenGLMatrix modelViewMatrix) {
+void VertexArrayObject::update() {
 	// get matrices
 	float m[16];
-	modelViewMatrix.GetMatrix(m);
+	entity->getModelViewMatrix(m);
 	float p[16];
 	Camera::currentCamera->getProjectionMatrix(p);
 

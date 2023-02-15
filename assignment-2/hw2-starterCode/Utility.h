@@ -3,8 +3,13 @@
 
 #include "basicPipelineProgram.h"
 #include "openGLMatrix.h"
+//#include "glm/gtc/quaternion.hpp"
+//#include "glm/gtx/quaternion.hpp"
 
 #include <vector>
+#include <map>
+#include <algorithm>
+
 
 using namespace std;
 using namespace glm;
@@ -12,15 +17,18 @@ using namespace glm;
 
 class EntityManager;
 class Entity;
+
+class Component;
 class Camera;
 class VertexArrayObject;
 class SplineObject;
 
 
-
 const float PI = 3.14159265359f;
 float degreeToRadian(float degree);
 float radianToDegree(float radian);
+template<class T> string getType();
+template<class T> string getType(T obj);
 void log(vec3 vecto, bool endOfLine = true);
 
 // manager for all entities
@@ -32,8 +40,6 @@ public:
 
 	void update();
 	Entity* createEntity();
-	Entity* createEntity(VertexArrayObject* vao);
-	Camera* createCamera();
 };
 
 
@@ -54,27 +60,47 @@ class Entity {
 public:
 	Transform transform;
 
+	void getModelViewMatrix(float m[16]);
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
 	vec3 getForwardVector();
 	vec3 getRightVector();
-	vec3 getUpVector();
+	vec3 getUpVector(); 
+
+	template<class T> bool addComponent(T* component);
+	template<class T> T* getComponent();
+	template<class T> bool containsComponent();
 
 	friend EntityManager;
 
 protected:
 	OpenGLMatrix modelViewMatrix;
 	VertexArrayObject* vao = nullptr;
+	map<string, Component*> typeToComponent;
 
 	Entity();
-	Entity(VertexArrayObject* vao);
 
 	virtual void initMatrix(vec3 eye, vec3 center, vec3 up);
 	virtual void update();
+	string toClassKey(string type);
 };
 
 
+class Component {
+public:
+	Entity* getEntity();
+
+	friend Entity;
+
+protected:
+	Entity* entity;
+
+	Component();
+
+	virtual void update() = 0;
+};
+
 // camera entity
-class Camera : public Entity {
+class Camera : public Component {
 public:
 	float fieldOfView = 80.0f; // in degrees
 	float aspect = 1920 / 1080.0f; // width / height
@@ -83,25 +109,25 @@ public:
 
 	static Camera* currentCamera;
 
+	Camera(bool setCurrent = true);
+
 	void getProjectionMatrix(float* pMatrix);
 	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
 	void enable();
 	bool isCurrentCamera();
 
-	friend EntityManager;
+	friend Entity;
 
 protected:
+	string type = "Camera";
 	OpenGLMatrix projectionMatrix;
 
-	Camera();
-
-	void update();
-	void initMatrix(vec3 eye, vec3 center, vec3 up) override;
+	void update() override;
 };
 
 
 // object that handles VAO related operations
-class VertexArrayObject {
+class VertexArrayObject : public Component {
 public:
 	BasicPipelineProgram* pipelineProgram;
 	GLuint positionBuffer, colorBuffer, indexBuffer;
@@ -111,7 +137,7 @@ public:
 
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode);
 
-	void draw(OpenGLMatrix modelViewMatrix);
+	void update() override;
 };
 
 
@@ -144,5 +170,51 @@ public:
 	vec3 moveForward(float step);
 };
 
+
+
+
+template<class T>
+string getType() {
+	return typeid(T).name();
+}
+template<class T>
+string getType(T obj) {
+	return typeid(obj).name();
+}
+
+template<class T>
+bool Entity::addComponent(T* component) {
+	string type = toClassKey(getType(component));
+	if (!is_base_of<Component, T>::value || is_same<Component, T>::value) {
+		printf("Error: type %s is not derived from Component. \n", type.c_str());
+		return false;
+	}
+	if (containsComponent<decltype(component)>()) {
+		printf("Error: already contains a component of type %s. \n", type.c_str());
+		return false;
+	}
+
+	component->entity = this;
+	typeToComponent.insert({ type, component });
+	return true;
+}
+template<class T>
+T* Entity::getComponent() {
+	if (!containsComponent<T>()) {
+		return nullptr;
+	}
+	else {
+		string type = toClassKey(getType<T>());
+		return (T*)typeToComponent[type];
+	}
+}
+template<class T>
+bool Entity::containsComponent() {
+	string type = toClassKey(getType<T>());
+	if (typeToComponent.find(type) == typeToComponent.end()) {
+		return false;
+	}
+	return true;
+}
 
 #endif

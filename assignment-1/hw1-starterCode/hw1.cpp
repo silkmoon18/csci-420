@@ -11,6 +11,7 @@
 #include "openGLHeader.h"
 #include "glutHeader.h"
 #include "Utility.h"
+#include <utility>
 
 #include <iostream>
 #include <cstring>
@@ -384,6 +385,16 @@ void idleFunc() {
 	currentFrame++;
 }
 
+template<class T>
+string getType(T t) {
+	return typeid(T).name();
+}
+class base {
+
+};
+class sub : public base {
+
+};
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -399,6 +410,11 @@ void displayFunc() {
 	mvMatrix.Rotate(landRotate[1], 0, 1, 0);
 	mvMatrix.Rotate(landRotate[2], 0, 0, 1);
 	mvMatrix.Scale(landScale[0], landScale[1], landScale[2]);
+
+	int a = 0;
+	int* i = &a;
+
+	cout << getType(*i) << endl;
 
 	// get matrices
 	float m[16];
