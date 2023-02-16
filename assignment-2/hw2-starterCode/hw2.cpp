@@ -485,9 +485,11 @@ void mouseMotionDragFunc(int x, int y) {
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
 
 	float lookStep = mouseSensitivity * deltaTime;
-	player->transform->rotation.x += mousePosDelta[1] * lookStep;
-	player->transform->rotation.y += mousePosDelta[0] * lookStep;
-	player->transform->rotation.x = std::clamp(player->transform->rotation.x, xAngleLimit.x, xAngleLimit.y);
+	vec3 angles = player->transform->getEulerAngles();
+	angles.x += mousePosDelta[1] * lookStep;
+	angles.y += mousePosDelta[0] * lookStep;
+	angles.x = std::clamp(angles.x, xAngleLimit.x, xAngleLimit.y);
+	player->transform->setEulerAngles(angles);
 
 	//switch (controlState) {
 	//	// translate the landscape
@@ -578,17 +580,6 @@ void initObjects() {
 	player->transform->position = vec3(0, 0, 5);
 
 	//debug 
-	quat q;
-	q = rotate(q, degreeToRadian(90), vec3(0, 1, 0));
-	//rotate(q, vec)
-	vec3 r = eulerAngles(q);
-	log(q);
-	log(r);
-	//camera->transform.rotation = vec3(0, 45, 45);
-	//log(camera->getForwardVector());
-	//log(camera->getRightVector());
-	//log(camera->getUpVector());
-	//camera->faceTo(vec3(0, 0, 4), vec3(1, 1, 0));
 
 	createSplineObjects();
 

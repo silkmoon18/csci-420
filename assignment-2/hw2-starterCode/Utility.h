@@ -1,10 +1,14 @@
 #ifndef _UTILITY_H_
 #define _UTILITY_H_
 
+#define GLM_FORCE_RADIANS
+
 #include "basicPipelineProgram.h"
 #include "openGLMatrix.h"
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/quaternion.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/epsilon.hpp"
 
 #include <vector>
 #include <map>
@@ -24,13 +28,24 @@ class VertexArrayObject;
 class SplineObject;
 
 
-const float PI = 3.14159265359f;
+const float PI = 3.14159274101257324219f;
+const float EPSILON = 0.000001f;
+const vec3 worldForward = vec3(0, 0, -1);
+const vec3 worldRight = vec3(1, 0, 0);
+const vec3 worldUp = vec3(0, 1, 0);
+
+bool approximately(vec3 a, vec3 b);
 float degreeToRadian(float degree);
+vec3 degreeToRadian(vec3 degrees);
 float radianToDegree(float radian);
+vec3 radianToDegree(vec3 radians);
+
 vec3 getProjectionOnVector(vec3 u, vec3 v);
 vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
+
 template<class T> string getType();
 template<class T> string getType(T obj);
+
 void log(vec3 v, bool endOfLine = true);
 void log(quat q, bool endOfLine = true);
 
@@ -49,12 +64,13 @@ public:
 class Transform {
 public:
 	vec3 position;
-	vec3 rotation;
+	quat rotation;
 	vec3 scale;
 
 	Transform();
 
-	vec3 getRotationInRadians();
+	vec3 getEulerAngles();
+	void setEulerAngles(vec3 angles);
 };
 
 
@@ -64,7 +80,8 @@ public:
 	Transform* transform;
 
 	void getModelViewMatrix(float m[16]);
-	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
+	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0)); 
+	void rotateAround(float degree, vec3 axis);
 	vec3 getForwardVector();
 	vec3 getRightVector();
 	vec3 getUpVector(); 

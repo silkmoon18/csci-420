@@ -5,11 +5,27 @@
 
 
 
+
+bool approximately(vec3 a, vec3 b) {
+	for (int i = 0; i < a.length(); i++) {
+		float diff = abs(a[i] - b[i]);
+		if (diff > EPSILON) {
+			return false;
+		}
+	}
+	return true;
+}
 float degreeToRadian(float degree) {
 	return degree * PI / 180.0f;
 }
+vec3 degreeToRadian(vec3 degrees) {
+	return vec3(degreeToRadian(degrees.x), degreeToRadian(degrees.y), degreeToRadian(degrees.z));
+}
 float radianToDegree(float radian) {
 	return radian * (180.0f / PI);
+}
+vec3 radianToDegree(vec3 radians) {
+	return vec3(radianToDegree(radians.x), radianToDegree(radians.y), radianToDegree(radians.z));
 }
 vec3 getProjectionOnVector(vec3 u, vec3 v) {
 	float vLength = length(v);
@@ -54,15 +70,23 @@ Entity* EntityManager::createEntity() {
 #pragma endregion
 
 
-
+#pragma region Transform
 Transform::Transform() {
 	position = vec3(0);
-	rotation = vec3(0);
+	rotation = quat(1, 0, 0, 0);
 	scale = vec3(1);
 }
-vec3 Transform::getRotationInRadians() {
-	return vec3(degreeToRadian(rotation.x), degreeToRadian(rotation.y), degreeToRadian(rotation.z));
+vec3 Transform::getEulerAngles() {
+	return radianToDegree(eulerAngles(rotation));
 }
+void Transform::setEulerAngles(vec3 anglesInDegree) {
+	anglesInDegree.x = fmod(anglesInDegree.x, 360);
+	anglesInDegree.y = fmod(anglesInDegree.y, 360);
+	anglesInDegree.z = fmod(anglesInDegree.z, 360);
+	rotation = quat(degreeToRadian(anglesInDegree));
+}
+#pragma endregion
+
 
 #pragma region Entity 
 Entity::Entity() {
@@ -73,42 +97,37 @@ void Entity::getModelViewMatrix(float m[16]) {
 	modelViewMatrix.GetMatrix(m);
 }
 void Entity::faceTo(vec3 target, vec3 up) {
-	vec3 forward = normalize(target - transform->position);
+	if (length(up) == 0) {
+		up = worldUp;
+	}
+	vec3 position = transform->position;
+	vec3 direction = normalize(target - transform->position);
 	up = normalize(up);
+	if (approximately(direction, up)) {
+		up = worldUp;
+	}
+	if (approximately(direction, worldUp)) {
+		up = direction.z > 0 ? worldForward : -worldForward;
+	}
+	vec3 right = cross(direction, up);
+	up = cross(right, direction);
+	transform->rotation = conjugate(toQuat(lookAt(position, position + direction, up)));
 
-	float x = asin(forward.y);
-	float y = atan2(-forward.x, -forward.z);
-
-	float z = asin(up.z * sin(y) - up.x * cos(y));
-	if (up.y < 0)
-		z = ((0.0f <= z) - (z < 0.0f)) * PI - z;
-
-	x = radianToDegree(x);
-	y = radianToDegree(y);
-	z = radianToDegree(z);
-
-	transform->rotation = vec3(x, y, z);
+	//vec3 r = radianToDegree(eulerAngles(transform->rotation));
+	//log(transform->rotation);
+	//log(r);
+}
+void Entity::rotateAround(float degree, vec3 axis) {
+	transform->rotation = rotate(transform->rotation, degreeToRadian(degree), axis);
 }
 vec3 Entity::getForwardVector() {
-	vec3 rotation = transform->getRotationInRadians();
-	float x = -sin(rotation.y) * cos(rotation.x);
-	float y = sin(rotation.x);
-	float z = -cos(rotation.x) * cos(rotation.y);
-	return vec3(x, y, z);
+	return transform->rotation * worldForward;
 }
 vec3 Entity::getRightVector() {
-	vec3 rotation = transform->getRotationInRadians();
-	float x = sin(rotation.z) * sin(rotation.x) * sin(rotation.y) + cos(rotation.z) * cos(rotation.y);
-	float y = cos(rotation.x) * sin(rotation.z);
-	float z = sin(rotation.z) * sin(rotation.x) * cos(rotation.y) - cos(rotation.z) * sin(rotation.y);
-	return vec3(x, y, z);
+	return transform->rotation * worldRight;
 }
 vec3 Entity::getUpVector() {
-	vec3 rotation = transform->getRotationInRadians();
-	float x = cos(rotation.z) * sin(rotation.x) * sin(rotation.y) - sin(rotation.z) * cos(rotation.y);
-	float y = cos(rotation.x) * cos(rotation.z);
-	float z = cos(rotation.z) * sin(rotation.x) * cos(rotation.y) + sin(rotation.z) * sin(rotation.y);
-	return vec3(x, y, z);
+	return transform->rotation * worldUp;
 }
 
 void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
@@ -119,11 +138,6 @@ void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
 }
 
 void Entity::update() {
-	// clamp rotation degrees
-	transform->rotation.x = fmod(transform->rotation.x, 360);
-	transform->rotation.y = fmod(transform->rotation.y, 360);
-	transform->rotation.z = fmod(transform->rotation.z, 360);
-
 	// apply transformations
 	modelViewMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
 	modelViewMatrix.Rotate(transform->rotation.x, 1, 0, 0);
