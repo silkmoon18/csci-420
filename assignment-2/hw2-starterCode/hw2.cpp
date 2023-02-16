@@ -54,18 +54,30 @@ int previousTime = 0; // in ms
 float deltaTime = 0; // in s
 
 // entities
-EntityManager entityManager;
+Entity* worldCamera;
 Entity* player;
 Entity* trackEntity;
 
+// controls
+vec3 playerAngles(0);
+vec3 worldCameraAngles(0);
+vec4 moveInput(0); // w, s, a, d
+float mouseSensitivity = 5.0f;
+vec2 xAngleLimit(-90, 80);
+float moveSpeed = 5.0f;
+//float translateSpeed = 0.1f;
+//float rotateSpeed = 0.5f;
+//float scaleSpeed = 0.01f;
+
+
 // lighting 
-vec4 lightPosition = vec4(0, 0, 0, 1);
-vec4 lightAmbient = vec4(1, 1, 1, 1);
-vec4 lightDiffuse = vec4(.8, .8, .8, 1);
-vec4 lightSpecular = vec4(1, 1, 1, 1);
-vec4 ambientCoef = vec4(0.5, 0.5, 0.5, 1);
-vec4 diffuseCoef = vec4(1, 1, 1, 1);
-vec4 specularCoef = vec4(.9, .9, .9, 1);
+vec4 lightPosition(0, 0, 0, 1);
+vec4 lightAmbient(1, 1, 1, 1);
+vec4 lightDiffuse(.8, .8, .8, 1);
+vec4 lightSpecular(1, 1, 1, 1);
+vec4 ambientCoef(0.5, 0.5, 0.5, 1);
+vec4 diffuseCoef(1, 1, 1, 1);
+vec4 specularCoef(.9, .9, .9, 1);
 float materialShininess = 1;
 
 // display window
@@ -79,14 +91,6 @@ string imageDirectory;
 int currentImageIndex = 0;
 int screenshotIndex = 0;
 
-// controls
-vec4 moveInput = vec4(0); // w, s, a, d
-float mouseSensitivity = 5.0f;
-vec2 xAngleLimit(-90, 80);
-float moveSpeed = 5.0f;
-//float translateSpeed = 0.1f;
-//float rotateSpeed = 0.5f;
-//float scaleSpeed = 0.01f;
 
 // physics
 float rcSpeed = 1.0f;
@@ -294,6 +298,30 @@ void setUniforms() {
 
 
 
+void HandleMouseInput(int mousePosDelta[2]) {
+	float lookStep = mouseSensitivity * deltaTime;
+	Entity* target;
+	vec3* angles;
+	if (player->getComponent<Camera>()->isCurrentCamera()) {
+		target = player;
+		angles = &playerAngles;
+	}
+	else {
+		target = worldCamera;
+		angles = &worldCameraAngles;
+	}
+
+	//angles->x += mousePosDelta[1] * lookStep;
+	//angles->y += mousePosDelta[0] * lookStep;
+	//angles->x = std::clamp(angles->x, xAngleLimit.x, xAngleLimit.y);
+	//target->transform->setEulerAngles(*angles);
+
+	angles = &(target->transform->getEulerAngles());
+	if (abs(angles->x) < 80) {
+		target->rotateAround(mousePosDelta[1] * lookStep, target->getRightVector());
+	}
+	target->rotateAround(mousePosDelta[0] * lookStep, worldUp);
+}
 void createSplineObjects() {
 	vector<vec3> positions;
 	vector<vec4> colors;
@@ -325,7 +353,7 @@ void createSplineObjects() {
 		}
 		colors = vector<vec4>(positions.size(), vec4(255));
 
-		trackEntity = entityManager.createEntity();
+		trackEntity = EntityManager::getInstance()->createEntity();
 		trackEntity->addComponent(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
 		splineObjects.push_back(new SplineObject(spline, positions, tangents));
 	}
@@ -372,11 +400,16 @@ void displayFunc() {
 	setUniforms();
 
 	// debug
-	//cameraEntity->transform.rotation.z++;
+
+	//vec3 angles = player->transform->getEulerAngles();
+	//angles.y = 90;
+	//angles.y += 1;
+	//player->transform->setEulerAngles(angles);
+	//log(angles);
 
 	player->getComponent<PlayerController>()->moveOnGround(moveInput, moveSpeed * deltaTime);
 	// update entities
-	entityManager.update();
+	EntityManager::getInstance()->update();
 
 	glutSwapBuffers();
 }
@@ -436,6 +469,14 @@ void keyboardUpFunc(unsigned char key, int x, int y) {
 		case 'd':
 			moveInput.w = 0;
 			break;
+		case 'p':
+			if (Camera::currentCamera == player->getComponent<Camera>()) {
+				worldCamera->getComponent<Camera>()->setCurrent();
+			}
+			else {
+				player->getComponent<Camera>()->setCurrent();
+			}
+			break;
 	}
 }
 
@@ -480,16 +521,8 @@ void mouseButtonFunc(int button, int state, int x, int y) {
 
 void mouseMotionDragFunc(int x, int y) {
 	// mouse has moved and one of the mouse buttons is pressed (dragging)
-
-	// the change in mouse position since the last invocation of this function
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
-
-	float lookStep = mouseSensitivity * deltaTime;
-	vec3 angles = player->transform->getEulerAngles();
-	angles.x += mousePosDelta[1] * lookStep;
-	angles.y += mousePosDelta[0] * lookStep;
-	angles.x = std::clamp(angles.x, xAngleLimit.x, xAngleLimit.y);
-	player->transform->setEulerAngles(angles);
+	HandleMouseInput(mousePosDelta);
 
 	//switch (controlState) {
 	//	// translate the landscape
@@ -547,7 +580,7 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	player->getComponent<Camera>()->setPerspective(60.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	Camera::currentCamera->setPerspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
 }
 
 
@@ -573,11 +606,21 @@ void initScene() {
 
 
 void initObjects() {
-	player = entityManager.createEntity();
+	worldCamera = EntityManager::getInstance()->createEntity();
+	worldCamera->addComponent(new Camera());
+	worldCamera->transform->position = vec3(20, 20, -20);
+	worldCamera->faceTo(vec3(0), worldUp);
+	worldCameraAngles = worldCamera->transform->getEulerAngles();
+	log(worldCameraAngles);
+
+	player = EntityManager::getInstance()->createEntity();
 	player->addComponent(new PlayerController());
 	player->addComponent(new Camera());
-	player->getComponent<Camera>()->enable();
+	player->getComponent<Camera>()->setCurrent();
 	player->transform->position = vec3(0, 0, 5);
+	player->faceTo(vec3(0), -worldUp);
+	playerAngles = player->transform->getEulerAngles();
+	log(playerAngles);
 
 	//debug 
 

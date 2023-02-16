@@ -15,18 +15,6 @@ bool approximately(vec3 a, vec3 b) {
 	}
 	return true;
 }
-float degreeToRadian(float degree) {
-	return degree * PI / 180.0f;
-}
-vec3 degreeToRadian(vec3 degrees) {
-	return vec3(degreeToRadian(degrees.x), degreeToRadian(degrees.y), degreeToRadian(degrees.z));
-}
-float radianToDegree(float radian) {
-	return radian * (180.0f / PI);
-}
-vec3 radianToDegree(vec3 radians) {
-	return vec3(radianToDegree(radians.x), radianToDegree(radians.y), radianToDegree(radians.z));
-}
 vec3 getProjectionOnVector(vec3 u, vec3 v) {
 	float vLength = length(v);
 	return v * dot(u, v) / (vLength * vLength);
@@ -45,10 +33,8 @@ void log(quat q, bool endOfLine) {
 }
 
 
-#pragma region EntityManager
-EntityManager::EntityManager() {
 
-}
+#pragma region EntityManager
 void EntityManager::update() {
 	Entity* camera = Camera::currentCamera->getEntity();
 	vec3 position = camera->transform->position;
@@ -77,13 +63,24 @@ Transform::Transform() {
 	scale = vec3(1);
 }
 vec3 Transform::getEulerAngles() {
-	return radianToDegree(eulerAngles(rotation));
+	vec3 angles = degrees(eulerAngles(rotation));
+	if (fabs(angles.x) >= 90) {
+		angles.x -= 180.f;
+		angles.y = 180.f - angles.y;
+		angles.z += 180.f;
+	}
+
+	angles.x = fmod(angles.x, 360);
+	angles.y = fmod(angles.y, 360);
+	angles.z = fmod(angles.z, 360);
+	return angles;
 }
-void Transform::setEulerAngles(vec3 anglesInDegree) {
-	anglesInDegree.x = fmod(anglesInDegree.x, 360);
-	anglesInDegree.y = fmod(anglesInDegree.y, 360);
-	anglesInDegree.z = fmod(anglesInDegree.z, 360);
-	rotation = quat(degreeToRadian(anglesInDegree));
+void Transform::setEulerAngles(vec3 angles) {
+	angles.x = fmod(angles.x, 360);
+	angles.y = fmod(angles.y, 360);
+	angles.z = fmod(angles.z, 360);
+	angles = radians(angles);
+	rotation = quat(angles);
 }
 #pragma endregion
 
@@ -118,7 +115,7 @@ void Entity::faceTo(vec3 target, vec3 up) {
 	//log(r);
 }
 void Entity::rotateAround(float degree, vec3 axis) {
-	transform->rotation = rotate(transform->rotation, degreeToRadian(degree), axis);
+	transform->rotation = rotate(transform->rotation, radians(degree), axis);
 }
 vec3 Entity::getForwardVector() {
 	return transform->rotation * worldForward;
@@ -139,10 +136,11 @@ void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
 
 void Entity::update() {
 	// apply transformations
+	vec3 angles = transform->getEulerAngles();
 	modelViewMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
-	modelViewMatrix.Rotate(transform->rotation.x, 1, 0, 0);
-	modelViewMatrix.Rotate(transform->rotation.y, 0, 1, 0);
-	modelViewMatrix.Rotate(transform->rotation.z, 0, 0, 1);
+	modelViewMatrix.Rotate(angles.x, 1, 0, 0);
+	modelViewMatrix.Rotate(angles.y, 0, 1, 0);
+	modelViewMatrix.Rotate(angles.z, 0, 0, 1);
 	modelViewMatrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
 
 	for (auto const& kvp : typeToComponent) {
@@ -154,7 +152,7 @@ string Entity::toClassKey(string type) {
 	for (int i = 0; type[i]; i++)
 		if (type[i] != ' ' || type[i] != '*')
 			type[index++] = type[i];
-	type[index] = '\0'; 
+	type[index] = '\0';
 	type.erase(std::remove_if(type.begin(), type.end(),
 							  [](auto const& c) -> bool { return !isalnum(c); }), type.end());
 
@@ -175,10 +173,12 @@ Entity* Component::getEntity() {
 #pragma region Camera
 Camera* Camera::currentCamera = nullptr;
 
-Camera::Camera(bool setCurrent) {
+Camera::Camera(bool setToCurrent) {
 	projectionMatrix.SetMatrixMode(OpenGLMatrix::Projection);
-	if (setCurrent) {
-		enable();
+	projectionMatrix.LoadIdentity();
+	projectionMatrix.Perspective(fieldOfView, aspect, zNear, zFar);
+	if (setToCurrent) {
+		setCurrent();
 	}
 }
 void Camera::getProjectionMatrix(float* pMatrix) {
@@ -192,7 +192,7 @@ void Camera::setPerspective(float fieldOfView, float aspect, float zNear, float 
 	projectionMatrix.LoadIdentity();
 	projectionMatrix.Perspective(fieldOfView, aspect, zNear, zFar);
 }
-void Camera::enable() {
+void Camera::setCurrent() {
 	Camera::currentCamera = this;
 }
 bool Camera::isCurrentCamera() {

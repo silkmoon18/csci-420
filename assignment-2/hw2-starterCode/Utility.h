@@ -18,7 +18,7 @@
 using namespace std;
 using namespace glm;
 
-
+template<class T> class Singleton;
 class EntityManager;
 class Entity;
 
@@ -28,17 +28,13 @@ class VertexArrayObject;
 class SplineObject;
 
 
-const float PI = 3.14159274101257324219f;
+const float PI = 3.14159265359f;
 const float EPSILON = 0.000001f;
 const vec3 worldForward = vec3(0, 0, -1);
 const vec3 worldRight = vec3(1, 0, 0);
 const vec3 worldUp = vec3(0, 1, 0);
 
 bool approximately(vec3 a, vec3 b);
-float degreeToRadian(float degree);
-vec3 degreeToRadian(vec3 degrees);
-float radianToDegree(float radian);
-vec3 radianToDegree(vec3 radians);
 
 vec3 getProjectionOnVector(vec3 u, vec3 v);
 vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
@@ -49,15 +45,38 @@ template<class T> string getType(T obj);
 void log(vec3 v, bool endOfLine = true);
 void log(quat q, bool endOfLine = true);
 
+
+
+template<class T>
+class Singleton {
+protected:
+	static inline T* instance = nullptr;
+
+	Singleton() noexcept = default;
+	Singleton(const Singleton&) = delete;
+	Singleton& operator=(const Singleton&) = delete;
+	virtual ~Singleton() = default;
+
+public:
+	static T* getInstance() {
+		if (!instance) {
+			instance = new T();
+		}
+		return instance;
+	}
+};
+
 // manager for all entities
-class EntityManager {
+class EntityManager : public Singleton<EntityManager> {
 public:
 	vector<Entity*> entities;
 
-	EntityManager();
-
 	void update();
 	Entity* createEntity();
+};
+
+class PhysicsManager {
+
 };
 
 
@@ -133,7 +152,7 @@ public:
 
 	void getProjectionMatrix(float* pMatrix);
 	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
-	void enable();
+	void setCurrent();
 	bool isCurrentCamera();
 
 	friend Entity;
@@ -207,6 +226,8 @@ public:
 
 
 #pragma region Templates
+
+
 template<class T>
 string getType() {
 	return typeid(T).name();
