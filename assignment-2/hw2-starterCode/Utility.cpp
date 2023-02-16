@@ -19,9 +19,13 @@ vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal) {
 	planeNormal = normalize(planeNormal);
 	return u - getProjectionOnVector(u, planeNormal);
 }
-void log(vec3 vector, bool endOfLine) {
+void log(vec3 v, bool endOfLine) {
 	string newLine = endOfLine ? "\n" : "";
-	printf("vec3(%f, %f, %f)%s", vector.x, vector.y, vector.z, newLine.c_str());
+	printf("vec3(%f, %f, %f)%s", v.x, v.y, v.z, newLine.c_str());
+}
+void log(quat q, bool endOfLine) {
+	string newLine = endOfLine ? "\n" : "";
+	printf("quat(%f, %f, %f, %f)%s", q.x, q.y, q.z, q.w, newLine.c_str());
 }
 
 

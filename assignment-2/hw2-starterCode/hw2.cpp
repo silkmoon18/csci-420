@@ -578,6 +578,12 @@ void initObjects() {
 	player->transform->position = vec3(0, 0, 5);
 
 	//debug 
+	quat q;
+	q = rotate(q, degreeToRadian(90), vec3(0, 1, 0));
+	//rotate(q, vec)
+	vec3 r = eulerAngles(q);
+	log(q);
+	log(r);
 	//camera->transform.rotation = vec3(0, 45, 45);
 	//log(camera->getForwardVector());
 	//log(camera->getRightVector());

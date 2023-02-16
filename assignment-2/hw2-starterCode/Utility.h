@@ -3,8 +3,8 @@
 
 #include "basicPipelineProgram.h"
 #include "openGLMatrix.h"
-//#include "glm/gtc/quaternion.hpp"
-//#include "glm/gtx/quaternion.hpp"
+#include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/quaternion.hpp"
 
 #include <vector>
 #include <map>
@@ -31,7 +31,8 @@ vec3 getProjectionOnVector(vec3 u, vec3 v);
 vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
 template<class T> string getType();
 template<class T> string getType(T obj);
-void log(vec3 vecto, bool endOfLine = true);
+void log(vec3 v, bool endOfLine = true);
+void log(quat q, bool endOfLine = true);
 
 // manager for all entities
 class EntityManager {
