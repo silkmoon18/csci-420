@@ -53,15 +53,13 @@ CONTROL_STATE controlState = ROTATE;
 Entity* worldCamera;
 Entity* player;
 Entity* ground;
-vector<Entity*> tracks;
-int currentTrackIndex = -1;
 
 // controls
 vec3 playerAngles(0);
 vec3 worldCameraAngles(0);
 vec4 moveInput(0); // w, s, a, d
 float mouseSensitivity = 5.0f;
-vec2 xAngleLimit(-90, 80);
+vec2 xAngleLimit(-85, 80);
 float moveSpeed = 5.0f;
 bool isControllingPlayer = true;
 //float translateSpeed = 0.1f;
@@ -108,16 +106,8 @@ Spline* splines;
 int numSplines;
 
 // catmull-rom spline
-int numOfStepsPerSegment = 1000;
-vector<SplineData*> splineObjects;
-int currentSplineObjectIndex = -1;
-float s = 0.5f;
-mat4 basis = mat4(
-	-s, 2 * s, -s, 0,
-	2 - s, s - 3, 0, 1,
-	s - 2, 3 - 2 * s, s, 0,
-	s, -s, 0, 0
-);
+vector<Entity*> rollerCoasters;
+int currentCoasterIndex = -1;
 
 
 
@@ -322,53 +312,22 @@ void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
 		Spline spline = splines[i];
 
-		vector<vec3> positions;
-		vector<vec3> tangents;
-		for (int j = 1; j < spline.numControlPoints - 2; j++) {
-			mat3x4 control = mat3x4(
-				spline.points[j - 1].x, spline.points[j].x, spline.points[j + 1].x, spline.points[j + 2].x,
-				spline.points[j - 1].y, spline.points[j].y, spline.points[j + 1].y, spline.points[j + 2].y,
-				spline.points[j - 1].z, spline.points[j].z, spline.points[j + 1].z, spline.points[j + 2].z
-			);
-
-			float delta = 1.0f / numOfStepsPerSegment;
-			for (int k = 0; k < numOfStepsPerSegment + 1; k++) {
-				float u = k * 1.0f / numOfStepsPerSegment;
-				vec4 uVector(u * u * u, u * u, u, 1);
-				vec3 point = uVector * basis * control;
-
-				positions.push_back(point);
-
-				vec4 uPrime(3 * u * u, 2 * u, 1, 0);
-				tangents.push_back(normalize(uPrime * basis * control));
-
-				u += delta;
-			}
-		}
-		SplineData* data = new SplineData(spline, positions, tangents);
-		splineObjects.push_back(data);
-		Entity* track = EntityManager::getInstance()->createEntity();
-		track->addComponent(data->generateVAO(pipelineProgram));
-		tracks.push_back(track);
+		Entity* coaster = EntityManager::getInstance()->createEntity();
+		coaster->addComponent(new Renderer(new VertexArrayObject(pipelineProgram)));
+		coaster->addComponent(new RollerCoaster(spline));
+		coaster->getComponent<RollerCoaster>()->render();
+		rollerCoasters.push_back(coaster);
 	}
 
-	if (splineObjects.size() > 0) {
-		currentSplineObjectIndex = 0;
-		currentTrackIndex = 0;
+	if (rollerCoasters.size() > 0) {
+		currentCoasterIndex = 0;
 	}
 }
 
 
 void HandleCameraMotion() {
-	SplineData* splineObject = splineObjects[currentSplineObjectIndex];
-
-	float step = rcSpeed * Timer::getInstance()->getDeltaTime();
-	vec3 position = splineObject->moveForward(step);
-
-	vec3 direction = splineObject->getDirection();
-
-	player->transform->position = position;
-	player->faceTo(position + direction);
+	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
+	coaster->perform(player);
 }
 
 void idleFunc() {
@@ -621,7 +580,6 @@ void initObjects() {
 	worldCamera->transform->position = vec3(0, 0, 5);
 	worldCamera->faceTo(vec3(0), worldUp);
 	worldCameraAngles = worldCamera->transform->getEulerAngles();
-	log(worldCamera->transform->position);
 
 	player = EntityManager::getInstance()->createEntity();
 	player->addComponent(new PlayerController());
@@ -631,10 +589,9 @@ void initObjects() {
 	player->transform->position = vec3(0, 0, 5);
 	player->faceTo(vec3(0), worldUp);
 	playerAngles = player->transform->getEulerAngles();
-	log(player->transform->position);
 
 	ground = EntityManager::getInstance()->createEntity();
-	ground->addComponent(new VertexArrayObject(pipelineProgram, VertexArrayObject::Cube));
+	ground->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
 	ground->transform->position = vec3(0, -0.5, 0);
 	ground->transform->scale = vec3(1000, 1, 1000);
 

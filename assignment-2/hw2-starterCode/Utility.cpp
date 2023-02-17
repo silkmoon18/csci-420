@@ -188,6 +188,47 @@ void Component::update() {
 	onUpdate();
 }
 
+Renderer::Renderer(VertexArrayObject* vao) {
+	this->vao = vao;
+}
+Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
+	vector<vec3> positions;
+	vector<vec4> colors;
+	vector<int> indices;
+	switch (shape) {
+		case Shape::Cube:
+			positions = { vec3(0.5, -0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(-0.5, -0.5, 0.5),
+							 vec3(0.5, -0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5) };
+			indices = { 3, 0, 7, 4, 5, 0, 1, 3, 2, 7, 6, 5, 2, 1 };
+			drawMode = GL_TRIANGLE_STRIP;
+			break;
+		case Shape::Sphere:
+			break;
+		case Shape::Cylinder:
+			break;
+		default:
+			break;
+	}
+	colors = vector<vec4>(positions.size(), vec4(255));
+	vao = new VertexArrayObject(pipelineProgram, positions, colors, indices);
+}
+void Renderer::onUpdate() {
+	if (!vao) return;
+
+	// get matrices
+	float m[16];
+	entity->getModelViewMatrix(m);
+	float p[16];
+	Camera::currentCamera->getProjectionMatrix(p);
+
+	vao->pipelineProgram->Bind();
+	// set variable
+	vao->pipelineProgram->SetModelViewMatrix(m);
+	vao->pipelineProgram->SetProjectionMatrix(p);
+
+	glBindVertexArray(vao->vertexArray);
+	glDrawElements(drawMode, vao->numIndices, GL_UNSIGNED_INT, 0);
+}
 
 #pragma region Physics
 Physics::Physics(float minDistance, bool checkGround) {
@@ -270,51 +311,23 @@ void PlayerController::onUpdate() {
 
 
 #pragma region VertexArrayObject
-
-VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
-	vector<vec3> positions;
-	vector<vec4> colors;
-	vector<int> indices;
-	switch (shape) {
-		case VertexArrayObject::Cube:
-			positions = { vec3(0.5, -0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(-0.5, -0.5, 0.5),
-							 vec3(0.5, -0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5) };
-			indices = { 3, 0, 7, 4, 5, 0, 1, 3, 2, 7, 6, 5, 2, 1 };
-			break;
-		case VertexArrayObject::Sphere:
-			break;
-		case VertexArrayObject::Cylinder:
-			break;
-		default:
-			break;
-	}
-	colors = vector<vec4>(positions.size(), vec4(255));
-	init(pipelineProgram, positions, colors, indices, GL_TRIANGLE_STRIP);
+VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
+	this->pipelineProgram = pipelineProgram;
 }
-VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
-	init(pipelineProgram, positions, colors, indices, drawMode);
-}
-
-void VertexArrayObject::onUpdate() {
-	// get matrices
-	float m[16];
-	entity->getModelViewMatrix(m);
-	float p[16];
-	Camera::currentCamera->getProjectionMatrix(p);
-
-	pipelineProgram->Bind();
-	// set variable
-	pipelineProgram->SetModelViewMatrix(m);
-	pipelineProgram->SetProjectionMatrix(p);
-
-	glBindVertexArray(vertexArray);
-	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
-}
-void VertexArrayObject::init(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
+VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices) {
 	if (!pipelineProgram) {
 		printf("error: pipeline program cannot be null. \n");
 		return;
 	}
+
+	this->pipelineProgram = pipelineProgram;
+
+	// vertex array
+	setVertices(positions, colors, indices);
+
+	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
+}
+void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices) {
 	numVertices = positions.size();
 	numColors = colors.size();
 	numIndices = indices.size();
@@ -332,10 +345,6 @@ void VertexArrayObject::init(BasicPipelineProgram* pipelineProgram, vector<vec3>
 		return;
 	}
 
-	this->pipelineProgram = pipelineProgram;
-	this->drawMode = drawMode;
-
-	// vertex array
 	glGenVertexArrays(1, &vertexArray);
 	glBindVertexArray(vertexArray);
 
@@ -365,20 +374,34 @@ void VertexArrayObject::init(BasicPipelineProgram* pipelineProgram, vector<vec3>
 	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
-
-	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 }
 #pragma endregion
 
 
 
-#pragma region SplineData
-SplineData::SplineData(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents) {
-	this->spline = spline;
-	this->vertexPositions = vertexPositions;
-	this->vertexTangents = vertexTangents;
+#pragma region RollerCoaster
+RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
+	for (int j = 1; j < spline.numControlPoints - 2; j++) {
+		mat3x4 control = mat3x4(
+			spline.points[j - 1].x, spline.points[j].x, spline.points[j + 1].x, spline.points[j + 2].x,
+			spline.points[j - 1].y, spline.points[j].y, spline.points[j + 1].y, spline.points[j + 2].y,
+			spline.points[j - 1].z, spline.points[j].z, spline.points[j + 1].z, spline.points[j + 2].z
+		);
 
+		float delta = 1.0f / numOfStepsPerSegment;
+		for (int k = 0; k < numOfStepsPerSegment + 1; k++) {
+			float u = k * 1.0f / numOfStepsPerSegment;
+			vec4 uVector(u * u * u, u * u, u, 1);
+			vec3 point = uVector * BASIS * control;
+
+			vertexPositions.push_back(point);
+
+			vec4 uPrime(3 * u * u, 2 * u, 1, 0);
+			vertexTangents.push_back(normalize(uPrime * BASIS * control));
+
+			u += delta;
+		}
+	}
 	currentVertexIndex = 0;
 	numOfVertices = vertexPositions.size();
 
@@ -389,15 +412,18 @@ SplineData::SplineData(Spline spline, vector<vec3> vertexPositions, vector<vec3>
 	vertexDistances.push_back(-1);
 }
 
-vec3 SplineData::getDirection() {
+vec3 RollerCoaster::getDirection() {
 	return vertexTangents[currentVertexIndex];
 }
-
-vec3 SplineData::moveForward(float step) {
+vec3 RollerCoaster::getNormal() {
+	return vertexNormals[currentVertexIndex];
+}
+void RollerCoaster::perform(Entity* target) {
 	if (currentVertexIndex == numOfVertices - 1) {
-		return vertexPositions[currentVertexIndex];
+		return;
 	}
 
+	float step = speed * Timer::getInstance()->getDeltaTime();
 	// consume step
 	while (step > 0) {
 		float distanceToNext = vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
@@ -409,15 +435,29 @@ vec3 SplineData::moveForward(float step) {
 		currentVertexIndex++;
 
 		// if reach the end, return the end point position
-		if (currentVertexIndex == numOfVertices - 1) {
-			return vertexPositions[currentVertexIndex];
-		}
+		if (currentVertexIndex == numOfVertices - 1) break;
 	}
 
-	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
-	return mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
+	vec3 position;
+	if (currentVertexIndex == numOfVertices - 1) {
+		position = vertexPositions[currentVertexIndex];
+	}
+	else {
+		currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+		position = mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
+	}
+	position += vertexNormals[currentVertexIndex] * size * 2.0f;
+
+	target->transform->position = position;
+	target->faceTo(position + getDirection(), getNormal());
 }
-VertexArrayObject* SplineData::generateVAO(BasicPipelineProgram* pipelineProgram) {
+void RollerCoaster::render() {
+	Renderer* renderer = entity->getComponent<Renderer>();
+	if (!renderer) {
+		printf("Error: cannot find Renderer to render the RollerCoaster. \n");
+		return;
+	}
+	
 	vector<vec3> normals;
 	vector<vec3> binormals;
 
@@ -462,8 +502,12 @@ VertexArrayObject* SplineData::generateVAO(BasicPipelineProgram* pipelineProgram
 						   index, index + 4, RESTARTINDEX });
 		}
 	}
+	vertexNormals = normals;
+	renderer->vao->setVertices(positions, colors, indices);
+	renderer->drawMode = GL_TRIANGLE_STRIP;
+}
+void RollerCoaster::onUpdate() {
 
-	return new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_TRIANGLE_STRIP);
 }
 #pragma endregion
 

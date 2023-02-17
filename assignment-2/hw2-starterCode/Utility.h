@@ -111,11 +111,11 @@ public:
 	Transform* transform = nullptr;
 
 	void getModelViewMatrix(float m[16]);
-	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0)); 
+	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
 	void rotateAround(float degree, vec3 axis);
 	vec3 getForwardVector();
 	vec3 getRightVector();
-	vec3 getUpVector(); 
+	vec3 getUpVector();
 
 	template<class T> bool addComponent(T* component);
 	template<class T> T* getComponent();
@@ -123,7 +123,6 @@ public:
 
 protected:
 	OpenGLMatrix modelViewMatrix;
-	VertexArrayObject* vao = nullptr;
 	map<string, Component*> typeToComponent;
 
 	Entity();
@@ -153,6 +152,20 @@ private:
 	void update();
 };
 
+class Renderer : public Component {
+public:
+	friend Entity;
+
+	enum Shape { Cube, Sphere, Cylinder };
+	VertexArrayObject* vao = nullptr;
+	GLenum drawMode = GL_POINTS;
+
+	Renderer(VertexArrayObject* vao);
+	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
+
+protected:
+	void onUpdate() override;
+};
 
 // simple physics
 class Physics : public Component {
@@ -212,22 +225,17 @@ protected:
 
 
 // object that handles VAO related operations
-class VertexArrayObject : public Component {
+class VertexArrayObject {
 public:
-	enum Shape { Cube, Sphere, Cylinder };
 	BasicPipelineProgram* pipelineProgram;
 	GLuint positionBuffer, colorBuffer, indexBuffer;
 	GLuint vertexArray;
-	GLenum drawMode = GL_POINTS;
 	int numVertices, numColors, numIndices;
 
-	VertexArrayObject(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
-	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode);
+	VertexArrayObject(BasicPipelineProgram* pipelineProgram);
+	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 
-	void onUpdate() override;
-
-private:
-	void init(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode);
+	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 };
 
 
@@ -244,22 +252,39 @@ struct Spline {
 	int numControlPoints;
 	Point* points;
 };
-class SplineData {
+
+// based on catmull-rom spline
+class RollerCoaster : Component {
 public:
-	Spline spline;
+	friend Entity;
+
+	static inline const float S = 0.5f;
+	static inline const mat4 BASIS =
+		mat4(
+			-S, 2 * S, -S, 0,
+			2 - S, S - 3, 0, 1,
+			S - 2, 3 - 2 * S, S, 0,
+			S, -S, 0, 0
+		);
 	vector<vec3> vertexPositions;
+	vector<vec3> vertexNormals;
 	vector<vec3> vertexTangents;
 	vector<float> vertexDistances;
 	int currentVertexIndex = -1;
 	float currentSegmentProgress = 0;
 	int numOfVertices = 0;
-	float size = 1;
+	float size = 0.5f;
+	float speed = 5.0f;
 
-	SplineData(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents);
+	RollerCoaster(Spline spline, int numOfStepsPerSegment = 1000);
 
 	vec3 getDirection();
-	vec3 moveForward(float step);
-	VertexArrayObject* generateVAO(BasicPipelineProgram* pipelineProgram);
+	vec3 getNormal();
+	void perform(Entity* target);
+	void render();
+
+protected:
+	void onUpdate() override;
 };
 
 
