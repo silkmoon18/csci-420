@@ -34,6 +34,17 @@ void log(quat q, bool endOfLine) {
 
 
 
+#pragma region Timer
+float Timer::getDeltaTime() {
+	return deltaTime;
+}
+void Timer::setCurrentTime(int currentTime) {
+	deltaTime = (currentTime - previousTime) / 1000.0f;
+	previousTime = currentTime;
+}
+#pragma endregion
+
+
 #pragma region EntityManager
 void EntityManager::update() {
 	Entity* camera = Camera::currentCamera->getEntity();
@@ -65,9 +76,10 @@ Transform::Transform() {
 vec3 Transform::getEulerAngles() {
 	vec3 angles = degrees(eulerAngles(rotation));
 	if (fabs(angles.x) >= 90) {
-		angles.x -= 180.f;
-		angles.y = 180.f - angles.y;
-		angles.z += 180.f;
+		float offset = sign(angles.x) * 180;
+		angles.x -= offset;
+		angles.y = offset - angles.y;
+		angles.z += offset;
 	}
 
 	angles.x = fmod(angles.x, 360);
@@ -155,7 +167,7 @@ string Entity::toClassKey(string type) {
 	type[index] = '\0';
 	type.erase(std::remove_if(type.begin(), type.end(),
 							  [](auto const& c) -> bool { return !isalnum(c); }), type.end());
-
+	type = "component" + type;
 	return type;
 }
 #pragma endregion
@@ -168,6 +180,40 @@ Component::Component() {
 Entity* Component::getEntity() {
 	return entity;
 }
+void Component::setActive(bool isActive) {
+	this->isActive = isActive;
+}
+void Component::update() {
+	if (!isActive) return;
+	onUpdate();
+}
+
+
+#pragma region Physics
+Physics::Physics(float minDistance, bool checkGround) {
+	this->minDistance = minDistance;
+	this->checkGround = checkGround;
+}
+void Physics::onUpdate() {
+	vec3 position = entity->transform->position;
+	float deltaTime = Timer::getInstance()->getDeltaTime();
+	position += velocity * deltaTime;
+
+	float minY = GROUND_Y + minDistance;
+	if (position.y > minY) {
+		velocity += GRAVITY * deltaTime;
+		position += 0.5f * GRAVITY * deltaTime * deltaTime;
+		isOnGround = false;
+	}
+	if (position.y <= minY) {
+		velocity.y = 0;
+		position.y = minY;
+		isOnGround = true;
+	}
+
+	entity->transform->position = position;
+}
+#pragma endregion
 
 
 #pragma region Camera
@@ -198,7 +244,7 @@ void Camera::setCurrent() {
 bool Camera::isCurrentCamera() {
 	return Camera::currentCamera == this;
 }
-void Camera::update() {
+void Camera::onUpdate() {
 	if (!isCurrentCamera()) return;
 }
 #pragma endregion
@@ -218,12 +264,53 @@ void PlayerController::moveOnGround(vec4 input, float step) {
 	vec3 move = normalize(x * right + z * forward) * step;
 	entity->transform->position += move;
 }
-void PlayerController::update() {
+void PlayerController::onUpdate() {
 	// to-do: physics
 }
 
+
 #pragma region VertexArrayObject
+
+VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
+	vector<vec3> positions;
+	vector<vec4> colors;
+	vector<int> indices;
+	switch (shape) {
+		case VertexArrayObject::Cube:
+			positions = { vec3(0.5, -0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(-0.5, -0.5, 0.5),
+							 vec3(0.5, -0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5) };
+			indices = { 3, 0, 7, 4, 5, 0, 1, 3, 2, 7, 6, 5, 2, 1 };
+			break;
+		case VertexArrayObject::Sphere:
+			break;
+		case VertexArrayObject::Cylinder:
+			break;
+		default:
+			break;
+	}
+	colors = vector<vec4>(positions.size(), vec4(255));
+	init(pipelineProgram, positions, colors, indices, GL_TRIANGLE_STRIP);
+}
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
+	init(pipelineProgram, positions, colors, indices, drawMode);
+}
+
+void VertexArrayObject::onUpdate() {
+	// get matrices
+	float m[16];
+	entity->getModelViewMatrix(m);
+	float p[16];
+	Camera::currentCamera->getProjectionMatrix(p);
+
+	pipelineProgram->Bind();
+	// set variable
+	pipelineProgram->SetModelViewMatrix(m);
+	pipelineProgram->SetProjectionMatrix(p);
+
+	glBindVertexArray(vertexArray);
+	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
+}
+void VertexArrayObject::init(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices, GLenum drawMode) {
 	if (!pipelineProgram) {
 		printf("error: pipeline program cannot be null. \n");
 		return;
@@ -282,28 +369,12 @@ VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vect
 
 	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 }
-
-void VertexArrayObject::update() {
-	// get matrices
-	float m[16];
-	entity->getModelViewMatrix(m);
-	float p[16];
-	Camera::currentCamera->getProjectionMatrix(p);
-
-	pipelineProgram->Bind();
-	// set variable
-	pipelineProgram->SetModelViewMatrix(m);
-	pipelineProgram->SetProjectionMatrix(p);
-
-	glBindVertexArray(vertexArray);
-	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
-}
 #pragma endregion
 
 
 
-#pragma region SplineObject
-SplineObject::SplineObject(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents) {
+#pragma region SplineData
+SplineData::SplineData(Spline spline, vector<vec3> vertexPositions, vector<vec3> vertexTangents) {
 	this->spline = spline;
 	this->vertexPositions = vertexPositions;
 	this->vertexTangents = vertexTangents;
@@ -318,11 +389,11 @@ SplineObject::SplineObject(Spline spline, vector<vec3> vertexPositions, vector<v
 	vertexDistances.push_back(-1);
 }
 
-vec3 SplineObject::getDirection() {
+vec3 SplineData::getDirection() {
 	return vertexTangents[currentVertexIndex];
 }
 
-vec3 SplineObject::moveForward(float step) {
+vec3 SplineData::moveForward(float step) {
 	if (currentVertexIndex == numOfVertices - 1) {
 		return vertexPositions[currentVertexIndex];
 	}
@@ -345,6 +416,54 @@ vec3 SplineObject::moveForward(float step) {
 
 	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
 	return mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
+}
+VertexArrayObject* SplineData::generateVAO(BasicPipelineProgram* pipelineProgram) {
+	vector<vec3> normals;
+	vector<vec3> binormals;
+
+	vector<vec3> positions;
+	vector<vec4> colors;
+	vector<int> indices;
+	// get normals and binormals
+	for (int i = 0; i < numOfVertices; i++) {
+		vec3 p = vertexPositions[i];
+		vec3 t = vertexTangents[i];
+		vec3 n;
+		if (i == 0) {
+			vec3 v(-1, 0, 0);
+			n = normalize(cross(t, v));
+		}
+		else {
+			n = normalize(cross(binormals[i - 1], t));
+		}
+		vec3 b = normalize(cross(t, n));
+
+		normals.push_back(n);
+		binormals.push_back(b);
+
+		vec3 v0 = p + size * (-n + b);
+		vec3 v1 = p + size * (n + b);
+		vec3 v2 = p + size * (n - b);
+		vec3 v3 = p + size * (-n - b);
+		positions.insert(positions.end(), { v0, v1, v2, v3 });
+
+		vec4 color = vec4(n, 1) * 255.0f;
+		colors.insert(colors.end(), { color, color, color, color });
+
+		if (i == 0 || i == numOfVertices - 1) {
+			int index = 4 * i;
+			indices.insert(indices.end(), { index, index + 1, index + 3, index + 2, RESTARTINDEX });
+		}
+		if (i > 0) {
+			int index = 4 * (i - 1);
+			indices.insert(indices.end(),
+						   { index, index + 4, index + 1, index + 5,
+						   index + 2, index + 6, index + 3, index + 7,
+						   index, index + 4, RESTARTINDEX });
+		}
+	}
+
+	return new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_TRIANGLE_STRIP);
 }
 #pragma endregion
 

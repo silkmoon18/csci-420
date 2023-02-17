@@ -49,14 +49,12 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
-// timer
-int previousTime = 0; // in ms
-float deltaTime = 0; // in s
-
 // entities
 Entity* worldCamera;
 Entity* player;
-Entity* trackEntity;
+Entity* ground;
+vector<Entity*> tracks;
+int currentTrackIndex = -1;
 
 // controls
 vec3 playerAngles(0);
@@ -65,6 +63,7 @@ vec4 moveInput(0); // w, s, a, d
 float mouseSensitivity = 5.0f;
 vec2 xAngleLimit(-90, 80);
 float moveSpeed = 5.0f;
+bool isControllingPlayer = true;
 //float translateSpeed = 0.1f;
 //float rotateSpeed = 0.5f;
 //float scaleSpeed = 0.01f;
@@ -96,7 +95,6 @@ int screenshotIndex = 0;
 float rcSpeed = 1.0f;
 
 // other params
-const int restartIndex = -1;
 bool isTakingScreenshot = false;
 int delay = 8; // hard coded for recording on 120 fps monitor
 int currentFrame = 0;
@@ -111,7 +109,7 @@ int numSplines;
 
 // catmull-rom spline
 int numOfStepsPerSegment = 1000;
-vector<SplineObject*> splineObjects;
+vector<SplineData*> splineObjects;
 int currentSplineObjectIndex = -1;
 float s = 0.5f;
 mat4 basis = mat4(
@@ -299,10 +297,10 @@ void setUniforms() {
 
 
 void HandleMouseInput(int mousePosDelta[2]) {
-	float lookStep = mouseSensitivity * deltaTime;
+	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
 	vec3* angles;
-	if (player->getComponent<Camera>()->isCurrentCamera()) {
+	if (isControllingPlayer) {
 		target = player;
 		angles = &playerAngles;
 	}
@@ -311,24 +309,20 @@ void HandleMouseInput(int mousePosDelta[2]) {
 		angles = &worldCameraAngles;
 	}
 
-	//angles->x += mousePosDelta[1] * lookStep;
-	//angles->y += mousePosDelta[0] * lookStep;
-	//angles->x = std::clamp(angles->x, xAngleLimit.x, xAngleLimit.y);
-	//target->transform->setEulerAngles(*angles);
+	angles->x -= mousePosDelta[1] * lookStep;
+	angles->y -= mousePosDelta[0] * lookStep;
+	angles->x = std::clamp(angles->x, xAngleLimit.x, xAngleLimit.y);
+	target->transform->setEulerAngles(*angles);
 
-	angles = &(target->transform->getEulerAngles());
-	if (abs(angles->x) < 80) {
-		target->rotateAround(mousePosDelta[1] * lookStep, target->getRightVector());
-	}
-	target->rotateAround(mousePosDelta[0] * lookStep, worldUp);
+	//angles = &(target->transform->getEulerAngles());
+	//	target->rotateAround(mousePosDelta[1] * lookStep, target->getRightVector());
+	//target->rotateAround(mousePosDelta[0] * lookStep, worldUp);
 }
 void createSplineObjects() {
-	vector<vec3> positions;
-	vector<vec4> colors;
-	vector<int> indices;
 	for (int i = 0; i < numSplines; i++) {
 		Spline spline = splines[i];
 
+		vector<vec3> positions;
 		vector<vec3> tangents;
 		for (int j = 1; j < spline.numControlPoints - 2; j++) {
 			mat3x4 control = mat3x4(
@@ -342,8 +336,8 @@ void createSplineObjects() {
 				float u = k * 1.0f / numOfStepsPerSegment;
 				vec4 uVector(u * u * u, u * u, u, 1);
 				vec3 point = uVector * basis * control;
+
 				positions.push_back(point);
-				indices.push_back(indices.size());
 
 				vec4 uPrime(3 * u * u, 2 * u, 1, 0);
 				tangents.push_back(normalize(uPrime * basis * control));
@@ -351,22 +345,24 @@ void createSplineObjects() {
 				u += delta;
 			}
 		}
-		colors = vector<vec4>(positions.size(), vec4(255));
-
-		trackEntity = EntityManager::getInstance()->createEntity();
-		trackEntity->addComponent(new VertexArrayObject(pipelineProgram, positions, colors, indices, GL_LINE_STRIP));
-		splineObjects.push_back(new SplineObject(spline, positions, tangents));
+		SplineData* data = new SplineData(spline, positions, tangents);
+		splineObjects.push_back(data);
+		Entity* track = EntityManager::getInstance()->createEntity();
+		track->addComponent(data->generateVAO(pipelineProgram));
+		tracks.push_back(track);
 	}
 
 	if (splineObjects.size() > 0) {
 		currentSplineObjectIndex = 0;
+		currentTrackIndex = 0;
 	}
 }
 
-void HandleCameraMotion() {
-	SplineObject* splineObject = splineObjects[currentSplineObjectIndex];
 
-	float step = rcSpeed * deltaTime;
+void HandleCameraMotion() {
+	SplineData* splineObject = splineObjects[currentSplineObjectIndex];
+
+	float step = rcSpeed * Timer::getInstance()->getDeltaTime();
 	vec3 position = splineObject->moveForward(step);
 
 	vec3 direction = splineObject->getDirection();
@@ -377,9 +373,7 @@ void HandleCameraMotion() {
 
 void idleFunc() {
 	// calculate delta time
-	int currentTime = glutGet(GLUT_ELAPSED_TIME);
-	deltaTime = (currentTime - previousTime) / 1000.0f;
-	previousTime = currentTime;
+	Timer::getInstance()->setCurrentTime(glutGet(GLUT_ELAPSED_TIME));
 
 	// save 15 screenshots per second
 	if (isTakingScreenshot && currentFrame % 8 == 0) {
@@ -389,6 +383,21 @@ void idleFunc() {
 	// make the screen update 
 	glutPostRedisplay();
 	currentFrame++;
+}
+
+void HandleMoveInput() {
+	float step = moveSpeed * Timer::getInstance()->getDeltaTime();
+	if (isControllingPlayer) {
+		player->getComponent<PlayerController>()->moveOnGround(moveInput, step);
+	}
+	else {
+		float z = moveInput.x - moveInput.y;
+		float x = moveInput.w - moveInput.z;
+		if (z == 0 && x == 0) return;
+
+		vec3 move = normalize(worldCamera->getForwardVector() * z + worldCamera->getRightVector() * x) * step;
+		worldCamera->transform->position += move;
+	}
 }
 
 void displayFunc() {
@@ -407,13 +416,20 @@ void displayFunc() {
 	//player->transform->setEulerAngles(angles);
 	//log(angles);
 
-	player->getComponent<PlayerController>()->moveOnGround(moveInput, moveSpeed * deltaTime);
+	HandleMoveInput();
+
 	// update entities
 	EntityManager::getInstance()->update();
 
 	glutSwapBuffers();
 }
 
+void HandleJump() {
+	Physics* physics = player->getComponent<Physics>();
+	if (physics->isOnGround) {
+		physics->velocity.y = 5;
+	}
+}
 void keyboardFunc(unsigned char key, int x, int y) {
 	switch (key) {
 		case 27: // ESC key
@@ -421,7 +437,8 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			break;
 
 		case ' ':
-			cout << "You pressed the spacebar." << endl;
+			if (!isControllingPlayer) return;
+			HandleJump();
 			break;
 
 		case 'w':
@@ -436,23 +453,21 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case 'd':
 			moveInput.w = 1;
 			break;
-		// toggle screenshots recording
+			// toggle screenshots recording
 		case 'x':
 			isTakingScreenshot = !isTakingScreenshot;
 			break;
+		case 'p':
+			if (isControllingPlayer) {
+				worldCamera->getComponent<Camera>()->setCurrent();
+				isControllingPlayer = false;
+			}
+			else {
+				player->getComponent<Camera>()->setCurrent();
+				isControllingPlayer = true;
+			}
+			break;
 	}
-	//if (key == 'w') {
-	//	moveInput.y = 1;
-	//}
-	//if (key == 's') {
-	//	moveInput.y = -1;
-	//}
-	//if (key == 'a') {
-	//	moveInput.x = -1;
-	//}
-	//if (key == 'd') {
-	//	moveInput.x = 1;
-	//}
 }
 
 void keyboardUpFunc(unsigned char key, int x, int y) {
@@ -468,14 +483,6 @@ void keyboardUpFunc(unsigned char key, int x, int y) {
 			break;
 		case 'd':
 			moveInput.w = 0;
-			break;
-		case 'p':
-			if (Camera::currentCamera == player->getComponent<Camera>()) {
-				worldCamera->getComponent<Camera>()->setCurrent();
-			}
-			else {
-				player->getComponent<Camera>()->setCurrent();
-			}
 			break;
 	}
 }
@@ -580,7 +587,10 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	Camera::currentCamera->setPerspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
+	Camera::currentCamera->setPerspective(Camera::currentCamera->fieldOfView,
+										  (float)w / (float)h,
+										  Camera::currentCamera->zNear,
+										  Camera::currentCamera->zFar);
 }
 
 
@@ -594,7 +604,7 @@ void initScene() {
 
 	// restart index
 	glEnable(GL_PRIMITIVE_RESTART);
-	glPrimitiveRestartIndex(restartIndex);
+	glPrimitiveRestartIndex(RESTARTINDEX);
 
 	// pipeline
 	pipelineProgram = new BasicPipelineProgram;
@@ -608,19 +618,25 @@ void initScene() {
 void initObjects() {
 	worldCamera = EntityManager::getInstance()->createEntity();
 	worldCamera->addComponent(new Camera());
-	worldCamera->transform->position = vec3(20, 20, -20);
+	worldCamera->transform->position = vec3(0, 0, 5);
 	worldCamera->faceTo(vec3(0), worldUp);
 	worldCameraAngles = worldCamera->transform->getEulerAngles();
-	log(worldCameraAngles);
+	log(worldCamera->transform->position);
 
 	player = EntityManager::getInstance()->createEntity();
 	player->addComponent(new PlayerController());
+	player->addComponent(new Physics(0.75f));
 	player->addComponent(new Camera());
 	player->getComponent<Camera>()->setCurrent();
 	player->transform->position = vec3(0, 0, 5);
-	player->faceTo(vec3(0), -worldUp);
+	player->faceTo(vec3(0), worldUp);
 	playerAngles = player->transform->getEulerAngles();
-	log(playerAngles);
+	log(player->transform->position);
+
+	ground = EntityManager::getInstance()->createEntity();
+	ground->addComponent(new VertexArrayObject(pipelineProgram, VertexArrayObject::Cube));
+	ground->transform->position = vec3(0, -0.5, 0);
+	ground->transform->scale = vec3(1000, 1, 1000);
 
 	//debug 
 
