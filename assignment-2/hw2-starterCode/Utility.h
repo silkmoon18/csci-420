@@ -100,6 +100,9 @@ public:
 
 	vec3 getEulerAngles();
 	void setEulerAngles(vec3 angles);
+
+private:
+	OpenGLMatrix modelViewMatrix;
 };
 
 
@@ -122,7 +125,6 @@ public:
 	template<class T> bool containsComponent();
 
 protected:
-	OpenGLMatrix modelViewMatrix;
 	map<string, Component*> typeToComponent;
 
 	Entity();
@@ -236,6 +238,7 @@ public:
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 
 	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
+	template<class T> void sendData(vector<T> data, int size, string name);
 };
 
 
@@ -334,6 +337,19 @@ bool Entity::containsComponent() {
 		return false;
 	}
 	return true;
+}
+
+template<class T> 
+void VertexArrayObject::sendData(vector<T> data, int size, string name) {
+	GLuint buffer;
+	glGenBuffers(1, &buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);  // bind the VBO buffer
+	glBufferData(GL_ARRAY_BUFFER, sizeof(T) * data.size(), &data[0], GL_STATIC_DRAW);
+
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), name.c_str());
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, size, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
 #pragma endregion
 
