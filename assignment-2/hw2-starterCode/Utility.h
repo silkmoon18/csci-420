@@ -9,6 +9,8 @@
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/epsilon.hpp"
+#include <glm/gtc/type_ptr.hpp>
+
 
 #include <vector>
 #include <map>
@@ -103,11 +105,15 @@ public:
 
 	Transform();
 
-	vec3 getEulerAngles();
+	vec3 getEulerAngles(bool isWorld);
 	void setEulerAngles(vec3 angles);
+	vec3 getWorldPosition();
+	quat getWorldRotation();
+	vec3 getWorldScale();
 
 private:
-	OpenGLMatrix modelViewMatrix;
+	OpenGLMatrix localModelMatrix;
+	OpenGLMatrix worldModelMatrix;
 };
 
 
@@ -118,14 +124,13 @@ public:
 
 	Transform* transform = nullptr;
 
-	void getModelViewMatrix(float m[16]);
+	void getLocalModelMatrix(float m[16]);
+	void getWorldModelMatrix(float m[16]);
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
 	void rotateAround(float degree, vec3 axis); 
-	vec3 getWorldPosition();
-	OpenGLMatrix getWorldMatrix();
-	vec3 getForwardVector();
-	vec3 getRightVector();
-	vec3 getUpVector();
+	vec3 getForwardVector(bool isWorld);
+	vec3 getRightVector(bool isWorld);
+	vec3 getUpVector(bool isWorld);
 	Entity* getParent();
 	void setParent(Entity* parent);
 	vector<Entity*> getChildren();
@@ -214,12 +219,14 @@ public:
 	Camera(bool setCurrent = true);
 
 	void getProjectionMatrix(float* pMatrix);
+	void getViewMatrix(float* vMatrix);
 	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
 	void setCurrent();
 	bool isCurrentCamera();
 
 protected:
 	OpenGLMatrix projectionMatrix;
+	OpenGLMatrix viewMatrix;
 
 	void onUpdate() override;
 };

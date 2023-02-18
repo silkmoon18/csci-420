@@ -303,6 +303,10 @@ void HandleMouseInput(int mousePosDelta[2]) {
 	angles->y -= mousePosDelta[0] * lookStep;
 	angles->x = std::clamp(angles->x, xAngleLimit.x, xAngleLimit.y);
 	target->transform->setEulerAngles(*angles);
+	cout << "---" << endl;
+	log(player->transform->getEulerAngles(true));
+	log(player->transform->getEulerAngles(false));
+
 }
 void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
@@ -345,7 +349,7 @@ void HandleMoveInput() {
 		float x = moveInput.w - moveInput.z;
 		if (z == 0 && x == 0) return;
 
-		vec3 move = normalize(worldCamera->getForwardVector() * z + worldCamera->getRightVector() * x) * step;
+		vec3 move = normalize(worldCamera->getForwardVector(true) * z + worldCamera->getRightVector(true) * x) * step;
 		worldCamera->transform->position += move;
 	}
 }
@@ -358,12 +362,9 @@ void displayFunc() {
 
 
 	HandleMoveInput();
-	//rollerCoasters[currentCoasterIndex]->transform->position.x += 0.01f;
 
 	// update entities
 	EntityManager::getInstance()->update();
-	cout << "player world position: ";
-	log(player->getWorldPosition());
 
 	glutSwapBuffers();
 }
@@ -564,7 +565,7 @@ void initObjects() {
 	worldCamera->addComponent(new Camera());
 	worldCamera->transform->position = vec3(0, 0, 5);
 	worldCamera->faceTo(vec3(0), worldUp);
-	worldCameraAngles = worldCamera->transform->getEulerAngles();
+	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
 
 	player = EntityManager::getInstance()->createEntity();
 	player->addComponent(new PlayerController());
@@ -573,7 +574,7 @@ void initObjects() {
 	player->getComponent<Camera>()->setCurrent();
 	player->transform->position = vec3(0, 0, 5);
 	player->faceTo(vec3(0), worldUp);
-	playerAngles = player->transform->getEulerAngles();
+	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = EntityManager::getInstance()->createEntity();
 	ground->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
@@ -581,18 +582,24 @@ void initObjects() {
 	ground->transform->scale = vec3(1000, 1, 1000);
 
 	//debug 
-	Entity* test = EntityManager::getInstance()->createEntity();
-	test->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
-	test->transform->position = vec3(0, 2, 0);
-	test->setParent(ground);
-	ground->transform->scale = vec3(1, 1, 1);
-	ground->transform->position = vec3(1, 1, 1);
+	//Entity* test = EntityManager::getInstance()->createEntity();
+	//test->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
+	//test->transform->position = vec3(0, 2, 0);
+	//test->setParent(ground);
+	//ground->transform->position = vec3(1, 1, 1);
+	//ground->transform->scale = vec3(1, 1, 1);
+	//ground->transform->setEulerAngles(vec3(0, 0, -30));
+	//test->transform->setEulerAngles(vec3(0, 0, -30));
+
+	//EntityManager::getInstance()->update();
+	//log(test->transform->getWorldRotation());
+	//log(test->transform->rotation);
 
 	createSplineObjects();
 
 	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
 	//coaster->start();
-	player->setParent(coaster->seat);
+	//player->setParent(coaster->seat);
 	//player->getComponent<Physics>()->setActive(false);
 }
 
