@@ -13,6 +13,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <iostream>
 
 
 using namespace std;
@@ -92,6 +93,10 @@ public:
 
 class Transform {
 public:
+	friend EntityManager;
+	friend Entity;
+
+	// local
 	vec3 position;
 	quat rotation;
 	vec3 scale;
@@ -115,10 +120,15 @@ public:
 
 	void getModelViewMatrix(float m[16]);
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
-	void rotateAround(float degree, vec3 axis);
+	void rotateAround(float degree, vec3 axis); 
+	vec3 getWorldPosition();
+	OpenGLMatrix getWorldMatrix();
 	vec3 getForwardVector();
 	vec3 getRightVector();
 	vec3 getUpVector();
+	Entity* getParent();
+	void setParent(Entity* parent);
+	vector<Entity*> getChildren();
 
 	template<class T> bool addComponent(T* component);
 	template<class T> T* getComponent();
@@ -126,10 +136,11 @@ public:
 
 protected:
 	map<string, Component*> typeToComponent;
+	Entity* parent = nullptr;
+	vector<Entity*> children;
 
 	Entity();
 
-	virtual void initMatrix(vec3 eye, vec3 center, vec3 up);
 	virtual void update();
 	string toClassKey(string type);
 };
@@ -188,7 +199,7 @@ protected:
 };
 
 
-// camera entity
+// camera
 class Camera : public Component {
 public:
 	friend Entity;
@@ -269,6 +280,26 @@ public:
 			S - 2, 3 - 2 * S, S, 0,
 			S, -S, 0, 0
 		);
+	float speed = 10.0f;
+
+	RollerCoaster(Spline spline, int numOfStepsPerSegment = 1000);
+
+	vec3 getCurrentPosition();
+	vec3 getCurrentDirection();
+	vec3 getCurrentNormal();
+	void start(bool isRepeating = true, bool isTwoWay = true);
+	void pause();
+	void reset();
+	void perform();
+	void render();
+	Entity* seat = nullptr;
+
+protected:
+	bool isRepeating = false;
+	bool isTwoWay = true;
+	bool isGoingForward = true;
+	bool isRunning = false;
+	float size = 0.5f;
 	vector<vec3> vertexPositions;
 	vector<vec3> vertexNormals;
 	vector<vec3> vertexTangents;
@@ -276,25 +307,14 @@ public:
 	int currentVertexIndex = -1;
 	float currentSegmentProgress = 0;
 	int numOfVertices = 0;
-	float size = 0.5f;
-	float speed = 5.0f;
 
-	RollerCoaster(Spline spline, int numOfStepsPerSegment = 1000);
-
-	vec3 getDirection();
-	vec3 getNormal();
-	void perform(Entity* target);
-	void render();
-
-protected:
+	void moveSeat();
 	void onUpdate() override;
 };
 
 
 
 #pragma region Templates
-
-
 template<class T>
 string getType() {
 	return typeid(T).name();

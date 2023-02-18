@@ -47,22 +47,16 @@ void Timer::setCurrentTime(int currentTime) {
 
 #pragma region EntityManager
 void EntityManager::update() {
-	Entity* camera = Camera::currentCamera->getEntity();
-	vec3 position = camera->transform->position;
-	vec3 center = position + camera->getForwardVector();
-	vec3 up = camera->getUpVector();
 
 	for (int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
-
-		entity->initMatrix(position, center, up);
 		entity->update();
 	}
 }
 Entity* EntityManager::createEntity() {
-	Entity* object = new Entity();
-	entities.push_back(object);
-	return object;
+	Entity* entity = new Entity();
+	entities.push_back(entity);
+	return entity;
 }
 #pragma endregion
 
@@ -100,10 +94,10 @@ void Transform::setEulerAngles(vec3 angles) {
 #pragma region Entity 
 Entity::Entity() {
 	transform = new Transform();
-	modelViewMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform->modelViewMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
 void Entity::getModelViewMatrix(float m[16]) {
-	modelViewMatrix.GetMatrix(m);
+	transform->modelViewMatrix.GetMatrix(m);
 }
 void Entity::faceTo(vec3 target, vec3 up) {
 	if (length(up) == 0) {
@@ -129,6 +123,27 @@ void Entity::faceTo(vec3 target, vec3 up) {
 void Entity::rotateAround(float degree, vec3 axis) {
 	transform->rotation = rotate(transform->rotation, radians(degree), axis);
 }
+vec3 Entity::getWorldPosition() {
+	OpenGLMatrix matrix = getWorldMatrix();
+	float m[16];
+	matrix.GetMatrix(m);
+	return vec3(m[12], m[13], m[14]);
+}
+OpenGLMatrix Entity::getWorldMatrix() {
+	OpenGLMatrix matrix;
+	matrix.LoadIdentity();
+	if (parent) {
+		matrix = parent->getWorldMatrix();
+	}
+	vec3 angles = transform->getEulerAngles();
+	matrix.Translate(transform->position.x, transform->position.y, transform->position.z);
+	matrix.Rotate(angles.x, 1, 0, 0);
+	matrix.Rotate(angles.y, 0, 1, 0);
+	matrix.Rotate(angles.z, 0, 0, 1);
+	matrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
+
+	return matrix;
+}
 vec3 Entity::getForwardVector() {
 	return transform->rotation * worldForward;
 }
@@ -138,25 +153,52 @@ vec3 Entity::getRightVector() {
 vec3 Entity::getUpVector() {
 	return transform->rotation * worldUp;
 }
-
-void Entity::initMatrix(vec3 eye, vec3 center, vec3 up) {
-	modelViewMatrix.LoadIdentity();
-	modelViewMatrix.LookAt(eye.x, eye.y, eye.z,
-						   center.x, center.y, center.z,
-						   up.x, up.y, up.z);
+Entity* Entity::getParent() {
+	return parent;
+}
+void Entity::setParent(Entity* parent) {
+	this->parent = parent;
+	parent->children.push_back(this);
+}
+vector<Entity*> Entity::getChildren() {
+	return children;
 }
 
 void Entity::update() {
+
+	transform->modelViewMatrix.LoadIdentity();
+	if (!parent) {
+		Entity* camera = Camera::currentCamera->getEntity();
+		vec3 position = camera->getWorldPosition();
+		//vec3 position = camera->transform->position;
+		vec3 center = position + camera->getForwardVector();
+		vec3 up = camera->getUpVector();
+		transform->modelViewMatrix.LookAt(position.x, position.y, position.z,
+										  center.x, center.y, center.z,
+										  up.x, up.y, up.z);
+	}
+	else {
+		transform->modelViewMatrix = parent->transform->modelViewMatrix;
+	}
 	// apply transformations
 	vec3 angles = transform->getEulerAngles();
-	modelViewMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
-	modelViewMatrix.Rotate(angles.x, 1, 0, 0);
-	modelViewMatrix.Rotate(angles.y, 0, 1, 0);
-	modelViewMatrix.Rotate(angles.z, 0, 0, 1);
-	modelViewMatrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
+	transform->modelViewMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
+	transform->modelViewMatrix.Rotate(angles.x, 1, 0, 0);
+	transform->modelViewMatrix.Rotate(angles.y, 0, 1, 0);
+	transform->modelViewMatrix.Rotate(angles.z, 0, 0, 1);
+	transform->modelViewMatrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
+
+	float m[16];
+	OpenGLMatrix matrix = getWorldMatrix();
+	matrix.GetMatrix(m);
+	transform->modelViewMatrix.MultMatrix(m);
 
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
+	}
+
+	for (int i = 0; i < children.size(); i++) {
+		children[i]->update();
 	}
 }
 string Entity::toClassKey(string type) {
@@ -209,7 +251,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 		default:
 			break;
 	}
-	colors = vector<vec4>(positions.size(), vec4(255));
+	colors = vector<vec4>(positions.size(), color);
 	vao = new VertexArrayObject(pipelineProgram, positions, colors, indices);
 }
 void Renderer::onUpdate() {
@@ -287,6 +329,7 @@ bool Camera::isCurrentCamera() {
 }
 void Camera::onUpdate() {
 	if (!isCurrentCamera()) return;
+
 }
 #pragma endregion
 
@@ -409,20 +452,39 @@ RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
 		float distanceToNext = distance(vertexPositions[i], vertexPositions[i + 1]);
 		vertexDistances.push_back(distanceToNext);
 	}
-	vertexDistances.push_back(-1);
+	vertexDistances.push_back(0);
 }
-
-vec3 RollerCoaster::getDirection() {
+vec3 RollerCoaster::getCurrentPosition() {
+	vec3 position;
+	if (currentVertexIndex == numOfVertices - 1) {
+		position = vertexPositions[currentVertexIndex];
+	}
+	else {
+		position = mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
+	}
+	position += vertexNormals[currentVertexIndex] * size * 2.0f;
+	return position;
+}
+vec3 RollerCoaster::getCurrentDirection() {
 	return vertexTangents[currentVertexIndex];
 }
-vec3 RollerCoaster::getNormal() {
+vec3 RollerCoaster::getCurrentNormal() {
 	return vertexNormals[currentVertexIndex];
 }
-void RollerCoaster::perform(Entity* target) {
-	if (currentVertexIndex == numOfVertices - 1) {
-		return;
-	}
-
+void RollerCoaster::start(bool isRepeating, bool isTwoWay) {
+	this->isRepeating = isRepeating;
+	this->isTwoWay = isTwoWay;
+	isRunning = true;
+}
+void RollerCoaster::pause() {
+	isRunning = false;
+}
+void RollerCoaster::reset() {
+	isRunning = false;
+	currentVertexIndex = 0;
+	moveSeat();
+}
+void RollerCoaster::perform() {
 	float step = speed * Timer::getInstance()->getDeltaTime();
 	// consume step
 	while (step > 0) {
@@ -433,23 +495,20 @@ void RollerCoaster::perform(Entity* target) {
 		// move to the next vertex and reset distance from current vertex
 		currentSegmentProgress = 0;
 		currentVertexIndex++;
-
-		// if reach the end, return the end point position
-		if (currentVertexIndex == numOfVertices - 1) break;
+		if (currentVertexIndex == numOfVertices - 1) {
+			if (!isRepeating) {
+				step = 0;
+				pause();
+			}
+			else {
+				reset();
+				start(isTwoWay);
+			}
+		}
 	}
 
-	vec3 position;
-	if (currentVertexIndex == numOfVertices - 1) {
-		position = vertexPositions[currentVertexIndex];
-	}
-	else {
-		currentSegmentProgress += step / vertexDistances[currentVertexIndex];
-		position = mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
-	}
-	position += vertexNormals[currentVertexIndex] * size * 2.0f;
-
-	target->transform->position = position;
-	target->faceTo(position + getDirection(), getNormal());
+	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+	moveSeat();
 }
 void RollerCoaster::render() {
 	Renderer* renderer = entity->getComponent<Renderer>();
@@ -457,7 +516,7 @@ void RollerCoaster::render() {
 		printf("Error: cannot find Renderer to render the RollerCoaster. \n");
 		return;
 	}
-	
+
 	vector<vec3> normals;
 	vector<vec3> binormals;
 
@@ -470,7 +529,7 @@ void RollerCoaster::render() {
 		vec3 t = vertexTangents[i];
 		vec3 n;
 		if (i == 0) {
-			vec3 v(-1, 0, 0);
+			vec3 v(1, 0, 0);
 			n = normalize(cross(t, v));
 		}
 		else {
@@ -505,9 +564,20 @@ void RollerCoaster::render() {
 	vertexNormals = normals;
 	renderer->vao->setVertices(positions, colors, indices);
 	renderer->drawMode = GL_TRIANGLE_STRIP;
+
+	seat = EntityManager::getInstance()->createEntity();
+	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, Renderer::Shape::Cube));
+	seat->setParent(entity);
+	moveSeat();
+}
+void RollerCoaster::moveSeat() {
+	seat->transform->position = getCurrentPosition();
+	seat->faceTo(seat->transform->position + getCurrentDirection(), getCurrentNormal());
 }
 void RollerCoaster::onUpdate() {
-
+	if (isRunning) {
+		perform();
+	}
 }
 #pragma endregion
 

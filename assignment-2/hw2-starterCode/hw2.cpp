@@ -303,10 +303,6 @@ void HandleMouseInput(int mousePosDelta[2]) {
 	angles->y -= mousePosDelta[0] * lookStep;
 	angles->x = std::clamp(angles->x, xAngleLimit.x, xAngleLimit.y);
 	target->transform->setEulerAngles(*angles);
-
-	//angles = &(target->transform->getEulerAngles());
-	//	target->rotateAround(mousePosDelta[1] * lookStep, target->getRightVector());
-	//target->rotateAround(mousePosDelta[0] * lookStep, worldUp);
 }
 void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
@@ -324,11 +320,6 @@ void createSplineObjects() {
 	}
 }
 
-
-void HandleCameraMotion() {
-	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
-	coaster->perform(player);
-}
 
 void idleFunc() {
 	// calculate delta time
@@ -362,23 +353,17 @@ void HandleMoveInput() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	//HandleCameraMotion();
-
 	// set uniforms
 	setUniforms();
 
-	// debug
-
-	//vec3 angles = player->transform->getEulerAngles();
-	//angles.y = 90;
-	//angles.y += 1;
-	//player->transform->setEulerAngles(angles);
-	//log(angles);
 
 	HandleMoveInput();
+	//rollerCoasters[currentCoasterIndex]->transform->position.x += 0.01f;
 
 	// update entities
 	EntityManager::getInstance()->update();
+	cout << "player world position: ";
+	log(player->getWorldPosition());
 
 	glutSwapBuffers();
 }
@@ -596,9 +581,19 @@ void initObjects() {
 	ground->transform->scale = vec3(1000, 1, 1000);
 
 	//debug 
+	Entity* test = EntityManager::getInstance()->createEntity();
+	test->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
+	test->transform->position = vec3(0, 2, 0);
+	test->setParent(ground);
+	ground->transform->scale = vec3(1, 1, 1);
+	ground->transform->position = vec3(1, 1, 1);
 
 	createSplineObjects();
 
+	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
+	//coaster->start();
+	player->setParent(coaster->seat);
+	//player->getComponent<Physics>()->setActive(false);
 }
 
 int main(int argc, char* argv[]) {
