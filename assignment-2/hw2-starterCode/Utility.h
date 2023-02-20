@@ -47,7 +47,10 @@ bool approximately(vec3 a, vec3 b);
 
 vec3 getProjectionOnVector(vec3 u, vec3 v);
 vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
-void getMatrix(mat4 matrix, float* m);
+void extractMatrix(mat4 matrix, float* m);
+vec3 extractPosition(mat4 m);
+quat extractRotation(mat4 m);
+vec3 extractScale(mat4 m);
 
 template<class T> string getType();
 template<class T> string getType(T obj);
@@ -104,28 +107,29 @@ public:
 	friend EntityManager;
 	friend Entity;
 
-	// local
-	vec3 position;
-	quat rotation;
-	vec3 scale;
-	// attached to
+	// owner
 	Entity* entity;
 
+	vec3 getPosition(bool isWorld);
+	quat getRotation(bool isWorld);
+	vec3 getScale(bool isWorld);
+	void setPosition(vec3 pos, bool isWorld);
+	void setRotation(quat rotation, bool isWorld);
+	void setScale(vec3 scale, bool isWorld);
 	vec3 getEulerAngles(bool isWorld);
 	void setEulerAngles(vec3 angles, bool isWorld); // degrees
-	vec3 getWorldPosition();
-	quat getWorldRotation();
-	vec3 getWorldScale();
-	//vec3 setWorldPosition(vec3 position);
-	//quat setWorldRotation(quat rotation);
-	//vec3 setWorldScale(vec3 scale);
-
+	void rotateAround(float degree, vec3 axis, bool isWorld);
 private:
-	mat4 localModelMatrix = mat4(1);
-	mat4 worldModelMatrix = mat4(1);
+	// locals
+	vec3 position = vec3(0);
+	quat rotation = quat(1, 0, 0, 0);
+	vec3 scale = vec3(1);
+	// world model matrix
+	mat4 modelMatrix = mat4(1);
 
 	Transform(Entity* entity);
 
+	mat4 getParentMatrix();
 	void updateModelMatrix();
 };
 
@@ -138,10 +142,8 @@ public:
 	string name;
 	Transform* transform = nullptr;
 
-	void getLocalModelMatrix(float m[16]);
 	void getWorldModelMatrix(float m[16]);
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
-	void rotateAround(float degree, vec3 axis); 
 	vec3 getForwardVector(bool isWorld);
 	vec3 getRightVector(bool isWorld);
 	vec3 getUpVector(bool isWorld);
