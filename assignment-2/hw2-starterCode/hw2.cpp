@@ -617,9 +617,21 @@ void initObjects() {
 	cout << "---debug---" << endl;
     test = EntityManager::getInstance()->createEntity("Test");
 	test->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube, vec4(240, 84, 79, 255)));
-	test->transform->position = vec3(0, 2, 10);
-	test->transform->setEulerAngles(vec3(0, 50, 0));
+
+	//player->transform->rotateAround(0, worldUp);
+	//test->transform->position = vec3(0, 2, 10);
+	//test->transform->setEulerAngles(vec3(0, 50, 0), true);
 	//player->setParent(test);
+	//log(test->transform->getWorldRotation());
+
+	//mat4 mat(1);
+	//quat r = angleAxis(radians(45.f), vec3(0, 1, 0));
+	//mat *= mat4_cast(r);
+	//quat q = quat_cast(mat);
+	//log(degrees(eulerAngles(q)));
+
+	//EntityManager::getInstance()->update();
+	//player->faceTo(vec3(0));
 	//player->transform->position = vec3(0, 0, -3);
 	//player->faceTo(test->transform->position, worldUp);
 	//playerAngles = player->transform->getEulerAngles(false);
@@ -636,34 +648,34 @@ void initObjects() {
 	//log(test->transform->getEulerAngles(false));
 
 	//test = EntityManager::getInstance()->createEntity();
-	OpenGLMatrix matrix;
-	matrix.LoadIdentity();
-	matrix.Rotate(45, 1, 0, 0);
-	matrix.Rotate(45, 0, 1, 0);
-	matrix.Rotate(45, 0, 0, 1);
-	float m[16];
-	matrix.GetMatrix(m);
-	mat4 mat = make_mat4(m);
-	float x, y, z;
-	extractEulerAngleXYZ(mat, x, y, z);
-	log(degrees(vec3(x, y, z)));
+	//OpenGLMatrix matrix;
+	//matrix.LoadIdentity();
+	//matrix.Rotate(45, 1, 0, 0);
+	//matrix.Rotate(45, 0, 1, 0);
+	//matrix.Rotate(45, 0, 0, 1);
+	//float m[16];
+	//matrix.GetMatrix(m);
+	//mat4 mat = make_mat4(m);
+	//float x, y, z;
+	//extractEulerAngleXYZ(mat, x, y, z);
+	//log(degrees(vec3(x, y, z)));
 
-	quat q = quat_cast(mat);
-	log(q);
-	log(degrees(eulerAngles(q)));
+	//quat q = quat_cast(mat);
+	//log(q);
+	//log(degrees(eulerAngles(q)));
 
-	matrix.LoadIdentity();
-	matrix.Rotate(degrees(x), 1, 0, 0);
-	matrix.Rotate(degrees(y), 0, 1, 0);
-	matrix.Rotate(degrees(z), 0, 0, 1);
-	matrix.GetMatrix(m);
-	mat = make_mat4(m);
-	extractEulerAngleXYZ(mat, x, y, z);
-	log(degrees(vec3(x, y, z)));
+	//matrix.LoadIdentity();
+	//matrix.Rotate(degrees(x), 1, 0, 0);
+	//matrix.Rotate(degrees(y), 0, 1, 0);
+	//matrix.Rotate(degrees(z), 0, 0, 1);
+	//matrix.GetMatrix(m);
+	//mat = make_mat4(m);
+	//extractEulerAngleXYZ(mat, x, y, z);
+	//log(degrees(vec3(x, y, z)));
 
-	q = quat_cast(mat);
-	log(q);
-	log(degrees(eulerAngles(q)));
+	//q = quat_cast(mat);
+	//log(q);
+	//log(degrees(eulerAngles(q)));
 	//extractEulerAngleXYZ(mat, x, y, z);
 	//q = quat(vec3(x, y, z));
 	//matrix.LoadIdentity();
@@ -719,12 +731,14 @@ void initObjects() {
 	createSplineObjects();
 
 	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
+	//player->faceTo(vec3(10, 0, 0));
 	//coaster->start();
+	//player->setParent(coaster->seat);
+	//player->transform->position = vec3(0, 0, 0);
 	//Entity* test2 = EntityManager::getInstance()->createEntity();
 	//test2->transform->position = player->transform->position;
 	//test2->transform->setEulerAngles(vec3(0, 0, 1));
 	//player->transform->position = vec3(0);
-	//player->setParent(test2);
 	//player->getComponent<Physics>()->setActive(false);
 }
 

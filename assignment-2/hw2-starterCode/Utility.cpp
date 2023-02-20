@@ -23,6 +23,10 @@ vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal) {
 	planeNormal = normalize(planeNormal);
 	return u - getProjectionOnVector(u, planeNormal);
 }
+// copied from openGLMatrix.cpp
+void getMatrix(mat4 matrix, float* m) {
+	memcpy(m, value_ptr(matrix), sizeof(float) * 16);
+}
 void log(vec3 v, bool endOfLine) {
 	string newLine = endOfLine ? "\n" : "";
 	printf("vec3(%f, %f, %f)%s", v.x, v.y, v.z, newLine.c_str());
@@ -66,7 +70,8 @@ Entity* EntityManager::createEntity(string name) {
 
 
 #pragma region Transform
-Transform::Transform() {
+Transform::Transform(Entity* entity) {
+	this->entity = entity;
 	position = vec3(0);
 	rotation = quat(1, 0, 0, 0);
 	scale = vec3(1);
@@ -86,59 +91,75 @@ vec3 Transform::getEulerAngles(bool isWorld) {
 	angles.z = fmod(angles.z, 360);
 	return angles;
 }
-void Transform::setEulerAngles(vec3 angles) {
+void Transform::setEulerAngles(vec3 angles, bool isWorld) {
 	angles = radians(angles);
 	mat4 mat(1);
 	mat *= rotate(angles.x, vec3(1, 0, 0));
 	mat *= rotate(angles.y, vec3(0, 1, 0));
 	mat *= rotate(angles.z, vec3(0, 0, 1));
-	rotation = quat_cast(mat);
+	quat q = quat_cast(mat);
+	if (isWorld) {
+		Entity* parent = entity->getParent();
+		if (parent) {
+			q = inverse(parent->transform->getWorldRotation()) * q;
+		}
+	}
+	rotation = q;
 }
 vec3 Transform::getWorldPosition() {
-	float m[16];
-	worldModelMatrix.GetMatrix(m);
-	return vec3(m[12], m[13], m[14]);
+	mat4 m = worldModelMatrix;
+	return vec3(m[3][0], m[3][1], m[3][2]);
 }
 quat Transform::getWorldRotation() {
-	float m[16];
-	worldModelMatrix.GetMatrix(m);
-	mat4 mat = make_mat4(m);
-	quat q = quat_cast(mat);
+	mat4 m = worldModelMatrix;
+	quat q = quat_cast(m);
 	return q;
 }
 vec3 Transform::getWorldScale() {
-	float m[16];
-	worldModelMatrix.GetMatrix(m);
-	float s1 = sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]);
-	float s2 = sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6]);
-	float s3 = sqrt(m[8] * m[8] + m[9] * m[9] + m[10] * m[10]);
+	mat4 m = worldModelMatrix;
+	float s1 = sqrt(m[0][0] * m[0][0] + m[0][1] * m[0][1] + m[0][2] * m[0][2]);
+	float s2 = sqrt(m[1][0] * m[1][0] + m[1][1] * m[1][1] + m[1][2] * m[1][2]);
+	float s3 = sqrt(m[2][0] * m[2][0] + m[2][1] * m[2][1] + m[2][2] * m[2][2]);
 	return vec3(s1, s2, s3);
 }
 void Transform::updateModelMatrix() {
+	localModelMatrix = mat4(1);
+	// apply transformations
+	localModelMatrix *= translate(position);
+	localModelMatrix *= mat4_cast(rotation);
+	localModelMatrix *= glm::scale(scale);
 
-}
+	Entity* parent = entity->getParent();
+	if (parent) {
+		worldModelMatrix = parent->transform->worldModelMatrix;
+		worldModelMatrix *= localModelMatrix;
+	}
+	else {
+		worldModelMatrix = localModelMatrix;
+	}
+}	
+
 #pragma endregion
 
 
 #pragma region Entity 
 Entity::Entity(string name) {
 	this->name = name;
-	transform = new Transform();
-	transform->localModelMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
+	transform = new Transform(this);
 }
 void Entity::getLocalModelMatrix(float m[16]) {
-	transform->localModelMatrix.GetMatrix(m);
+	getMatrix(transform->localModelMatrix, m);
 }
 void Entity::getWorldModelMatrix(float m[16]) {
-	transform->worldModelMatrix.GetMatrix(m);
+	getMatrix(transform->worldModelMatrix, m);
 }
 
 void Entity::faceTo(vec3 target, vec3 up) {
 	if (length(up) == 0) {
 		up = worldUp;
 	}
-	vec3 position = transform->position;
-	vec3 direction = normalize(target - transform->position);
+	vec3 position = transform->getWorldPosition();
+	vec3 direction = normalize(target - position);
 	up = normalize(up);
 	if (approximately(direction, up)) {
 		up = worldUp;
@@ -182,24 +203,7 @@ vector<Entity*> Entity::getChildren() {
 }
 
 void Entity::update() {
-	transform->localModelMatrix.LoadIdentity();
-	// apply transformations
-	vec3 angles = transform->getEulerAngles(false);
-	transform->localModelMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
-	transform->localModelMatrix.Rotate(angles.z, 0, 0, 1);
-	transform->localModelMatrix.Rotate(angles.x, 1, 0, 0);
-	transform->localModelMatrix.Rotate(angles.y, 0, 1, 0);
-	transform->localModelMatrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
-
-	if (parent) {
-		float m[16];
-		transform->localModelMatrix.GetMatrix(m);
-		transform->worldModelMatrix = parent->transform->worldModelMatrix;
-		transform->worldModelMatrix.MultMatrix(m);
-	}
-	else {
-		transform->worldModelMatrix = transform->localModelMatrix;
-	}
+	transform->updateModelMatrix();
 
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
@@ -325,26 +329,24 @@ void Physics::onUpdate() {
 Camera* Camera::currentCamera = nullptr;
 
 Camera::Camera(bool setToCurrent) {
-	projectionMatrix.SetMatrixMode(OpenGLMatrix::Projection);
-	projectionMatrix.LoadIdentity();
-	projectionMatrix.Perspective(fieldOfView, aspect, zNear, zFar);
+	projectionMatrix = perspective(radians(fieldOfView), aspect, zNear, zFar);
 	if (setToCurrent) {
 		setCurrent();
 	}
 }
-void Camera::getProjectionMatrix(float* pMatrix) {
-	projectionMatrix.GetMatrix(pMatrix);
+void Camera::getProjectionMatrix(float* m) {
+	getMatrix(projectionMatrix, m);
 }
-void Camera::getViewMatrix(float* vMatrix) {
-	viewMatrix.GetMatrix(vMatrix);
+void Camera::getViewMatrix(float* m) {
+	getMatrix(viewMatrix, m);
 }
 void Camera::setPerspective(float fieldOfView, float aspect, float zNear, float zFar) {
 	this->fieldOfView = fieldOfView;
 	this->aspect = aspect;
 	this->zNear = zNear;
 	this->zFar = zFar;
-	projectionMatrix.LoadIdentity();
-	projectionMatrix.Perspective(fieldOfView, aspect, zNear, zFar);
+	projectionMatrix = mat4(1);
+	projectionMatrix = perspective(radians(fieldOfView), aspect, zNear, zFar);
 }
 void Camera::setCurrent() {
 	Camera::currentCamera = this;
@@ -358,10 +360,8 @@ void Camera::onUpdate() {
 	vec3 position = entity->transform->getWorldPosition();
 	vec3 center = position + entity->getForwardVector(true);
 	vec3 up = entity->getUpVector(true);
-	viewMatrix.LoadIdentity();
-	viewMatrix.LookAt(position.x, position.y, position.z,
-									  center.x, center.y, center.z,
-									  up.x, up.y, up.z);
+	viewMatrix = mat4(1);
+	viewMatrix = lookAt(position, center, up);
 }
 #pragma endregion
 
@@ -604,7 +604,7 @@ void RollerCoaster::render() {
 }
 void RollerCoaster::moveSeat() {
 	seat->transform->position = getCurrentPosition();
-	seat->faceTo(seat->transform->position + getCurrentDirection(), getCurrentNormal());
+	seat->faceTo(seat->transform->getWorldPosition() + getCurrentDirection(), getCurrentNormal());
 }
 void RollerCoaster::onUpdate() {
 	if (isRunning) {

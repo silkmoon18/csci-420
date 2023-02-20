@@ -3,18 +3,16 @@
 
 #define GLM_FORCE_RADIANS
 
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/euler_angles.hpp>
-#include <glm/gtx/matrix_decompose.hpp>
+#include "glm/gtx/transform.hpp"
+#include "glm/gtx/euler_angles.hpp"
+#include "glm/gtx/matrix_decompose.hpp"
 #include "basicPipelineProgram.h"
 #include "openGLMatrix.h"
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/epsilon.hpp"
-#include <glm/gtc/type_ptr.hpp>
+#include "glm/gtc/type_ptr.hpp"
 
 
 #include <vector>
@@ -49,6 +47,7 @@ bool approximately(vec3 a, vec3 b);
 
 vec3 getProjectionOnVector(vec3 u, vec3 v);
 vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
+void getMatrix(mat4 matrix, float* m);
 
 template<class T> string getType();
 template<class T> string getType(T obj);
@@ -77,6 +76,7 @@ public:
 	}
 };
 
+// manage time
 class Timer : public Singleton<Timer> {
 public:
 	float getDeltaTime();
@@ -88,7 +88,7 @@ private:
 };
 
 
-// manager for all entities
+// manage entities
 class EntityManager : public Singleton<EntityManager> {
 public:
 	vector<Entity*> entities;
@@ -98,6 +98,7 @@ public:
 };
 
 
+// every entity has a transform
 class Transform {
 public:
 	friend EntityManager;
@@ -107,18 +108,23 @@ public:
 	vec3 position;
 	quat rotation;
 	vec3 scale;
-
-	Transform();
+	// attached to
+	Entity* entity;
 
 	vec3 getEulerAngles(bool isWorld);
-	void setEulerAngles(vec3 angles);
+	void setEulerAngles(vec3 angles, bool isWorld); // degrees
 	vec3 getWorldPosition();
 	quat getWorldRotation();
 	vec3 getWorldScale();
+	//vec3 setWorldPosition(vec3 position);
+	//quat setWorldRotation(quat rotation);
+	//vec3 setWorldScale(vec3 scale);
 
 private:
-	OpenGLMatrix localModelMatrix;
-	OpenGLMatrix worldModelMatrix;
+	mat4 localModelMatrix = mat4(1);
+	mat4 worldModelMatrix = mat4(1);
+
+	Transform(Entity* entity);
 
 	void updateModelMatrix();
 };
@@ -158,7 +164,7 @@ protected:
 	string toClassKey(string type);
 };
 
-
+// to be added to entities
 class Component {
 public:
 	friend Entity;
@@ -226,15 +232,15 @@ public:
 
 	Camera(bool setCurrent = true);
 
-	void getProjectionMatrix(float* pMatrix);
-	void getViewMatrix(float* vMatrix);
+	void getProjectionMatrix(float* m);
+	void getViewMatrix(float* m);
 	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
 	void setCurrent();
 	bool isCurrentCamera();
 
 protected:
-	OpenGLMatrix projectionMatrix;
-	OpenGLMatrix viewMatrix;
+	mat4 projectionMatrix = mat4(1);
+	mat4 viewMatrix = mat4(1);
 
 	void onUpdate() override;
 };
