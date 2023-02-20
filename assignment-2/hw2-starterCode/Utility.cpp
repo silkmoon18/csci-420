@@ -50,11 +50,15 @@ void EntityManager::update() {
 
 	for (int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
+		if (entity->getParent()) continue;
 		entity->update();
 	}
 }
-Entity* EntityManager::createEntity() {
-	Entity* entity = new Entity();
+Entity* EntityManager::createEntity(string name) {
+	if (name.empty()) {
+		name = "Entity_" + entities.size();
+	}
+	Entity* entity = new Entity(name);
 	entities.push_back(entity);
 	return entity;
 }
@@ -70,7 +74,7 @@ Transform::Transform() {
 vec3 Transform::getEulerAngles(bool isWorld) {
 	quat q = isWorld ? getWorldRotation() : rotation;
 	vec3 angles = degrees(eulerAngles(q));
-	if (fabs(angles.x) >= 90) {
+	if (fabs(angles.x) >= 180) {
 		float offset = sign(angles.x) * 180;
 		angles.x -= offset;
 		angles.y = offset - angles.y;
@@ -83,11 +87,12 @@ vec3 Transform::getEulerAngles(bool isWorld) {
 	return angles;
 }
 void Transform::setEulerAngles(vec3 angles) {
-	angles.x = fmod(angles.x, 360);
-	angles.y = fmod(angles.y, 360);
-	angles.z = fmod(angles.z, 360);
 	angles = radians(angles);
-	rotation = quat(angles);
+	mat4 mat(1);
+	mat *= rotate(angles.x, vec3(1, 0, 0));
+	mat *= rotate(angles.y, vec3(0, 1, 0));
+	mat *= rotate(angles.z, vec3(0, 0, 1));
+	rotation = quat_cast(mat);
 }
 vec3 Transform::getWorldPosition() {
 	float m[16];
@@ -97,8 +102,9 @@ vec3 Transform::getWorldPosition() {
 quat Transform::getWorldRotation() {
 	float m[16];
 	worldModelMatrix.GetMatrix(m);
-	mat4 mat = make_mat4x4(m);
-	return toQuat(mat);
+	mat4 mat = make_mat4(m);
+	quat q = quat_cast(mat);
+	return q;
 }
 vec3 Transform::getWorldScale() {
 	float m[16];
@@ -108,12 +114,15 @@ vec3 Transform::getWorldScale() {
 	float s3 = sqrt(m[8] * m[8] + m[9] * m[9] + m[10] * m[10]);
 	return vec3(s1, s2, s3);
 }
+void Transform::updateModelMatrix() {
 
+}
 #pragma endregion
 
 
 #pragma region Entity 
-Entity::Entity() {
+Entity::Entity(string name) {
+	this->name = name;
 	transform = new Transform();
 	transform->localModelMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
@@ -151,15 +160,15 @@ void Entity::rotateAround(float degree, vec3 axis) {
 
 vec3 Entity::getForwardVector(bool isWorld) {
 	quat q = isWorld ? transform->getWorldRotation() : transform->rotation;
-	return q * worldForward;
+	return normalize(q * worldForward);
 }
 vec3 Entity::getRightVector(bool isWorld) {
 	quat q = isWorld ? transform->getWorldRotation() : transform->rotation;
-	return q * worldRight;
+	return normalize(q * worldRight);
 }
 vec3 Entity::getUpVector(bool isWorld) {
 	quat q = isWorld ? transform->getWorldRotation() : transform->rotation;
-	return q * worldUp;
+	return normalize(q * worldUp);
 }
 Entity* Entity::getParent() {
 	return parent;
@@ -173,14 +182,13 @@ vector<Entity*> Entity::getChildren() {
 }
 
 void Entity::update() {
-
 	transform->localModelMatrix.LoadIdentity();
 	// apply transformations
 	vec3 angles = transform->getEulerAngles(false);
 	transform->localModelMatrix.Translate(transform->position.x, transform->position.y, transform->position.z);
+	transform->localModelMatrix.Rotate(angles.z, 0, 0, 1);
 	transform->localModelMatrix.Rotate(angles.x, 1, 0, 0);
 	transform->localModelMatrix.Rotate(angles.y, 0, 1, 0);
-	transform->localModelMatrix.Rotate(angles.z, 0, 0, 1);
 	transform->localModelMatrix.Scale(transform->scale.x, transform->scale.y, transform->scale.z);
 
 	if (parent) {
@@ -215,7 +223,7 @@ string Entity::toClassKey(string type) {
 #pragma endregion
 
 
-
+#pragma region Component
 Component::Component() {
 	// hided constructor
 }
@@ -229,7 +237,9 @@ void Component::update() {
 	if (!isActive) return;
 	onUpdate();
 }
+#pragma endregion
 
+#pragma region Renderer
 Renderer::Renderer(VertexArrayObject* vao) {
 	this->vao = vao;
 }
@@ -282,6 +292,7 @@ void Renderer::onUpdate() {
 	glBindVertexArray(vao->vertexArray);
 	glDrawElements(drawMode, vao->numIndices, GL_UNSIGNED_INT, 0);
 }
+#pragma endregion
 
 #pragma region Physics
 Physics::Physics(float minDistance, bool checkGround) {
@@ -345,8 +356,8 @@ void Camera::onUpdate() {
 	if (!isCurrentCamera()) return;
 
 	vec3 position = entity->transform->getWorldPosition();
-	vec3 center = position + entity->getForwardVector(false);
-	vec3 up = entity->getUpVector(false);
+	vec3 center = position + entity->getForwardVector(true);
+	vec3 up = entity->getUpVector(true);
 	viewMatrix.LoadIdentity();
 	viewMatrix.LookAt(position.x, position.y, position.z,
 									  center.x, center.y, center.z,
@@ -364,8 +375,8 @@ void PlayerController::moveOnGround(vec4 input, float step) {
 	float x = input.w - input.z;
 	if (z == 0 && x == 0) return;
 
-	vec3 forward = entity->getForwardVector(true);
-	vec3 right = entity->getRightVector(true);
+	vec3 forward = normalize(getProjectionOnPlane(entity->getForwardVector(false)));
+	vec3 right = normalize(getProjectionOnPlane(entity->getRightVector(false)));
 	vec3 move = normalize(x * right + z * forward) * step;
 	entity->transform->position += move;
 }

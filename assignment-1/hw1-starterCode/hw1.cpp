@@ -385,16 +385,6 @@ void idleFunc() {
 	currentFrame++;
 }
 
-template<class T>
-string getType(T t) {
-	return typeid(T).name();
-}
-class base {
-
-};
-class sub : public base {
-
-};
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -402,7 +392,7 @@ void displayFunc() {
 	mvMatrix.LoadIdentity();
 	mvMatrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
 				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
-				  1, 1, 0);
+				  0, 1, 0);
 
 	// apply transformations
 	mvMatrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
@@ -410,11 +400,6 @@ void displayFunc() {
 	mvMatrix.Rotate(landRotate[1], 0, 1, 0);
 	mvMatrix.Rotate(landRotate[2], 0, 0, 1);
 	mvMatrix.Scale(landScale[0], landScale[1], landScale[2]);
-
-	int a = 0;
-	int* i = &a;
-
-	cout << getType(*i) << endl;
 
 	// get matrices
 	float m[16];
@@ -453,26 +438,6 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case ' ':
 			cout << "You pressed the spacebar." << endl;
 			break;
-
-		// change light position
-		//case 'w':
-		//	light_pos[2] += lightTranslateSpeed;
-		//	break;
-		//case 's':
-		//	light_pos[2] -= lightTranslateSpeed;
-		//	break;
-		//case 'a':
-		//	light_pos[0] -= lightTranslateSpeed;
-		//	break;
-		//case 'd':
-		//	light_pos[0] += lightTranslateSpeed;
-		//	break;
-		//case 'q':
-		//	light_pos[1] -= lightTranslateSpeed;
-		//	break;
-		//case 'e':
-		//	light_pos[1] += lightTranslateSpeed;
-		//	break;
 
 		// toggle screenshots recording
 		case 'x':

@@ -38,7 +38,9 @@ using namespace glm;
 
 
 
-BasicPipelineProgram* pipelineProgram;
+BasicPipelineProgram* milestonePipeline;
+BasicPipelineProgram* texturePipeline;
+
 
 int mousePos[2]; // x,y coordinate of the mouse position
 
@@ -51,7 +53,9 @@ CONTROL_STATE controlState = ROTATE;
 
 // entities
 Entity* worldCamera;
+Entity* mainCamera;
 Entity* player;
+Entity* worldEye;
 Entity* ground;
 
 // controls
@@ -59,7 +63,7 @@ vec3 playerAngles(0);
 vec3 worldCameraAngles(0);
 vec4 moveInput(0); // w, s, a, d
 float mouseSensitivity = 5.0f;
-vec2 xAngleLimit(-85, 80);
+float xAngleLimit= 85;
 float moveSpeed = 5.0f;
 bool isControllingPlayer = true;
 //float translateSpeed = 0.1f;
@@ -263,23 +267,23 @@ void saveScreenshot() {
 
 void setUniforms() {
 	// set lightings
-	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightPosition");
+	GLuint loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightPosition");
 	glUniform4f(loc, lightPosition[0], lightPosition[1], lightPosition[2], lightPosition[3]);
 
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "ambientCoef");
 	glUniform4f(loc, ambientCoef[0], ambientCoef[1], ambientCoef[2], ambientCoef[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "diffuseCoef");
 	glUniform4f(loc, diffuseCoef[0], diffuseCoef[1], diffuseCoef[2], diffuseCoef[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "specularCoef");
 	glUniform4f(loc, specularCoef[0], specularCoef[1], specularCoef[2], specularCoef[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "materialShininess");
 	glUniform1f(loc, materialShininess);
 
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightAmbient");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightAmbient");
 	glUniform4f(loc, lightAmbient[0], lightAmbient[1], lightAmbient[2], lightAmbient[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightDiffuse");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightDiffuse");
 	glUniform4f(loc, lightDiffuse[0], lightDiffuse[1], lightDiffuse[2], lightDiffuse[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightSpecular");
+	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightSpecular");
 	glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
 }
 
@@ -289,31 +293,41 @@ void setUniforms() {
 void HandleMouseInput(int mousePosDelta[2]) {
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
+	Entity* camera;
 	vec3* angles;
 	if (isControllingPlayer) {
 		target = player;
+		camera = mainCamera;
 		angles = &playerAngles;
+
 	}
 	else {
-		target = worldCamera;
+		target = worldEye;
+		camera = worldCamera;
 		angles = &worldCameraAngles;
 	}
 
-	angles->x -= mousePosDelta[1] * lookStep;
-	angles->y -= mousePosDelta[0] * lookStep;
-	angles->x = std::clamp(angles->x, xAngleLimit.x, xAngleLimit.y);
-	target->transform->setEulerAngles(*angles);
-	cout << "---" << endl;
-	log(player->transform->getEulerAngles(true));
-	log(player->transform->getEulerAngles(false));
-
+	float x = -mousePosDelta[1] * lookStep;
+	float y = -mousePosDelta[0] * lookStep;
+	angles->x += x;
+	angles->y += y;
+	if (angles->x > xAngleLimit) {
+		x -= angles->x - xAngleLimit;
+		angles->x = xAngleLimit;
+	}
+	else if (angles->x < -xAngleLimit) {
+		x -= angles->x + xAngleLimit;
+		angles->x = -xAngleLimit;
+	}
+	target->rotateAround(y, worldUp);
+	camera->rotateAround(x, camera->getRightVector(false));
 }
 void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
 		Spline spline = splines[i];
 
-		Entity* coaster = EntityManager::getInstance()->createEntity();
-		coaster->addComponent(new Renderer(new VertexArrayObject(pipelineProgram)));
+		Entity* coaster = EntityManager::getInstance()->createEntity("RollerCoaster_" + rollerCoasters.size());
+		coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline)));
 		coaster->addComponent(new RollerCoaster(spline));
 		coaster->getComponent<RollerCoaster>()->render();
 		rollerCoasters.push_back(coaster);
@@ -349,22 +363,31 @@ void HandleMoveInput() {
 		float x = moveInput.w - moveInput.z;
 		if (z == 0 && x == 0) return;
 
-		vec3 move = normalize(worldCamera->getForwardVector(true) * z + worldCamera->getRightVector(true) * x) * step;
+		vec3 move = normalize(worldCamera->getForwardVector(false) * z + worldCamera->getRightVector(false) * x) * step;
 		worldCamera->transform->position += move;
 	}
 }
-
+Entity* test;
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// set uniforms
 	setUniforms();
 
-
 	HandleMoveInput();
 
 	// update entities
 	EntityManager::getInstance()->update();
+
+	//cout << "world: ";
+	//log(mainCamera->transform->getEulerAngles(true));
+	//cout << "local: ";
+	//log(mainCamera->transform->getEulerAngles(false));
+
+	//vec3 r = player->transform->getEulerAngles(false);
+	//r.y += 1;
+	//player->transform->setEulerAngles(r);
+	//log(test->getUpVector(true));
 
 	glutSwapBuffers();
 }
@@ -408,7 +431,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 				isControllingPlayer = false;
 			}
 			else {
-				player->getComponent<Camera>()->setCurrent();
+				mainCamera->getComponent<Camera>()->setCurrent();
 				isControllingPlayer = true;
 			}
 			break;
@@ -552,54 +575,156 @@ void initScene() {
 	glPrimitiveRestartIndex(RESTARTINDEX);
 
 	// pipeline
-	pipelineProgram = new BasicPipelineProgram;
-	int ret = pipelineProgram->Init(shaderBasePath);
+	milestonePipeline = new BasicPipelineProgram;
+	int ret = milestonePipeline->Init(shaderBasePath);
 	if (ret != 0) abort();
+
+	//texturePipeline = new BasicPipelineProgram;
+	//int ret = texturePipeline->Init(shaderBasePath);
+	//if (ret != 0) abort();
 
 	cout << "\nGL error: " << glGetError() << endl;
 }
 
-
 void initObjects() {
-	worldCamera = EntityManager::getInstance()->createEntity();
-	worldCamera->addComponent(new Camera());
-	worldCamera->transform->position = vec3(0, 0, 5);
-	worldCamera->faceTo(vec3(0), worldUp);
-	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
+	worldEye = EntityManager::getInstance()->createEntity("WorldEye");
+	worldEye->transform->position = vec3(20, 20, 20);
 
-	player = EntityManager::getInstance()->createEntity();
+	worldCamera = EntityManager::getInstance()->createEntity("WorldCamera");
+	worldCamera->addComponent(new Camera());
+	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
+	worldCamera->setParent(worldEye);
+
+	player = EntityManager::getInstance()->createEntity("Player");
 	player->addComponent(new PlayerController());
 	player->addComponent(new Physics(0.75f));
-	player->addComponent(new Camera());
-	player->getComponent<Camera>()->setCurrent();
 	player->transform->position = vec3(0, 0, 5);
-	player->faceTo(vec3(0), worldUp);
 	playerAngles = player->transform->getEulerAngles(true);
 
-	ground = EntityManager::getInstance()->createEntity();
-	ground->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
+	mainCamera = EntityManager::getInstance()->createEntity("MainCamera");
+	mainCamera->addComponent(new Camera());
+	mainCamera->getComponent<Camera>()->setCurrent();
+	mainCamera->setParent(player);
+
+	ground = EntityManager::getInstance()->createEntity("Ground");
+	ground->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
 	ground->transform->position = vec3(0, -0.5, 0);
 	ground->transform->scale = vec3(1000, 1, 1000);
 
+
+
 	//debug 
-	//Entity* test = EntityManager::getInstance()->createEntity();
-	//test->addComponent(new Renderer(pipelineProgram, Renderer::Shape::Cube));
-	//test->transform->position = vec3(0, 2, 0);
+	cout << "---debug---" << endl;
+    test = EntityManager::getInstance()->createEntity("Test");
+	test->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube, vec4(240, 84, 79, 255)));
+	test->transform->position = vec3(0, 2, 10);
+	test->transform->setEulerAngles(vec3(0, 50, 0));
+	//player->setParent(test);
+	//player->transform->position = vec3(0, 0, -3);
+	//player->faceTo(test->transform->position, worldUp);
+	//playerAngles = player->transform->getEulerAngles(false);
 	//test->setParent(ground);
 	//ground->transform->position = vec3(1, 1, 1);
 	//ground->transform->scale = vec3(1, 1, 1);
-	//ground->transform->setEulerAngles(vec3(0, 0, -30));
+	//ground->transform->setEulerAngles(vec3(0, 30, 0));
 	//test->transform->setEulerAngles(vec3(0, 0, -30));
 
 	//EntityManager::getInstance()->update();
-	//log(test->transform->getWorldRotation());
-	//log(test->transform->rotation);
+	//cout << "world: ";
+	//log(test->transform->getEulerAngles(true));
+	//cout << "local: ";
+	//log(test->transform->getEulerAngles(false));
+
+	//test = EntityManager::getInstance()->createEntity();
+	OpenGLMatrix matrix;
+	matrix.LoadIdentity();
+	matrix.Rotate(45, 1, 0, 0);
+	matrix.Rotate(45, 0, 1, 0);
+	matrix.Rotate(45, 0, 0, 1);
+	float m[16];
+	matrix.GetMatrix(m);
+	mat4 mat = make_mat4(m);
+	float x, y, z;
+	extractEulerAngleXYZ(mat, x, y, z);
+	log(degrees(vec3(x, y, z)));
+
+	quat q = quat_cast(mat);
+	log(q);
+	log(degrees(eulerAngles(q)));
+
+	matrix.LoadIdentity();
+	matrix.Rotate(degrees(x), 1, 0, 0);
+	matrix.Rotate(degrees(y), 0, 1, 0);
+	matrix.Rotate(degrees(z), 0, 0, 1);
+	matrix.GetMatrix(m);
+	mat = make_mat4(m);
+	extractEulerAngleXYZ(mat, x, y, z);
+	log(degrees(vec3(x, y, z)));
+
+	q = quat_cast(mat);
+	log(q);
+	log(degrees(eulerAngles(q)));
+	//extractEulerAngleXYZ(mat, x, y, z);
+	//q = quat(vec3(x, y, z));
+	//matrix.LoadIdentity();
+	//matrix.Rotate(degrees(x), 1, 0, 0);
+	//matrix.Rotate(degrees(y), 0, 1, 0);
+	//matrix.Rotate(degrees(z), 0, 0, 1);
+	//matrix.GetMatrix(m);
+	//mat = make_mat4(m);
+	//extractEulerAngleXYZ(mat, x, y, z);
+	//log(degrees(vec3(x, y, z)));
+
+	//q = toQuat(transpose(orientate3(vec3(x, y, z))));
+	//log((((q))));
+
+	//mat = toMat4(q);
+	//extractEulerAngleXYZ(mat, x, y, z);
+	//log(degrees(vec3(x, y, z)));
+
+
+	//quat qx = angleAxis(x, vec3(1, 0, 0));
+	//quat qy = angleAxis(y, vec3(0, 1, 0));
+	//quat qz = angleAxis(z, vec3(0, 0, 1));
+	//q = qz * qx * qy;
+	////q = quat(1, 0, 0, 0);
+	////q = rotate(q, x, vec3(1, 0, 0));
+	////q = rotate(q, y, vec3(0, 1, 0));
+	////q = rotate(q, z, vec3(0, 0, 1));
+	////q = toQuat(orientate3(vec3(x, y, z)));
+	//log(q);
+	//log(degrees(eulerAngles(q)));
+
+	//mat4 mat(1);
+	//mat *= rotate(radians(90.0f), vec3(0, 0, 1));
+	//mat *= rotate(radians(45.0f), vec3(1, 0, 0));
+	//mat *= rotate(radians(90.0f), vec3(0, 1, 0));
+	//quat q = toQuat((mat));
+	//float w = sqrt(1.0 + mat[0][0] + mat[1][1] + mat[2][2]) / 2.0;
+	//double w4 = (4.0 * w);
+	//float x = (mat[2][1] - mat[1][2]) / w4;
+	//float y = (mat[0][2] - mat[2][0]) / w4;
+	//float z = (mat[1][0] - mat[0][1]) / w4;
+	//log(degrees(eulerAngles(quat(w, x, y, z))));
+	//log(degrees(eulerAngles((q))));
+	//glm::mat4 transformation = mat; // your transformation matrix.
+	//glm::vec3 scale;
+	//glm::quat rotation;
+	//glm::vec3 translation;
+	//glm::vec3 skew;
+	//glm::vec4 perspective;
+	//glm::decompose(transformation, scale, rotation, translation, skew, perspective);
+	//log(degrees(eulerAngles(conjugate(rotation))));
 
 	createSplineObjects();
 
 	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
 	//coaster->start();
-	//player->setParent(coaster->seat);
+	//Entity* test2 = EntityManager::getInstance()->createEntity();
+	//test2->transform->position = player->transform->position;
+	//test2->transform->setEulerAngles(vec3(0, 0, 1));
+	//player->transform->position = vec3(0);
+	//player->setParent(test2);
 	//player->getComponent<Physics>()->setActive(false);
 }
 

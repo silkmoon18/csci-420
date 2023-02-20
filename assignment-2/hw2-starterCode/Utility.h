@@ -3,6 +3,11 @@
 
 #define GLM_FORCE_RADIANS
 
+#include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/euler_angles.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include "basicPipelineProgram.h"
 #include "openGLMatrix.h"
 #include "glm/gtc/quaternion.hpp"
@@ -89,7 +94,7 @@ public:
 	vector<Entity*> entities;
 
 	void update();
-	Entity* createEntity();
+	Entity* createEntity(string name = "");
 };
 
 
@@ -114,6 +119,8 @@ public:
 private:
 	OpenGLMatrix localModelMatrix;
 	OpenGLMatrix worldModelMatrix;
+
+	void updateModelMatrix();
 };
 
 
@@ -122,6 +129,7 @@ class Entity {
 public:
 	friend EntityManager;
 
+	string name;
 	Transform* transform = nullptr;
 
 	void getLocalModelMatrix(float m[16]);
@@ -144,7 +152,7 @@ protected:
 	Entity* parent = nullptr;
 	vector<Entity*> children;
 
-	Entity();
+	Entity(string name);
 
 	virtual void update();
 	string toClassKey(string type);
