@@ -61,9 +61,38 @@ void Timer::setCurrentTime(int currentTime) {
 #pragma endregion
 
 
-#pragma region EntityManager
-void EntityManager::update() {
+#pragma region SceneManager
+void SceneManager::setLightings() {
+	positions.clear();
+	ambients.clear();
+	diffuses.clear();
+	speculars.clear();
+	for (int i = 0; i < lights.size(); i++) {
+		Light* light = lights[i];
 
+		positions.push_back(light->getEntity()->transform->getPosition(true));
+		ambients.push_back(light->ambient);
+		diffuses.push_back(light->diffuse);
+		speculars.push_back(light->specular);
+	}
+	// set lightings
+	for (int i = 0; i < pipelinePrograms.size(); i++) {
+		BasicPipelineProgram* pipeline = pipelinePrograms[i];
+		
+		GLuint loc = glGetUniformLocation(pipeline->GetProgramHandle(), "numOfLights");
+		glUniform1i(loc, lights.size());
+		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightPositions");
+		glUniform3fv(loc, positions.size(), reinterpret_cast<GLfloat*>(&positions[0]));
+		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightAmbients");
+		glUniform4fv(loc, ambients.size(), reinterpret_cast<GLfloat*>(&ambients[0]));
+		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightDiffuses");
+		glUniform4fv(loc, diffuses.size(), reinterpret_cast<GLfloat*>(&diffuses[0]));
+		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightSpeculars");
+		glUniform4fv(loc, speculars.size(), reinterpret_cast<GLfloat*>(&speculars[0]));
+	}
+}
+void SceneManager::update() {
+	setLightings();
 	for (int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
 
@@ -72,24 +101,34 @@ void EntityManager::update() {
 		entity->update();
 	}
 }
-Entity* EntityManager::createEntity(string name) {
+Entity* SceneManager::createEntity(string name) {
 	if (name.empty()) {
 		// set default name
-		name = "Entity_" + entities.size();
+		name = "Entity_" + to_string(entities.size());
 	}
 	Entity* entity = new Entity(name);
 	entities.push_back(entity);
+	printf("Entity \"%s\" created. Number of entities: %i\n", name.c_str(), entities.size());
 	return entity;
 }
+BasicPipelineProgram* SceneManager::createPipelineProgram(string shaderPath) {
+	BasicPipelineProgram* pipeline = new BasicPipelineProgram;
+	int ret = pipeline->Init(shaderPath.c_str());
+	if (ret != 0) abort();
+	pipelinePrograms.push_back(pipeline);
+	printf("Pipeline program created. Shader path: %s. Number of pipelines: %i. \n", shaderPath.c_str(), pipelinePrograms.size());
+	return pipeline;
+}
+
 #pragma endregion
 
 
 #pragma region Transform
 Transform::Transform() {
-	position = vec3(0); 
-	rotation = quat(1, 0, 0, 0); 
-	scale = vec3(1); 
-	modelMatrix = mat4(1); 
+	position = vec3(0);
+	rotation = quat(1, 0, 0, 0);
+	scale = vec3(1);
+	modelMatrix = mat4(1);
 }
 vec3 Transform::getPosition(bool isWorld) {
 	return isWorld ? extractPosition(modelMatrix) : position;
@@ -127,7 +166,7 @@ void Transform::setRotation(quat rotation, bool isWorld) {
 	else {
 		// if is world space, inverse previous transforms
 		mat4 m = mat4_cast(rotation);
-	    m = inverse(getParentMatrix()) * m;
+		m = inverse(getParentMatrix()) * m;
 		this->rotation = extractRotation(m);
 	}
 	updateModelMatrix();
@@ -166,7 +205,7 @@ void Transform::setEulerAngles(vec3 angles, bool isWorld) {
 	quat y = angleAxis(angles.y, worldUp);
 	quat z = angleAxis(angles.z, -worldForward);
 	quat q = x * y * z;
-	
+
 	Entity* parent = entity->getParent();
 	quat r(1, 0, 0, 0);
 	if (parent) {
@@ -178,9 +217,9 @@ void Transform::setEulerAngles(vec3 angles, bool isWorld) {
 }
 void Transform::rotateAround(float degree, vec3 axis, bool isWorld) {
 	quat q = getRotation(true);
-	if (isWorld) 
+	if (isWorld)
 		q = angleAxis(radians(degree), axis) * q;
-	else 
+	else
 		q = q * angleAxis(radians(degree), axis);
 
 	setRotation(q, true);
@@ -222,7 +261,7 @@ void Transform::updateModelMatrix() {
 	for (auto child : entity->getChildren()) {
 		child->transform->updateModelMatrix();
 	}
-}	
+}
 void Transform::onUpdate() {
 
 }
@@ -232,11 +271,12 @@ void Transform::onUpdate() {
 #pragma region Entity 
 Entity::Entity(string name) {
 	this->name = name;
+
 	transform = new Transform();
 	addComponent(transform);
 }
-void Entity::getModelMatrix(float m[16]) {
-	extractMatrix(transform->modelMatrix, m);
+mat4 Entity::getModelMatrix() {
+	return transform->modelMatrix;
 }
 Entity* Entity::getParent() {
 	return parent;
@@ -318,16 +358,30 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 void Renderer::onUpdate() {
 	if (!vao) return;
 
+	// set material data
+	BasicPipelineProgram* pipelineProgram = vao->pipelineProgram;
+	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
+	glUniform4f(loc, ambient[0], ambient[1], ambient[2], ambient[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
+	glUniform4f(loc, diffuse[0], diffuse[1], diffuse[2], diffuse[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
+	glUniform4f(loc, specular[0], specular[1], specular[2], specular[3]);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
+	glUniform1f(loc, shininess);
+
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "eyePosition");
+	vec3 pos = Camera::currentCamera->getEntity()->transform->getPosition(true);
+	glUniform3f(loc, pos[0], pos[1], pos[2]);
 	// get matrices
-	float v[16], m[16], mv[16], p[16];
+	float m[16], v[16], p[16], n[16];
+	mat4 modelMatrix = entity->getModelMatrix();
+	extractMatrix(modelMatrix, m);
+	extractMatrix(transpose(inverse(modelMatrix)), n);
 	Camera::currentCamera->getViewMatrix(v);
-	entity->getModelMatrix(m);
-	mat4 mvMatrix = make_mat4(v) * make_mat4(m);
-	extractMatrix(mvMatrix, mv);
 	Camera::currentCamera->getProjectionMatrix(p);
 
 	// draw
-	vao->draw(mv, p, drawMode);
+	vao->draw(m, v, p, n, drawMode);
 }
 #pragma endregion
 
@@ -396,8 +450,17 @@ void Camera::onUpdate() {
 }
 #pragma endregion
 
+Light::Light() {
+	ambient = vec4(0, 0, 0, 1);
+	diffuse = vec4(.8, .8, .8, 1);
+	specular = vec4(1, 1, 1, 1);
+	SceneManager::getInstance()->lights.push_back(this);
+}
+void Light::onUpdate() {
 
+}
 
+#pragma region PlayerController
 PlayerController::PlayerController() {
 
 }
@@ -414,8 +477,9 @@ void PlayerController::moveOnGround(vec4 input, float step) {
 	entity->transform->setPosition(position, true);
 }
 void PlayerController::onUpdate() {
-	// to-do
+
 }
+#pragma endregion
 
 
 #pragma region VertexArrayObject
@@ -480,10 +544,12 @@ void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors,
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
-void VertexArrayObject::draw(float* mv, float* p, GLenum drawMode) {
+void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum drawMode) {
 	pipelineProgram->Bind();
-	pipelineProgram->SetModelViewMatrix(mv);
+	pipelineProgram->SetModelMatrix(m);
+	pipelineProgram->SetViewMatrix(v);
 	pipelineProgram->SetProjectionMatrix(p);
+	pipelineProgram->SetNormalMatrix(n);
 	glBindVertexArray(vertexArray);
 	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
 }
@@ -618,7 +684,7 @@ void RollerCoaster::render() {
 	renderer->drawMode = GL_TRIANGLE_STRIP;
 
 	// set up seat
-	seat = EntityManager::getInstance()->createEntity();
+	seat = SceneManager::getInstance()->createEntity("Seat");
 	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, Renderer::Shape::Cube));
 	seat->setParent(entity);
 	moveSeat();

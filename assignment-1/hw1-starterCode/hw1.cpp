@@ -97,7 +97,11 @@ bool wireframeEnabled = false;
 bool isTakingScreenshot = false;
 
 // 0: points, 1: lines, 2: triangles, 3: smoothened, 4: wireframe for 2
-SimpleVertexArrayObject* vaos[5];
+Entity* points;
+Entity* lines;
+Entity* lines;
+Entity* lines;
+Entity* lines;
 int currentVaoIndex = 0;
 
 

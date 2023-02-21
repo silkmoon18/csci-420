@@ -6,7 +6,7 @@
 */
 
 #include "basicPipelineProgram.h"
-#include "openGLMatrix.h"
+//#include "openGLMatrix.h"
 #include "imageIO.h"
 #include "openGLHeader.h"
 #include "glutHeader.h"
@@ -55,6 +55,7 @@ CONTROL_STATE controlState = ROTATE;
 Entity* worldCamera;
 Entity* player;
 Entity* ground;
+Entity* light;
 
 // controls
 vec3 playerAngles(0);
@@ -64,20 +65,6 @@ float mouseSensitivity = 5.0f;
 float xAngleLimit= 85;
 float moveSpeed = 5.0f;
 bool isControllingPlayer = true;
-//float translateSpeed = 0.1f;
-//float rotateSpeed = 0.5f;
-//float scaleSpeed = 0.01f;
-
-
-// lighting 
-vec4 lightPosition(0, 0, 0, 1);
-vec4 lightAmbient(1, 1, 1, 1);
-vec4 lightDiffuse(.8, .8, .8, 1);
-vec4 lightSpecular(1, 1, 1, 1);
-vec4 ambientCoef(0.5, 0.5, 0.5, 1);
-vec4 diffuseCoef(1, 1, 1, 1);
-vec4 specularCoef(.9, .9, .9, 1);
-float materialShininess = 1;
 
 // display window
 int windowWidth = 1280;
@@ -263,30 +250,6 @@ void saveScreenshot() {
 	delete[] screenshotData;
 }
 
-void setUniforms() {
-	// set lightings
-	GLuint loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightPosition");
-	glUniform4f(loc, lightPosition[0], lightPosition[1], lightPosition[2], lightPosition[3]);
-
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "ambientCoef");
-	glUniform4f(loc, ambientCoef[0], ambientCoef[1], ambientCoef[2], ambientCoef[3]);
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "diffuseCoef");
-	glUniform4f(loc, diffuseCoef[0], diffuseCoef[1], diffuseCoef[2], diffuseCoef[3]);
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "specularCoef");
-	glUniform4f(loc, specularCoef[0], specularCoef[1], specularCoef[2], specularCoef[3]);
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "materialShininess");
-	glUniform1f(loc, materialShininess);
-
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightAmbient");
-	glUniform4f(loc, lightAmbient[0], lightAmbient[1], lightAmbient[2], lightAmbient[3]);
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightDiffuse");
-	glUniform4f(loc, lightDiffuse[0], lightDiffuse[1], lightDiffuse[2], lightDiffuse[3]);
-	loc = glGetUniformLocation(milestonePipeline->GetProgramHandle(), "lightSpecular");
-	glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
-}
-
-
-
 
 void HandleMouseInput(int mousePosDelta[2]) {
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
@@ -325,7 +288,7 @@ void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
 		Spline spline = splines[i];
 
-		Entity* coaster = EntityManager::getInstance()->createEntity("RollerCoaster_" + rollerCoasters.size());
+		Entity* coaster = SceneManager::getInstance()->createEntity("RollerCoaster_" + to_string(rollerCoasters.size()));
 		coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline)));
 		coaster->addComponent(new RollerCoaster(spline));
 		coaster->getComponent<RollerCoaster>()->render();
@@ -372,14 +335,13 @@ vec3 r(0);
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// set uniforms
-	setUniforms();
 
 	HandleMoveInput();
 
 	// update entities
-	EntityManager::getInstance()->update();
+	SceneManager::getInstance()->update();
 
+	log(Camera::currentCamera->getEntity()->transform->getPosition(true) - light->transform->getPosition(true));
 	glutSwapBuffers();
 }
 
@@ -564,11 +526,10 @@ void initScene() {
 	// restart index
 	glEnable(GL_PRIMITIVE_RESTART);
 	glPrimitiveRestartIndex(RESTARTINDEX);
+	//glEnable(GL_RESCALE_NORMAL);
 
 	// pipeline
-	milestonePipeline = new BasicPipelineProgram;
-	int ret = milestonePipeline->Init(shaderBasePath);
-	if (ret != 0) abort();
+	milestonePipeline = SceneManager::getInstance()->createPipelineProgram(shaderBasePath);
 
 	//texturePipeline = new BasicPipelineProgram;
 	//int ret = texturePipeline->Init(shaderBasePath);
@@ -578,13 +539,13 @@ void initScene() {
 }
 
 void initObjects() {
-	worldCamera = EntityManager::getInstance()->createEntity("WorldCamera");
+	worldCamera = SceneManager::getInstance()->createEntity("WorldCamera");
 	worldCamera->transform->setPosition(vec3(20, 20, 20), true);
 	worldCamera->addComponent(new Camera());
 	worldCamera->transform->faceTo(vec3(0));
 	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
 
-	player = EntityManager::getInstance()->createEntity("Player");
+	player = SceneManager::getInstance()->createEntity("Player");
 	player->addComponent(new Camera());
 	player->getComponent<Camera>()->setCurrent();
 	player->addComponent(new PlayerController());
@@ -592,10 +553,15 @@ void initObjects() {
 	player->transform->setPosition(vec3(0, 0, 5), true);
 	playerAngles = player->transform->getEulerAngles(true);
 
-	ground = EntityManager::getInstance()->createEntity("Ground");
+	ground = SceneManager::getInstance()->createEntity("Ground");
 	ground->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
 	ground->transform->setPosition(vec3(0, -0.5, 0), true);
-	ground->transform->setScale(vec3(1000, 1, 1000), true);
+	ground->transform->setScale(vec3(100, 1, 100), true);
+
+	light = SceneManager::getInstance()->createEntity("Light");
+	light->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
+	light->addComponent(new Light());
+	light->transform->setPosition(vec3(0, 3, 0), true);
 
 	createSplineObjects();
 }

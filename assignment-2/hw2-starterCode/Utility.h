@@ -26,13 +26,14 @@ using namespace glm;
 
 template<class T> class Singleton;
 class Timer;
-class EntityManager;
+class SceneManager;
 class Entity;
 
 class Component;
 class Transform;
 class Physics;
 class Camera;
+class Light;
 class VertexArrayObject;
 class SplineData;
 
@@ -105,26 +106,36 @@ private:
 
 
 // Manage entities
-class EntityManager : public Singleton<EntityManager> {
+class SceneManager : public Singleton<SceneManager> {
 public:
-	vector<Entity*> entities; // all entities
-
+	friend Light;
+	void setLightings();
 	// Update all entities. Called once per frame.
 	void update(); 
 	// Create a new entity
 	Entity* createEntity(string name = ""); 
+	BasicPipelineProgram* createPipelineProgram(string shaderPath);
+
+private:
+	vector<BasicPipelineProgram*> pipelinePrograms;
+	vector<Entity*> entities; // all entities
+	vector<vec3> positions;
+	vector<vec4> ambients;
+	vector<vec4> diffuses;
+	vector<vec4> speculars;
+	vector<Light*> lights;
 };
 
 // Basic entity
 class Entity {
 public:
-	friend EntityManager;
+	friend SceneManager;
 
 	Transform* transform = nullptr; // entity transform
 	string name; // entity name
 
-	// Get float array from the model matrix
-	void getModelMatrix(float m[16]);
+	// Get model matrix
+	mat4 getModelMatrix();
 	// Get parent entity
 	Entity* getParent();
 	// Set parent entity
@@ -179,7 +190,7 @@ private:
 // Every entity has one transform
 class Transform : Component {
 public:
-	friend EntityManager;
+	friend SceneManager;
 	friend Entity;
 
 	// Get position
@@ -234,6 +245,11 @@ public:
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
+	vec4 ambient = vec4(1, 1, 1, 1); // ambient coefficient
+	vec4 diffuse = vec4(1, 1, 1, 1); // diffuse coefficient
+	vec4 specular = vec4(.9, .9, .9, 1); // specular coefficient
+	float shininess = 50; // shininess coefficient
+
 	Renderer(VertexArrayObject* vao);
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
@@ -258,7 +274,6 @@ public:
 protected:
 	void onUpdate() override;
 };
-
 
 // Camera
 class Camera : public Component {
@@ -292,6 +307,20 @@ protected:
 	void onUpdate() override;
 };
 
+// Light
+class Light : public Component {
+public:
+
+	vec4 ambient; // ambient color
+	vec4 diffuse; // diffuse color
+	vec4 specular; // specular color
+
+	Light();
+
+protected:
+	void onUpdate() override;
+};
+
 // First-person player controller
 class PlayerController : public Component {
 public:
@@ -316,10 +345,10 @@ public:
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram);
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 
-	// Set vertex positions, colors and indices
+	// Set vertex positions, colors and indices data
 	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 	// Use model view matrix, projection matrix and draw mode to draw
-	void draw(float* mv, float* p, GLenum drawMode);
+	void draw(float* m, float* v, float* p, float* n, GLenum drawMode);
 	// Send data to shaders
 	template<class T> void sendData(vector<T> data, int size, string name);
 
