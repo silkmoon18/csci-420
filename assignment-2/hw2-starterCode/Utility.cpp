@@ -23,8 +23,8 @@ vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal) {
 	planeNormal = normalize(planeNormal);
 	return u - getProjectionOnVector(u, planeNormal);
 }
-// copied from openGLMatrix.cpp
 void extractMatrix(mat4 matrix, float* m) {
+	// copied from openGLMatrix.cpp
 	memcpy(m, value_ptr(matrix), sizeof(float) * 16);
 }
 vec3 extractPosition(mat4 m) {
@@ -66,12 +66,15 @@ void EntityManager::update() {
 
 	for (int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
+
+		// update root entities only
 		if (entity->getParent()) continue;
 		entity->update();
 	}
 }
 Entity* EntityManager::createEntity(string name) {
 	if (name.empty()) {
+		// set default name
 		name = "Entity_" + entities.size();
 	}
 	Entity* entity = new Entity(name);
@@ -82,10 +85,12 @@ Entity* EntityManager::createEntity(string name) {
 
 
 #pragma region Transform
-Transform::Transform(Entity* entity) {
-	this->entity = entity;
+Transform::Transform() {
+	position = vec3(0); 
+	rotation = quat(1, 0, 0, 0); 
+	scale = vec3(1); 
+	modelMatrix = mat4(1); 
 }
-
 vec3 Transform::getPosition(bool isWorld) {
 	return isWorld ? extractPosition(modelMatrix) : position;
 }
@@ -98,7 +103,8 @@ vec3 Transform::getScale(bool isWorld) {
 mat4 Transform::getParentMatrix() {
 	Entity* parent = entity->getParent();
 	if (parent) return parent->transform->modelMatrix;
-	
+
+	// return identity matrix if this is a root entity
 	return mat4(1);
 }
 void Transform::setPosition(vec3 position, bool isWorld) {
@@ -106,8 +112,9 @@ void Transform::setPosition(vec3 position, bool isWorld) {
 		this->position = position;
 	}
 	else {
+		// if is world space, inverse previous transforms
 		mat4 m = translate(position);
-		if (isWorld) m = inverse(getParentMatrix()) * m;
+		m = inverse(getParentMatrix()) * m;
 		this->position = extractPosition(m);
 	}
 	updateModelMatrix();
@@ -118,8 +125,9 @@ void Transform::setRotation(quat rotation, bool isWorld) {
 		this->rotation = rotation;
 	}
 	else {
+		// if is world space, inverse previous transforms
 		mat4 m = mat4_cast(rotation);
-		if (isWorld) m = inverse(getParentMatrix()) * m;
+	    m = inverse(getParentMatrix()) * m;
 		this->rotation = extractRotation(m);
 	}
 	updateModelMatrix();
@@ -129,6 +137,7 @@ void Transform::setScale(vec3 scale, bool isWorld) {
 		this->scale = scale;
 	}
 	else {
+		// if is world space, inverse previous transforms
 		mat4 m = glm::scale(scale);
 		m = inverse(getParentMatrix()) * m;
 		this->scale = extractScale(m);
@@ -138,13 +147,14 @@ void Transform::setScale(vec3 scale, bool isWorld) {
 vec3 Transform::getEulerAngles(bool isWorld) {
 	quat q = getRotation(isWorld);
 	vec3 angles = degrees(eulerAngles(q));
+
+	// clamp x between -180 and 180 degrees
 	if (fabs(angles.x) >= 180) {
 		float offset = sign(angles.x) * 180;
 		angles.x -= offset;
 		angles.y = offset - angles.y;
 		angles.z += offset;
 	}
-
 	angles.x = fmod(angles.x, 360);
 	angles.y = fmod(angles.y, 360);
 	angles.z = fmod(angles.z, 360);
@@ -175,33 +185,11 @@ void Transform::rotateAround(float degree, vec3 axis, bool isWorld) {
 
 	setRotation(q, true);
 }
-void Transform::updateModelMatrix() {
-	modelMatrix = getParentMatrix();
-	modelMatrix *= translate(position);
-	modelMatrix *= mat4_cast(rotation);
-	modelMatrix *= glm::scale(scale);
-	for (auto child : entity->getChildren()) {
-		child->transform->updateModelMatrix();
-	}
-}	
-
-#pragma endregion
-
-
-#pragma region Entity 
-Entity::Entity(string name) {
-	this->name = name;
-	transform = new Transform(this);
-}
-void Entity::getWorldModelMatrix(float m[16]) {
-	extractMatrix(transform->modelMatrix, m);
-}
-
-void Entity::faceTo(vec3 target, vec3 up) {
+void Transform::faceTo(vec3 target, vec3 up) {
 	if (length(up) == 0) {
 		up = worldUp;
 	}
-	vec3 position = transform->getPosition(true);
+	vec3 position = getPosition(true);
 	vec3 direction = normalize(target - position);
 	up = normalize(up);
 	if (approximately(direction, up)) {
@@ -212,19 +200,43 @@ void Entity::faceTo(vec3 target, vec3 up) {
 	}
 	vec3 right = cross(direction, up);
 	up = cross(right, direction);
-	transform->setRotation(conjugate(toQuat(lookAt(position, position + direction, up))), true);
+	setRotation(conjugate(toQuat(lookAt(position, position + direction, up))), true);
 }
-vec3 Entity::getForwardVector(bool isWorld) {
-	quat q = transform->getRotation(isWorld);
+vec3 Transform::getForwardVector(bool isWorld) {
+	quat q = getRotation(isWorld);
 	return normalize(q * worldForward);
 }
-vec3 Entity::getRightVector(bool isWorld) {
-	quat q = transform->getRotation(isWorld);
+vec3 Transform::getRightVector(bool isWorld) {
+	quat q = getRotation(isWorld);
 	return normalize(q * worldRight);
 }
-vec3 Entity::getUpVector(bool isWorld) {
-	quat q = transform->getRotation(isWorld);
+vec3 Transform::getUpVector(bool isWorld) {
+	quat q = getRotation(isWorld);
 	return normalize(q * worldUp);
+}
+void Transform::updateModelMatrix() {
+	modelMatrix = getParentMatrix();
+	modelMatrix *= translate(position);
+	modelMatrix *= mat4_cast(rotation);
+	modelMatrix *= glm::scale(scale);
+	for (auto child : entity->getChildren()) {
+		child->transform->updateModelMatrix();
+	}
+}	
+void Transform::onUpdate() {
+
+}
+#pragma endregion
+
+
+#pragma region Entity 
+Entity::Entity(string name) {
+	this->name = name;
+	transform = new Transform();
+	addComponent(transform);
+}
+void Entity::getModelMatrix(float m[16]) {
+	extractMatrix(transform->modelMatrix, m);
 }
 Entity* Entity::getParent() {
 	return parent;
@@ -242,7 +254,6 @@ void Entity::update() {
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
 	}
-
 	for (int i = 0; i < children.size(); i++) {
 		children[i]->update();
 	}
@@ -293,8 +304,10 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 			drawMode = GL_TRIANGLE_STRIP;
 			break;
 		case Shape::Sphere:
+			// to-do
 			break;
 		case Shape::Cylinder:
+			// to-do
 			break;
 		default:
 			break;
@@ -305,30 +318,16 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 void Renderer::onUpdate() {
 	if (!vao) return;
 
-	float mv[16];
-
 	// get matrices
-	float v[16];
+	float v[16], m[16], mv[16], p[16];
 	Camera::currentCamera->getViewMatrix(v);
-
-	float m[16];
-	entity->getWorldModelMatrix(m);
-
-	OpenGLMatrix mvMatrix;
-	mvMatrix.LoadMatrix(v);
-	mvMatrix.MultMatrix(m);
-	mvMatrix.GetMatrix(mv);
-
-	float p[16];
+	entity->getModelMatrix(m);
+	mat4 mvMatrix = make_mat4(v) * make_mat4(m);
+	extractMatrix(mvMatrix, mv);
 	Camera::currentCamera->getProjectionMatrix(p);
 
-	vao->pipelineProgram->Bind();
-	// set variable
-	vao->pipelineProgram->SetModelViewMatrix(mv);
-	vao->pipelineProgram->SetProjectionMatrix(p);
-
-	glBindVertexArray(vao->vertexArray);
-	glDrawElements(drawMode, vao->numIndices, GL_UNSIGNED_INT, 0);
+	// draw
+	vao->draw(mv, p, drawMode);
 }
 #pragma endregion
 
@@ -361,7 +360,6 @@ void Physics::onUpdate() {
 
 #pragma region Camera
 Camera* Camera::currentCamera = nullptr;
-
 Camera::Camera(bool setToCurrent) {
 	projectionMatrix = perspective(radians(fieldOfView), aspect, zNear, zFar);
 	if (setToCurrent) {
@@ -379,7 +377,6 @@ void Camera::setPerspective(float fieldOfView, float aspect, float zNear, float 
 	this->aspect = aspect;
 	this->zNear = zNear;
 	this->zFar = zFar;
-	projectionMatrix = mat4(1);
 	projectionMatrix = perspective(radians(fieldOfView), aspect, zNear, zFar);
 }
 void Camera::setCurrent() {
@@ -391,9 +388,10 @@ bool Camera::isCurrentCamera() {
 void Camera::onUpdate() {
 	if (!isCurrentCamera()) return;
 
+	// update view matrix
 	vec3 position = entity->transform->getPosition(true);
-	vec3 center = position + entity->getForwardVector(true);
-	vec3 up = entity->getUpVector(true);
+	vec3 center = position + entity->transform->getForwardVector(true);
+	vec3 up = entity->transform->getUpVector(true);
 	viewMatrix = lookAt(position, center, up);
 }
 #pragma endregion
@@ -408,16 +406,15 @@ void PlayerController::moveOnGround(vec4 input, float step) {
 	float x = input.w - input.z;
 	if (z == 0 && x == 0) return;
 
-	vec3 forward = normalize(getProjectionOnPlane(entity->getForwardVector(true)));
-	vec3 right = normalize(getProjectionOnPlane(entity->getRightVector(true)));
+	vec3 forward = normalize(getProjectionOnPlane(entity->transform->getForwardVector(true)));
+	vec3 right = normalize(getProjectionOnPlane(entity->transform->getRightVector(true)));
 	vec3 move = normalize(x * right + z * forward) * step;
 
 	vec3 position = entity->transform->getPosition(true) + move;
 	entity->transform->setPosition(position, true);
-	//log(entity->transform->getPosition(false));
 }
 void PlayerController::onUpdate() {
-	// to-do: physics
+	// to-do
 }
 
 
@@ -430,12 +427,8 @@ VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vect
 		printf("error: pipeline program cannot be null. \n");
 		return;
 	}
-
 	this->pipelineProgram = pipelineProgram;
-
-	// vertex array
 	setVertices(positions, colors, indices);
-
 	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 }
 void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices) {
@@ -456,6 +449,7 @@ void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors,
 		return;
 	}
 
+	// generate vertex array
 	glGenVertexArrays(1, &vertexArray);
 	glBindVertexArray(vertexArray);
 
@@ -486,12 +480,20 @@ void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors,
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
+void VertexArrayObject::draw(float* mv, float* p, GLenum drawMode) {
+	pipelineProgram->Bind();
+	pipelineProgram->SetModelViewMatrix(mv);
+	pipelineProgram->SetProjectionMatrix(p);
+	glBindVertexArray(vertexArray);
+	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
+}
 #pragma endregion
 
 
 
 #pragma region RollerCoaster
 RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
+	// calculate data from spline
 	for (int j = 1; j < spline.numControlPoints - 2; j++) {
 		mat3x4 control = mat3x4(
 			spline.points[j - 1].x, spline.points[j].x, spline.points[j + 1].x, spline.points[j + 2].x,
@@ -499,12 +501,12 @@ RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
 			spline.points[j - 1].z, spline.points[j].z, spline.points[j + 1].z, spline.points[j + 2].z
 		);
 
+		// calculate positions and tangents
 		float delta = 1.0f / numOfStepsPerSegment;
 		for (int k = 0; k < numOfStepsPerSegment + 1; k++) {
 			float u = k * 1.0f / numOfStepsPerSegment;
 			vec4 uVector(u * u * u, u * u, u, 1);
 			vec3 point = uVector * BASIS * control;
-
 			vertexPositions.push_back(point);
 
 			vec4 uPrime(3 * u * u, 2 * u, 1, 0);
@@ -516,11 +518,15 @@ RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
 	currentVertexIndex = 0;
 	numOfVertices = vertexPositions.size();
 
+	// calculate distances
 	for (int i = 0; i < vertexPositions.size() - 1; i++) {
 		float distanceToNext = distance(vertexPositions[i], vertexPositions[i + 1]);
 		vertexDistances.push_back(distanceToNext);
 	}
 	vertexDistances.push_back(0);
+
+	// deactivated at defualt
+	setActive(false);
 }
 vec3 RollerCoaster::getCurrentPosition() {
 	vec3 position;
@@ -542,40 +548,14 @@ vec3 RollerCoaster::getCurrentNormal() {
 void RollerCoaster::start(bool isRepeating, bool isTwoWay) {
 	this->isRepeating = isRepeating;
 	this->isTwoWay = isTwoWay;
-	isRunning = true;
+	setActive(true);
 }
 void RollerCoaster::pause() {
-	isRunning = false;
+	setActive(false);
 }
 void RollerCoaster::reset() {
-	isRunning = false;
+	setActive(false);
 	currentVertexIndex = 0;
-	moveSeat();
-}
-void RollerCoaster::perform() {
-	float step = speed * Timer::getInstance()->getDeltaTime();
-	// consume step
-	while (step > 0) {
-		float distanceToNext = vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
-		if (step < distanceToNext) break;
-
-		step -= distanceToNext;
-		// move to the next vertex and reset distance from current vertex
-		currentSegmentProgress = 0;
-		currentVertexIndex++;
-		if (currentVertexIndex == numOfVertices - 1) {
-			if (!isRepeating) {
-				step = 0;
-				pause();
-			}
-			else {
-				reset();
-				start(isTwoWay);
-			}
-		}
-	}
-
-	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
 	moveSeat();
 }
 void RollerCoaster::render() {
@@ -591,7 +571,8 @@ void RollerCoaster::render() {
 	vector<vec3> positions;
 	vector<vec4> colors;
 	vector<int> indices;
-	// get normals and binormals
+
+	// calculate normals and binormals
 	for (int i = 0; i < numOfVertices; i++) {
 		vec3 p = vertexPositions[i];
 		vec3 t = vertexTangents[i];
@@ -608,6 +589,7 @@ void RollerCoaster::render() {
 		normals.push_back(n);
 		binormals.push_back(b);
 
+		// calculate positions, colors and indices
 		vec3 v0 = p + size * (-n + b);
 		vec3 v1 = p + size * (n + b);
 		vec3 v2 = p + size * (n - b);
@@ -630,9 +612,12 @@ void RollerCoaster::render() {
 		}
 	}
 	vertexNormals = normals;
+
+	// set up renderer
 	renderer->vao->setVertices(positions, colors, indices);
 	renderer->drawMode = GL_TRIANGLE_STRIP;
 
+	// set up seat
 	seat = EntityManager::getInstance()->createEntity();
 	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, Renderer::Shape::Cube));
 	seat->setParent(entity);
@@ -640,12 +625,33 @@ void RollerCoaster::render() {
 }
 void RollerCoaster::moveSeat() {
 	seat->transform->setPosition(getCurrentPosition(), false);
-	seat->faceTo(seat->transform->getPosition(true) + getCurrentDirection(), getCurrentNormal());
+	seat->transform->faceTo(seat->transform->getPosition(true) + getCurrentDirection(), getCurrentNormal());
 }
 void RollerCoaster::onUpdate() {
-	if (isRunning) {
-		perform();
+	float step = speed * Timer::getInstance()->getDeltaTime();
+	// consume step
+	while (step > 0) {
+		float distanceToNext = vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
+		if (step < distanceToNext) break;
+
+		step -= distanceToNext;
+
+		// move to the next vertex and reset distance from current vertex
+		currentSegmentProgress = 0;
+		currentVertexIndex++;
+		if (currentVertexIndex == numOfVertices - 1) {
+			if (!isRepeating) {
+				step = 0;
+				pause();
+			}
+			else {
+				reset();
+				start(isTwoWay);
+			}
+		}
 	}
+	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+	moveSeat();
 }
 #pragma endregion
 

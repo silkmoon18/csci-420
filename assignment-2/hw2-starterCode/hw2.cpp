@@ -53,9 +53,7 @@ CONTROL_STATE controlState = ROTATE;
 
 // entities
 Entity* worldCamera;
-Entity* mainCamera;
 Entity* player;
-Entity* worldEye;
 Entity* ground;
 
 // controls
@@ -293,17 +291,14 @@ void setUniforms() {
 void HandleMouseInput(int mousePosDelta[2]) {
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
-	Entity* camera;
 	vec3* angles;
 	if (isControllingPlayer) {
 		target = player;
-		camera = mainCamera;
 		angles = &playerAngles;
 
 	}
 	else {
-		target = worldEye;
-		camera = worldCamera;
+		target = worldCamera;
 		angles = &worldCameraAngles;
 	}
 
@@ -323,8 +318,8 @@ void HandleMouseInput(int mousePosDelta[2]) {
 	//quat yaw = angleAxis(radians(angles->y), worldUp);
 	//player->transform->setRotation(yaw * pitch, true);
 
-	player->transform->rotateAround(y, worldUp, true);
-	player->transform->rotateAround(x, worldRight, false);
+	target->transform->rotateAround(y, worldUp, true);
+	target->transform->rotateAround(x, worldRight, false);
 }
 void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
@@ -367,7 +362,7 @@ void HandleMoveInput() {
 		float x = moveInput.w - moveInput.z;
 		if (z == 0 && x == 0) return;
 
-		vec3 move = normalize(worldCamera->getForwardVector(false) * z + worldCamera->getRightVector(false) * x) * step;
+		vec3 move = normalize(worldCamera->transform->getForwardVector(false) * z + worldCamera->transform->getRightVector(false) * x) * step;
 		vec3 position = worldCamera->transform->getPosition(false) + move;
 		worldCamera->transform->setPosition(position, false);
 	}
@@ -427,7 +422,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 				isControllingPlayer = false;
 			}
 			else {
-				mainCamera->getComponent<Camera>()->setCurrent();
+				player->getComponent<Camera>()->setCurrent();
 				isControllingPlayer = true;
 			}
 			break;
@@ -583,210 +578,26 @@ void initScene() {
 }
 
 void initObjects() {
-	worldEye = EntityManager::getInstance()->createEntity("WorldEye");
-	worldEye->transform->setPosition(vec3(20, 20, 20), true);
-
 	worldCamera = EntityManager::getInstance()->createEntity("WorldCamera");
+	worldCamera->transform->setPosition(vec3(20, 20, 20), true);
 	worldCamera->addComponent(new Camera());
+	worldCamera->transform->faceTo(vec3(0));
 	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
-	worldCamera->setParent(worldEye);
 
 	player = EntityManager::getInstance()->createEntity("Player");
+	player->addComponent(new Camera());
+	player->getComponent<Camera>()->setCurrent();
 	player->addComponent(new PlayerController());
 	player->addComponent(new Physics(0.75f));
 	player->transform->setPosition(vec3(0, 0, 5), true);
 	playerAngles = player->transform->getEulerAngles(true);
-
-	mainCamera = EntityManager::getInstance()->createEntity("MainCamera");
-	mainCamera->addComponent(new Camera());
-	mainCamera->getComponent<Camera>()->setCurrent();
-	mainCamera->setParent(player);
 
 	ground = EntityManager::getInstance()->createEntity("Ground");
 	ground->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
 	ground->transform->setPosition(vec3(0, -0.5, 0), true);
 	ground->transform->setScale(vec3(1000, 1, 1000), true);
 
-
-
-	//debug 
-	ground->transform->setPosition(vec3(0, 1, 0), true);
-	ground->transform->setEulerAngles(vec3(30, 30, 30), true);
-	ground->transform->setScale(vec3(1, 1, 1), true);
-
-	player->getComponent<Physics>()->setActive(false);
-
-	cout << "---debug---" << endl;
-    test = EntityManager::getInstance()->createEntity("Test");
-	test->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube, vec4(240, 84, 79, 255)));
-
-	test->setParent(ground);
-	test->transform->setPosition(vec3(3, 0, 0), true);
-	//test->transform->setEulerAngles(vec3(0, 90, 30), false);
-	//test->transform->rotateAround(0, worldRight, false);
-	//test->transform->rotateAround(90, worldUp, false);
-	//test->transform->rotateAround(30, vec3(0, 0, 1), false);
-	//log(test->transform->getRotation(false));
-
-	//quat pitch = angleAxis(radians(0.f), vec3(1, 0, 0));
-	//quat yaw = angleAxis(radians(90.f), vec3(0, 1, 0));
-	//quat roll = angleAxis(radians(30.f), vec3(0, 0, 1));
-	//test->transform->setRotation(pitch * yaw * roll, false);
-	//log(pitch * yaw * roll);
-
-	//log(test->transform->getEulerAngles(false));
-	//log(degrees(eulerAngles(test->transform->getRotation(false))));
-	//log(test->transform->getEulerAngles(true));
-	//log(degrees(eulerAngles(test->transform->getRotation(true))));
-
-	//log(mainCamera->transform->getRotation(true));
-
-
-	//test->transform->setPosition(vec3(0, 2, 10), false);
-	//test->transform->setRotation(angleAxis(radians(45.f), vec3(0, 1, 0)), false);
-	//test->transform->setScale(vec3(2, 3, 4), false);
-	//player->setParent(test);
-
-	//player->transform->setPosition(vec3(2, 2, 2), true);
-	//player->transform->setRotation(angleAxis(radians(30.f), vec3(0, 1, 0)), false);
-	//player->transform->setScale(vec3(5, 6, 7), true);
-
-	//vec3 angles = vec3(90, 90, 90);
-	//angles = radians(angles);
-	//mat4 mat(1);
-	//mat *= rotate(angles.x, vec3(1, 0, 0));
-	//mat *= rotate(angles.y, vec3(0, 1, 0));
-	//mat *= rotate(angles.z, vec3(0, 0, 1));
-	//quat q = quat_cast(mat);
-	//log(degrees(eulerAngles(q)));
-	//log(player->transform->getPosition(true));
-	//log(player->transform->getPosition(false));	
-	//quat pitch = angleAxis(radians(90.f), vec3(1, 0, 0));
-	//quat yaw = angleAxis(radians(90.f), vec3(0, 1, 0));
-	//player->transform->setRotation(yaw * pitch, true);
-	//log(degrees(eulerAngles(player->transform->getRotation(true))));
-	//log(degrees(eulerAngles(player->transform->getRotation(false))));
-	//player->transform->setRotation(pitch * yaw, true);
-	//log(degrees(eulerAngles(player->transform->getRotation(true))));
-	//log(degrees(eulerAngles(player->transform->getRotation(false))));
-	//log(player->transform->getScale(true));
-	//log(player->transform->getScale(false));
-
-	//mat4 mat(1);
-	//quat r = angleAxis(radians(45.f), vec3(0, 1, 0));
-	//mat *= mat4_cast(r);
-	//quat q = quat_cast(mat);
-	//log(degrees(eulerAngles(q)));
-
-	//player->faceTo(vec3(0));
-	//player->transform->position = vec3(0, 0, -3);
-	//player->faceTo(test->transform->position, worldUp);
-	//playerAngles = player->transform->getEulerAngles(false);
-	//test->setParent(ground);
-	//ground->transform->position = vec3(1, 1, 1);
-	//ground->transform->scale = vec3(1, 1, 1);
-	//ground->transform->setEulerAngles(vec3(0, 30, 0));
-	//test->transform->setEulerAngles(vec3(0, 0, -30));
-
-	//EntityManager::getInstance()->update();
-	//cout << "world: ";
-	//log(test->transform->getEulerAngles(true));
-	//cout << "local: ";
-	//log(test->transform->getEulerAngles(false));
-
-	//test = EntityManager::getInstance()->createEntity();
-	//OpenGLMatrix matrix;
-	//matrix.LoadIdentity();
-	//matrix.Rotate(45, 1, 0, 0);
-	//matrix.Rotate(45, 0, 1, 0);
-	//matrix.Rotate(45, 0, 0, 1);
-	//float m[16];
-	//matrix.GetMatrix(m);
-	//mat4 mat = make_mat4(m);
-	//float x, y, z;
-	//extractEulerAngleXYZ(mat, x, y, z);
-	//log(degrees(vec3(x, y, z)));
-
-	//quat q = quat_cast(mat);
-	//log(q);
-	//log(degrees(eulerAngles(q)));
-
-	//matrix.LoadIdentity();
-	//matrix.Rotate(degrees(x), 1, 0, 0);
-	//matrix.Rotate(degrees(y), 0, 1, 0);
-	//matrix.Rotate(degrees(z), 0, 0, 1);
-	//matrix.GetMatrix(m);
-	//mat = make_mat4(m);
-	//extractEulerAngleXYZ(mat, x, y, z);
-	//log(degrees(vec3(x, y, z)));
-
-	//q = quat_cast(mat);
-	//log(q);
-	//log(degrees(eulerAngles(q)));
-	//extractEulerAngleXYZ(mat, x, y, z);
-	//q = quat(vec3(x, y, z));
-	//matrix.LoadIdentity();
-	//matrix.Rotate(degrees(x), 1, 0, 0);
-	//matrix.Rotate(degrees(y), 0, 1, 0);
-	//matrix.Rotate(degrees(z), 0, 0, 1);
-	//matrix.GetMatrix(m);
-	//mat = make_mat4(m);
-	//extractEulerAngleXYZ(mat, x, y, z);
-	//log(degrees(vec3(x, y, z)));
-
-	//q = toQuat(transpose(orientate3(vec3(x, y, z))));
-	//log((((q))));
-
-	//mat = toMat4(q);
-	//extractEulerAngleXYZ(mat, x, y, z);
-	//log(degrees(vec3(x, y, z)));
-
-
-	//quat qx = angleAxis(x, vec3(1, 0, 0));
-	//quat qy = angleAxis(y, vec3(0, 1, 0));
-	//quat qz = angleAxis(z, vec3(0, 0, 1));
-	//q = qz * qx * qy;
-	////q = quat(1, 0, 0, 0);
-	////q = rotate(q, x, vec3(1, 0, 0));
-	////q = rotate(q, y, vec3(0, 1, 0));
-	////q = rotate(q, z, vec3(0, 0, 1));
-	////q = toQuat(orientate3(vec3(x, y, z)));
-	//log(q);
-	//log(degrees(eulerAngles(q)));
-
-	//mat4 mat(1);
-	//mat *= rotate(radians(90.0f), vec3(0, 0, 1));
-	//mat *= rotate(radians(45.0f), vec3(1, 0, 0));
-	//mat *= rotate(radians(90.0f), vec3(0, 1, 0));
-	//quat q = toQuat((mat));
-	//float w = sqrt(1.0 + mat[0][0] + mat[1][1] + mat[2][2]) / 2.0;
-	//double w4 = (4.0 * w);
-	//float x = (mat[2][1] - mat[1][2]) / w4;
-	//float y = (mat[0][2] - mat[2][0]) / w4;
-	//float z = (mat[1][0] - mat[0][1]) / w4;
-	//log(degrees(eulerAngles(quat(w, x, y, z))));
-	//log(degrees(eulerAngles((q))));
-	//glm::mat4 transformation = mat; // your transformation matrix.
-	//glm::vec3 scale;
-	//glm::quat rotation;
-	//glm::vec3 translation;
-	//glm::vec3 skew;
-	//glm::vec4 perspective;
-	//glm::decompose(transformation, scale, rotation, translation, skew, perspective);
-	//log(degrees(eulerAngles(conjugate(rotation))));
-
 	createSplineObjects();
-
-	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
-	//player->faceTo(vec3(10, 0, 0));
-	//coaster->start();
-	//player->setParent(coaster->seat);
-	//player->transform->position = vec3(0, 0, 0);
-	//Entity* test2 = EntityManager::getInstance()->createEntity();
-	//test2->transform->position = player->transform->position;
-	//test2->transform->setEulerAngles(vec3(0, 0, 1));
-	//player->transform->position = vec3(0);
-	//player->getComponent<Physics>()->setActive(false);
 }
 
 int main(int argc, char* argv[]) {

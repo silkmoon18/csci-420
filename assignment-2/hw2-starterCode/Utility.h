@@ -30,36 +30,47 @@ class EntityManager;
 class Entity;
 
 class Component;
+class Transform;
 class Physics;
 class Camera;
 class VertexArrayObject;
 class SplineData;
 
 
-const float PI = 3.14159265359f;
-const float EPSILON = 0.000001f;
-const int RESTARTINDEX = -1;
-const vec3 worldForward = vec3(0, 0, -1);
-const vec3 worldRight = vec3(1, 0, 0);
-const vec3 worldUp = vec3(0, 1, 0);
+const float EPSILON = 0.000001f; // epsilon used for comparing vec3
+const int RESTARTINDEX = -1; // index for glPrimitiveRestartIndex
+const vec3 worldForward = vec3(0, 0, -1); // world forward vector
+const vec3 worldRight = vec3(1, 0, 0); // world right vector
+const vec3 worldUp = vec3(0, 1, 0); // world up vector
 
-bool approximately(vec3 a, vec3 b);
+// Compare two vec3
+bool approximately(vec3 a, vec3 b); 
 
-vec3 getProjectionOnVector(vec3 u, vec3 v);
-vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0));
-void extractMatrix(mat4 matrix, float* m);
+// Get unit projection vector from u on v
+vec3 getProjectionOnVector(vec3 u, vec3 v); 
+// Get unit projection vector from u on a plane
+vec3 getProjectionOnPlane(vec3 u, vec3 planeNormal = vec3(0, 1, 0)); 
+// Extract float array from mat4
+void extractMatrix(mat4 matrix, float* m); 
+// Extract position from mat4
 vec3 extractPosition(mat4 m);
-quat extractRotation(mat4 m);
-vec3 extractScale(mat4 m);
+// Extract rotation from mat4
+quat extractRotation(mat4 m); 
+// Extract scale from mat4
+vec3 extractScale(mat4 m); 
 
-template<class T> string getType();
-template<class T> string getType(T obj);
+// Get type of a class
+template<class T> string getType(); 
+// Get type of an object
+template<class T> string getType(T obj); 
 
-void log(vec3 v, bool endOfLine = true);
-void log(quat q, bool endOfLine = true);
+// Debug log vec3
+void log(vec3 v, bool endOfLine = true); 
+// Debug log quat
+void log(quat q, bool endOfLine = true); 
 
 
-
+// Base class for singletons
 template<class T>
 class Singleton {
 protected:
@@ -79,10 +90,12 @@ public:
 	}
 };
 
-// manage time
+// Manage time
 class Timer : public Singleton<Timer> {
 public:
+	// Get time between this and previous frame
 	float getDeltaTime();
+	// Set time of current frame
 	void setCurrentTime(int curr);
 
 private:
@@ -91,108 +104,135 @@ private:
 };
 
 
-// manage entities
+// Manage entities
 class EntityManager : public Singleton<EntityManager> {
 public:
-	vector<Entity*> entities;
+	vector<Entity*> entities; // all entities
 
-	void update();
-	Entity* createEntity(string name = "");
+	// Update all entities. Called once per frame.
+	void update(); 
+	// Create a new entity
+	Entity* createEntity(string name = ""); 
 };
 
-
-// every entity has a transform
-class Transform {
-public:
-	friend EntityManager;
-	friend Entity;
-
-	// owner
-	Entity* entity;
-
-	vec3 getPosition(bool isWorld);
-	quat getRotation(bool isWorld);
-	vec3 getScale(bool isWorld);
-	void setPosition(vec3 pos, bool isWorld);
-	void setRotation(quat rotation, bool isWorld);
-	void setScale(vec3 scale, bool isWorld);
-	vec3 getEulerAngles(bool isWorld);
-	void setEulerAngles(vec3 angles, bool isWorld); // degrees
-	void rotateAround(float degree, vec3 axis, bool isWorld);
-private:
-	// locals
-	vec3 position = vec3(0);
-	quat rotation = quat(1, 0, 0, 0);
-	vec3 scale = vec3(1);
-	// world model matrix
-	mat4 modelMatrix = mat4(1);
-
-	Transform(Entity* entity);
-
-	mat4 getParentMatrix();
-	void updateModelMatrix();
-};
-
-
-// basic entity
+// Basic entity
 class Entity {
 public:
 	friend EntityManager;
 
-	string name;
-	Transform* transform = nullptr;
+	Transform* transform = nullptr; // entity transform
+	string name; // entity name
 
-	void getWorldModelMatrix(float m[16]);
-	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
-	vec3 getForwardVector(bool isWorld);
-	vec3 getRightVector(bool isWorld);
-	vec3 getUpVector(bool isWorld);
+	// Get float array from the model matrix
+	void getModelMatrix(float m[16]);
+	// Get parent entity
 	Entity* getParent();
+	// Set parent entity
 	void setParent(Entity* parent);
+	// Get child entities
 	vector<Entity*> getChildren();
 
+	// Add a component
 	template<class T> bool addComponent(T* component);
+	// Get a component
 	template<class T> T* getComponent();
+	// Check if a component of class T already exists
 	template<class T> bool containsComponent();
 
 protected:
-	map<string, Component*> typeToComponent;
-	Entity* parent = nullptr;
-	vector<Entity*> children;
+	map<string, Component*> typeToComponent; // keys of component class type to added components
+	Entity* parent = nullptr; // parent entity
+	vector<Entity*> children; // child entities
 
 	Entity(string name);
 
+	// Called once per frame
 	virtual void update();
+	// Generate a key of component class type
 	string toClassKey(string type);
 };
 
-// to be added to entities
+// Added to entities for functionalities
 class Component {
 public:
 	friend Entity;
 
+	// Get owner entity
 	Entity* getEntity();
+	// Activate or deactivate this
 	virtual void setActive(bool isActive);
 
 protected:
-	Entity* entity = nullptr;
-	bool isActive = true;
+	Entity* entity = nullptr; // owner entity
+	bool isActive = true; // is this active
 
 	Component();
 
+	// Perform update
 	virtual void onUpdate() = 0;
 
 private:
+	// Update this if this is active
 	void update();
 };
 
+// Every entity has one transform
+class Transform : Component {
+public:
+	friend EntityManager;
+	friend Entity;
+
+	// Get position
+	vec3 getPosition(bool isWorld);
+	// Get rotation
+	quat getRotation(bool isWorld);
+	// Get scale
+	vec3 getScale(bool isWorld);
+	// Set position
+	void setPosition(vec3 pos, bool isWorld);
+	// Set rotation
+	void setRotation(quat rotation, bool isWorld);
+	// Set scale
+	void setScale(vec3 scale, bool isWorld);
+	// Get rotation in euler angles (degrees)
+	vec3 getEulerAngles(bool isWorld);
+	// Set rotation from euler angles (degrees)
+	void setEulerAngles(vec3 angles, bool isWorld);
+	// Rotate around an axis (degrees)
+	void rotateAround(float degree, vec3 axis, bool isWorld);
+	// Rotate to a target position
+	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
+	// Get local forward vector
+	vec3 getForwardVector(bool isWorld);
+	// Get local right vector
+	vec3 getRightVector(bool isWorld);
+	// Get local up vector
+	vec3 getUpVector(bool isWorld);
+
+private:
+	vec3 position = vec3(0); // local position
+	quat rotation = quat(1, 0, 0, 0); // local rotation
+	vec3 scale = vec3(1); // local scale
+	mat4 modelMatrix = mat4(1); // model matrix in world
+
+	Transform();
+
+	// Get parent's model matrix
+	mat4 getParentMatrix();
+	// Update this and child entities' model matrices
+	void updateModelMatrix();
+	void onUpdate() override;
+};
+
+// Entity renderer
 class Renderer : public Component {
 public:
 	friend Entity;
 
-	enum Shape { Cube, Sphere, Cylinder };
-	VertexArrayObject* vao = nullptr;
-	GLenum drawMode = GL_POINTS;
+	// Preset shapes
+	enum Shape { Cube, Sphere, Cylinder }; 
+	VertexArrayObject* vao = nullptr; // used for rendering
+	GLenum drawMode = GL_POINTS; // draw mode
 
 	Renderer(VertexArrayObject* vao);
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
@@ -201,17 +241,17 @@ protected:
 	void onUpdate() override;
 };
 
-// simple physics
+// Simple physics
 class Physics : public Component {
 public:
 	friend Entity;
 
-	static inline const vec3 GRAVITY = vec3(0, -9.8f, 0);
-	static inline const float GROUND_Y = 0.0f;
-	vec3 velocity = vec3(0);
-	bool checkGround = true;
-	bool isOnGround = false;
-	float minDistance = 0;
+	static inline const vec3 GRAVITY = vec3(0, -9.8f, 0); // gravity vector
+	static inline const float GROUND_Y = 0.0f; // world ground y-axis
+	vec3 velocity = vec3(0); // current velocity
+	bool checkGround = true; // check if ground y-axis is reached when performing physics
+	bool isOnGround = false; // is ground reached
+	float minDistance = 0; // min distance limit to ground y-axis
 
 	Physics(float minDistance, bool checkGround = true);
 
@@ -220,7 +260,7 @@ protected:
 };
 
 
-// camera
+// Camera
 class Camera : public Component {
 public:
 	friend Entity;
@@ -230,14 +270,19 @@ public:
 	float zNear = 0.01f;
 	float zFar = 1000.0f;
 
-	static Camera* currentCamera;
+	static Camera* currentCamera; // current camera being used
 
 	Camera(bool setCurrent = true);
 
+	// Get float array from the projection matrix
 	void getProjectionMatrix(float* m);
+	// Get float array from the view matrix
 	void getViewMatrix(float* m);
+	// Set up perspective
 	void setPerspective(float fieldOfView, float aspect, float zNear, float zFar);
+	// Set this as current camera
 	void setCurrent();
+	// Check if this is the current camera
 	bool isCurrentCamera();
 
 protected:
@@ -247,10 +292,12 @@ protected:
 	void onUpdate() override;
 };
 
+// First-person player controller
 class PlayerController : public Component {
 public:
 	friend Entity;
 
+	// Move horizontally
 	void moveOnGround(vec4 input, float step);
 
 	PlayerController();
@@ -260,19 +307,26 @@ protected:
 };
 
 
-// object that handles VAO related operations
+// Handles VAO related operations
+// Used in renderer
 class VertexArrayObject {
 public:
-	BasicPipelineProgram* pipelineProgram;
-	GLuint positionBuffer, colorBuffer, indexBuffer;
-	GLuint vertexArray;
-	int numVertices, numColors, numIndices;
+	BasicPipelineProgram* pipelineProgram; 
 
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram);
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 
+	// Set vertex positions, colors and indices
 	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
+	// Use model view matrix, projection matrix and draw mode to draw
+	void draw(float* mv, float* p, GLenum drawMode);
+	// Send data to shaders
 	template<class T> void sendData(vector<T> data, int size, string name);
+
+private:
+	GLuint positionBuffer, colorBuffer, indexBuffer;
+	GLuint vertexArray;
+	int numVertices, numColors, numIndices;
 };
 
 
@@ -290,7 +344,7 @@ struct Spline {
 	Point* points;
 };
 
-// based on catmull-rom spline
+// Based on catmull-rom spline
 class RollerCoaster : Component {
 public:
 	friend Entity;
@@ -304,34 +358,40 @@ public:
 			S, -S, 0, 0
 		);
 	float speed = 10.0f;
+	Entity* seat = nullptr; // to be moved by coaster when performing
 
 	RollerCoaster(Spline spline, int numOfStepsPerSegment = 1000);
 
+	// Get current point position
 	vec3 getCurrentPosition();
+	// Get current point forward direction
 	vec3 getCurrentDirection();
+	// Get current point normal
 	vec3 getCurrentNormal();
+	// Start the coaster
 	void start(bool isRepeating = true, bool isTwoWay = true);
+	// Pause the coaster
 	void pause();
+	// Reset the coaster
 	void reset();
-	void perform();
+	// Generate the coaster from given spline data
 	void render();
-	Entity* seat = nullptr;
 
 protected:
-	bool isRepeating = false;
-	bool isTwoWay = true;
-	bool isGoingForward = true;
-	bool isRunning = false;
-	float size = 0.5f;
+	bool isRepeating = false; // is repeating after finished
+	bool isTwoWay = true; // is the coaster moving two-way
+	bool isGoingForward = true; // is the coaster moving forward (used when isTwoWay is true)
+	float size = 0.5f; // size of the cross-section of the roller coaster
 	vector<vec3> vertexPositions;
 	vector<vec3> vertexNormals;
 	vector<vec3> vertexTangents;
 	vector<float> vertexDistances;
 	int currentVertexIndex = -1;
-	float currentSegmentProgress = 0;
+	float currentSegmentProgress = 0; // progress between current and next vertex
 	int numOfVertices = 0;
 
-	void moveSeat();
+	// Move seat to current vertex position
+	void moveSeat(); 
 	void onUpdate() override;
 };
 
