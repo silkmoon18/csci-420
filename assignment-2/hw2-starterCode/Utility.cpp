@@ -113,6 +113,7 @@ void Transform::setPosition(vec3 position, bool isWorld) {
 	updateModelMatrix();
 }
 void Transform::setRotation(quat rotation, bool isWorld) {
+	rotation = normalize(rotation);
 	if (!isWorld) {
 		this->rotation = rotation;
 	}
@@ -151,17 +152,28 @@ vec3 Transform::getEulerAngles(bool isWorld) {
 }
 void Transform::setEulerAngles(vec3 angles, bool isWorld) {
 	angles = radians(angles);
-	mat4 mat(1);
-	mat *= rotate(angles.x, vec3(1, 0, 0));
-	mat *= rotate(angles.y, vec3(0, 1, 0));
-	mat *= rotate(angles.z, vec3(0, 0, 1));
-	quat q = quat_cast(mat);
-	setRotation(q, isWorld);
+	quat x = angleAxis(angles.x, worldRight);
+	quat y = angleAxis(angles.y, worldUp);
+	quat z = angleAxis(angles.z, -worldForward);
+	quat q = x * y * z;
+	
+	Entity* parent = entity->getParent();
+	quat r(1, 0, 0, 0);
+	if (parent) {
+		r = parent->transform->getRotation(true);
+	}
+
+	q = isWorld ? q * r : r * q;
+	setRotation(q, true);
 }
 void Transform::rotateAround(float degree, vec3 axis, bool isWorld) {
-	quat rotation = getRotation(false);
-	rotation = rotate(rotation, radians(degree), axis);
-	setRotation(rotation, isWorld);
+	quat q = getRotation(true);
+	if (isWorld) 
+		q = angleAxis(radians(degree), axis) * q;
+	else 
+		q = q * angleAxis(radians(degree), axis);
+
+	setRotation(q, true);
 }
 void Transform::updateModelMatrix() {
 	modelMatrix = getParentMatrix();
@@ -201,10 +213,6 @@ void Entity::faceTo(vec3 target, vec3 up) {
 	vec3 right = cross(direction, up);
 	up = cross(right, direction);
 	transform->setRotation(conjugate(toQuat(lookAt(position, position + direction, up))), true);
-
-	//vec3 r = radianToDegree(eulerAngles(transform->rotation));
-	//log(transform->rotation);
-	//log(r);
 }
 vec3 Entity::getForwardVector(bool isWorld) {
 	quat q = transform->getRotation(isWorld);
@@ -401,7 +409,6 @@ void PlayerController::moveOnGround(vec4 input, float step) {
 	if (z == 0 && x == 0) return;
 
 	vec3 forward = normalize(getProjectionOnPlane(entity->getForwardVector(true)));
-	log(forward);
 	vec3 right = normalize(getProjectionOnPlane(entity->getRightVector(true)));
 	vec3 move = normalize(x * right + z * forward) * step;
 

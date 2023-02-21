@@ -319,13 +319,12 @@ void HandleMouseInput(int mousePosDelta[2]) {
 		x -= angles->x + xAngleLimit;
 		angles->x = -xAngleLimit;
 	}
-	//camera->transform->rotateAround(x, worldRight, true);
-	//camera->transform->rotateAround(y, worldUp, true);
-	quat pitch = angleAxis(radians(angles->x), vec3(1, 0, 0));
-	quat yaw = angleAxis(radians(angles->y), vec3(0, 1, 0));
-	player->transform->setRotation(yaw * pitch, true);
+	//quat pitch = angleAxis(radians(angles->x), worldRight);
+	//quat yaw = angleAxis(radians(angles->y), worldUp);
+	//player->transform->setRotation(yaw * pitch, true);
 
-	log(camera->transform->getEulerAngles(true));
+	player->transform->rotateAround(y, worldUp, true);
+	player->transform->rotateAround(x, worldRight, false);
 }
 void createSplineObjects() {
 	for (int i = 0; i < numSplines; i++) {
@@ -374,6 +373,7 @@ void HandleMoveInput() {
 	}
 }
 Entity* test;
+vec3 r(0);
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -385,17 +385,6 @@ void displayFunc() {
 	// update entities
 	EntityManager::getInstance()->update();
 
-	//cout << "world: ";
-	//log(mainCamera->transform->getEulerAngles(true));
-	//cout << "local: ";
-	//log(mainCamera->transform->getEulerAngles(false));
-
-	//vec3 r = mainCamera->transform->getEulerAngles(false);
-	//r.y += 1;
-	//mainCamera->transform->setEulerAngles(r, false);
-	//log(test->getUpVector(true));
-	//log(player->transform->getEulerAngles(true));
-	//log(mainCamera->transform->getRotation(true));
 	glutSwapBuffers();
 }
 
@@ -621,27 +610,63 @@ void initObjects() {
 
 
 	//debug 
+	ground->transform->setPosition(vec3(0, 1, 0), true);
+	ground->transform->setEulerAngles(vec3(30, 30, 30), true);
+	ground->transform->setScale(vec3(1, 1, 1), true);
+
 	player->getComponent<Physics>()->setActive(false);
 
 	cout << "---debug---" << endl;
     test = EntityManager::getInstance()->createEntity("Test");
 	test->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube, vec4(240, 84, 79, 255)));
 
-	test->transform->setEulerAngles(vec3(10, 10, 10), true);
+	test->setParent(ground);
+	test->transform->setPosition(vec3(3, 0, 0), true);
+	//test->transform->setEulerAngles(vec3(0, 90, 30), false);
+	//test->transform->rotateAround(0, worldRight, false);
+	//test->transform->rotateAround(90, worldUp, false);
+	//test->transform->rotateAround(30, vec3(0, 0, 1), false);
+	//log(test->transform->getRotation(false));
+
+	//quat pitch = angleAxis(radians(0.f), vec3(1, 0, 0));
+	//quat yaw = angleAxis(radians(90.f), vec3(0, 1, 0));
+	//quat roll = angleAxis(radians(30.f), vec3(0, 0, 1));
+	//test->transform->setRotation(pitch * yaw * roll, false);
+	//log(pitch * yaw * roll);
+
+	//log(test->transform->getEulerAngles(false));
+	//log(degrees(eulerAngles(test->transform->getRotation(false))));
+	//log(test->transform->getEulerAngles(true));
+	//log(degrees(eulerAngles(test->transform->getRotation(true))));
+
 	//log(mainCamera->transform->getRotation(true));
 
 
 	//test->transform->setPosition(vec3(0, 2, 10), false);
 	//test->transform->setRotation(angleAxis(radians(45.f), vec3(0, 1, 0)), false);
 	//test->transform->setScale(vec3(2, 3, 4), false);
-	player->setParent(test);
+	//player->setParent(test);
 
 	//player->transform->setPosition(vec3(2, 2, 2), true);
 	//player->transform->setRotation(angleAxis(radians(30.f), vec3(0, 1, 0)), false);
 	//player->transform->setScale(vec3(5, 6, 7), true);
 
+	//vec3 angles = vec3(90, 90, 90);
+	//angles = radians(angles);
+	//mat4 mat(1);
+	//mat *= rotate(angles.x, vec3(1, 0, 0));
+	//mat *= rotate(angles.y, vec3(0, 1, 0));
+	//mat *= rotate(angles.z, vec3(0, 0, 1));
+	//quat q = quat_cast(mat);
+	//log(degrees(eulerAngles(q)));
 	//log(player->transform->getPosition(true));
-	//log(player->transform->getPosition(false));
+	//log(player->transform->getPosition(false));	
+	//quat pitch = angleAxis(radians(90.f), vec3(1, 0, 0));
+	//quat yaw = angleAxis(radians(90.f), vec3(0, 1, 0));
+	//player->transform->setRotation(yaw * pitch, true);
+	//log(degrees(eulerAngles(player->transform->getRotation(true))));
+	//log(degrees(eulerAngles(player->transform->getRotation(false))));
+	//player->transform->setRotation(pitch * yaw, true);
 	//log(degrees(eulerAngles(player->transform->getRotation(true))));
 	//log(degrees(eulerAngles(player->transform->getRotation(false))));
 	//log(player->transform->getScale(true));
