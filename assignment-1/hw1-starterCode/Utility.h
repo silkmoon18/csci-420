@@ -14,12 +14,10 @@
 #include "glm/gtc/epsilon.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-
 #include <vector>
 #include <map>
 #include <algorithm>
 #include <iostream>
-
 
 using namespace std;
 using namespace glm;
@@ -31,6 +29,7 @@ class Entity;
 
 class Component;
 class Transform;
+class Renderer;
 class Camera;
 class VertexArrayObject;
 

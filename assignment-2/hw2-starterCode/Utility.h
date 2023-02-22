@@ -14,12 +14,10 @@
 #include "glm/gtc/epsilon.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-
 #include <vector>
 #include <map>
 #include <algorithm>
 #include <iostream>
-
 
 using namespace std;
 using namespace glm;
@@ -31,11 +29,13 @@ class Entity;
 
 class Component;
 class Transform;
+class Renderer;
 class Physics;
 class Camera;
 class Light;
+class PlayerController;
 class VertexArrayObject;
-class SplineData;
+class RollerCoaster;
 
 
 const float EPSILON = 0.000001f; // epsilon used for comparing vec3

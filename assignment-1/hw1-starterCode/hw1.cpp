@@ -300,9 +300,9 @@ void generateField() {
 	// set other positions
 	fieldCenter = vec3(width / 2.0f + xOffset, 0, -height / 2.0f + zOffset);
 	eyePosition = vec3(fieldCenter.x, fieldCenter.y + maxHeight, height * 1.25f);
+
 	camera->transform->setPosition(eyePosition, true);
 	camera->transform->faceTo(fieldCenter);
-
 	lightPosition = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
 	// create field entities
@@ -374,12 +374,15 @@ void displayFunc() {
 	// set uniforms
 	setUniforms();
 
+	// set current active, others inactive
 	for (int i = 0; i < fields.size(); i++) {
 		fields[i]->setActive(i == currentFieldIndex);
 	}
 	if ((currentFieldIndex == 2 || currentFieldIndex == 3) && wireframeEnabled) {
 		fields[4]->setActive(true);
 	}
+
+	// update holder's transform
 	holder->transform->setPosition(landTranslate, true);
 	holder->transform->setEulerAngles(landRotate, true);
 	holder->transform->setScale(landScale, true);
@@ -599,6 +602,7 @@ void initScene() {
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
 
+	// init entities
 	holder = EntityManager::getInstance()->createEntity("Holder");
 
 	Entity* points = EntityManager::getInstance()->createEntity("Points");
@@ -626,7 +630,7 @@ void initScene() {
 	wireframe->setParent(holder);
 	fields.push_back(wireframe);
 	
-
+	// init camera
 	camera = EntityManager::getInstance()->createEntity("Camera");
 	camera->addComponent(new Camera());
 	camera->getComponent<Camera>()->zFar = 3000.0f;
