@@ -17,7 +17,6 @@ out vec3 fragmentPosition;
 
 void main()
 {
-  // calculate lighting 
   vec3 pointPosition = vec3(modelMatrix * vec4(position, 1.0));
   fragmentPosition = pointPosition;
   vertexNormal = normalize(vec3(normalMatrix * vec4(normal, 1.0)));

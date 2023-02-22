@@ -562,9 +562,9 @@ void initObjects() {
 	light->addComponent(new Light());
 	light->transform->setPosition(vec3(0, 3, 0), true);
 
-	auto* light2 = SceneManager::getInstance()->createEntity("Light");
-	light2->addComponent(new Light());
-	light2->transform->setPosition(vec3(0, 3, 50), true);
+	//auto* light2 = SceneManager::getInstance()->createEntity("Light");
+	//light2->addComponent(new Light());
+	//light2->transform->setPosition(vec3(0, 3, 50), true);
 
 	createSplineObjects();
 }

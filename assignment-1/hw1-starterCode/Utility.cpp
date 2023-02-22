@@ -232,8 +232,15 @@ void Transform::onUpdate() {
 #pragma region Entity 
 Entity::Entity(string name) {
 	this->name = name;
+
 	transform = new Transform();
 	addComponent(transform);
+}
+bool Entity::isActive() {
+	return isActivated;
+}
+void Entity::setActive(bool isActive) {
+	isActivated = isActive;
 }
 void Entity::getModelMatrix(float m[16]) {
 	extractMatrix(transform->modelMatrix, m);
@@ -251,6 +258,8 @@ vector<Entity*> Entity::getChildren() {
 }
 
 void Entity::update() {
+	if (!isActivated) return;
+
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
 	}
@@ -279,18 +288,25 @@ Component::Component() {
 Entity* Component::getEntity() {
 	return entity;
 }
+bool Component::isActive() {
+	return isActivated;
+}
 void Component::setActive(bool isActive) {
-	this->isActive = isActive;
+	isActivated = isActive;
 }
 void Component::update() {
-	if (!isActive) return;
+	if (!isActivated) return;
 	onUpdate();
 }
 #pragma endregion
 
 #pragma region Renderer
-Renderer::Renderer(VertexArrayObject* vao) {
+Renderer::Renderer(GLenum drawMode) {
+	this->drawMode = drawMode;
+}
+Renderer::Renderer(VertexArrayObject* vao, GLenum drawMode) {
 	this->vao = vao;
+	this->drawMode = drawMode;
 }
 Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
 	vector<vec3> positions;
@@ -314,6 +330,9 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 	}
 	colors = vector<vec4>(positions.size(), color);
 	vao = new VertexArrayObject(pipelineProgram, positions, colors, indices);
+}
+void Renderer::setVAO(VertexArrayObject* vao) {
+	this->vao = vao;
 }
 void Renderer::onUpdate() {
 	if (!vao) return;

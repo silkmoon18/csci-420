@@ -134,6 +134,10 @@ public:
 	Transform* transform = nullptr; // entity transform
 	string name; // entity name
 
+	// Check if this is activated
+	bool isActive();
+	// Activate or deactivate this
+	void setActive(bool isActive);
 	// Get model matrix
 	mat4 getModelMatrix();
 	// Get parent entity
@@ -151,6 +155,7 @@ public:
 	template<class T> bool containsComponent();
 
 protected:
+	bool isActivated = true;
 	map<string, Component*> typeToComponent; // keys of component class type to added components
 	Entity* parent = nullptr; // parent entity
 	vector<Entity*> children; // child entities
@@ -170,12 +175,14 @@ public:
 
 	// Get owner entity
 	Entity* getEntity();
+	// Check if this is activated
+	bool isActive();
 	// Activate or deactivate this
 	virtual void setActive(bool isActive);
 
 protected:
 	Entity* entity = nullptr; // owner entity
-	bool isActive = true; // is this active
+	bool isActivated = true; // is this active
 
 	Component();
 

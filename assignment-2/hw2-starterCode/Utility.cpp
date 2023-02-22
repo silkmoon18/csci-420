@@ -275,6 +275,12 @@ Entity::Entity(string name) {
 	transform = new Transform();
 	addComponent(transform);
 }
+bool Entity::isActive() {
+	return isActivated;
+}
+void Entity::setActive(bool isActive) {
+	isActivated = isActive;
+}
 mat4 Entity::getModelMatrix() {
 	return transform->modelMatrix;
 }
@@ -291,6 +297,8 @@ vector<Entity*> Entity::getChildren() {
 }
 
 void Entity::update() {
+	if (!isActivated) return;
+
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
 	}
@@ -319,11 +327,14 @@ Component::Component() {
 Entity* Component::getEntity() {
 	return entity;
 }
+bool Component::isActive() {
+	return isActivated;
+}
 void Component::setActive(bool isActive) {
-	this->isActive = isActive;
+	isActivated = isActive;
 }
 void Component::update() {
-	if (!isActive) return;
+	if (!isActivated) return;
 	onUpdate();
 }
 #pragma endregion

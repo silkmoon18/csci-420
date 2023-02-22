@@ -31,10 +31,8 @@ class Entity;
 
 class Component;
 class Transform;
-class Physics;
 class Camera;
 class VertexArrayObject;
-class SplineData;
 
 
 const float EPSILON = 0.000001f; // epsilon used for comparing vec3
@@ -123,6 +121,10 @@ public:
 	Transform* transform = nullptr; // entity transform
 	string name; // entity name
 
+	// Check if this is activated
+	bool isActive();
+	// Activate or deactivate this
+	void setActive(bool isActive);
 	// Get float array from the model matrix
 	void getModelMatrix(float m[16]);
 	// Get parent entity
@@ -140,6 +142,7 @@ public:
 	template<class T> bool containsComponent();
 
 protected:
+	bool isActivated = true; // is this active
 	map<string, Component*> typeToComponent; // keys of component class type to added components
 	Entity* parent = nullptr; // parent entity
 	vector<Entity*> children; // child entities
@@ -159,12 +162,14 @@ public:
 
 	// Get owner entity
 	Entity* getEntity();
+	// Check if this is activated
+	bool isActive();
 	// Activate or deactivate this
 	virtual void setActive(bool isActive);
 
 protected:
 	Entity* entity = nullptr; // owner entity
-	bool isActive = true; // is this active
+	bool isActivated = true; // is this active
 
 	Component();
 
@@ -231,13 +236,17 @@ public:
 
 	// Preset shapes
 	enum Shape { Cube, Sphere, Cylinder };
-	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
-	Renderer(VertexArrayObject* vao);
+	Renderer(GLenum drawMode);
+	Renderer(VertexArrayObject* vao, GLenum drawMode);
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
+	void setVAO(VertexArrayObject* vao);
+
 protected:
+	VertexArrayObject* vao = nullptr; // used for rendering
+
 	void onUpdate() override;
 };
 

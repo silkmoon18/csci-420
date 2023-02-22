@@ -6,12 +6,10 @@
 */
 
 #include "basicPipelineProgram.h"
-#include "openGLMatrix.h"
 #include "imageIO.h"
 #include "openGLHeader.h"
 #include "glutHeader.h"
 #include "Utility.h"
-#include <utility>
 
 #include <iostream>
 #include <cstring>
@@ -38,8 +36,6 @@ using namespace glm;
 
 
 
-OpenGLMatrix mvMatrix;
-OpenGLMatrix pMatrix;
 BasicPipelineProgram* pipelineProgram;
 
 int mousePos[2]; // x,y coordinate of the mouse position
@@ -52,13 +48,9 @@ typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
 // state of the world
-float landRotate[3] = { 0.0f, 0.0f, 0.0f };
-float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
-float landScale[3] = { 1.0f, 1.0f, 1.0f };
-
-// timer
-float previousTime;
-float deltaTime;
+vec3 landRotate = vec3(0);
+vec3 landTranslate = vec3(0);
+vec3 landScale = vec3(1);
 
 // lighting 
 vec4 lightPosition = vec4(0, 0, 0, 1);
@@ -86,8 +78,6 @@ float translateSpeed = 0.1f;
 float rotateSpeed = 0.5f;
 float scaleSpeed = 0.01f;
 
-//float lightTranslateSpeed = 1.0f;
-
 // other params
 const float heightScalar = 0.3f;
 vec3 fieldCenter;
@@ -97,12 +87,10 @@ bool wireframeEnabled = false;
 bool isTakingScreenshot = false;
 
 // 0: points, 1: lines, 2: triangles, 3: smoothened, 4: wireframe for 2
-Entity* points;
-Entity* lines;
-Entity* lines;
-Entity* lines;
-Entity* lines;
-int currentVaoIndex = 0;
+Entity* holder;
+vector<Entity*> fields;
+Entity* camera;
+int currentFieldIndex = 0;
 
 
 // write a screenshot to the specified filename
@@ -312,12 +300,18 @@ void generateField() {
 	// set other positions
 	fieldCenter = vec3(width / 2.0f + xOffset, 0, -height / 2.0f + zOffset);
 	eyePosition = vec3(fieldCenter.x, fieldCenter.y + maxHeight, height * 1.25f);
+	camera->transform->setPosition(eyePosition, true);
+	camera->transform->faceTo(fieldCenter);
+
 	lightPosition = vec4(fieldCenter.x, eyePosition.y, fieldCenter.z, 1);
 
-	// create VAOs
-	vaos[0] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, pointIndices, GL_POINTS);
-	vaos[1] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, lineIndices, GL_LINES);
-	vaos[2] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
+	// create field entities
+	fields[0]->getComponent<Renderer>()->setVAO(
+		new VertexArrayObject(pipelineProgram, vertexPositions, vertexColors, pointIndices));
+	fields[1]->getComponent<Renderer>()->setVAO(
+		new VertexArrayObject(pipelineProgram, vertexPositions, vertexColors, lineIndices));
+	fields[2]->getComponent<Renderer>()->setVAO(
+		new VertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices));
 
 	// init mode 1
 	// heights of points of top, bottom, left, right
@@ -343,41 +337,26 @@ void generateField() {
 			neighborHeights.push_back(neighborHeight);
 		}
 	}
-	vaos[3] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices, GL_TRIANGLE_STRIP);
 
-	GLuint heightsBuffer;
-	glGenBuffers(1, &heightsBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);  // bind the VBO buffer
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * neighborHeights.size(), &neighborHeights[0], GL_STATIC_DRAW);
-
-	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
-	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
-	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+	VertexArrayObject* vao = new VertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices);
+	vao->sendData(neighborHeights, 4, "neighborHeights");
+	fields[3]->getComponent<Renderer>()->setVAO(vao);
 
 	vector<vec4> wireframeColors(vertexColors.size());
 	for (vec4 color : wireframeColors) {
 		color = vec4(1);
 	}
-	vaos[4] = new SimpleVertexArrayObject(pipelineProgram, vertexPositions, wireframeColors, lineIndices, GL_LINES);
-
-	glGenBuffers(1, &heightsBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);  // bind the VBO buffer
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4)* neighborHeights.size(), &neighborHeights[0], GL_STATIC_DRAW);
-
-	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighborHeights");
-	glBindBuffer(GL_ARRAY_BUFFER, heightsBuffer);
-	glEnableVertexAttribArray(loc);
-	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+	vao = new VertexArrayObject(pipelineProgram, vertexPositions, wireframeColors, lineIndices);
+	vao->sendData(neighborHeights, 4, "neighborHeights");
+	fields[4]->getComponent<Renderer>()->setVAO(vao);
 }
 
 
 int delay = 8; // hard coded for recording on 120 fps monitor
 int currentFrame = 0;
 void idleFunc() {
-	float currentTime = glutGet(GLUT_ELAPSED_TIME);
-	deltaTime = (currentTime - previousTime) / 1000.0f;
-	previousTime = currentTime;
+	// calculate delta time
+	Timer::getInstance()->setCurrentTime(glutGet(GLUT_ELAPSED_TIME));
 
 	// save 15 screenshots per second
 	if (isTakingScreenshot && currentFrame % 8 == 0) {
@@ -392,40 +371,21 @@ void idleFunc() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// reset
-	mvMatrix.LoadIdentity();
-	mvMatrix.LookAt(eyePosition.x, eyePosition.y, eyePosition.z,
-				  fieldCenter.x, fieldCenter.y, fieldCenter.z,
-				  0, 1, 0);
-
-	// apply transformations
-	mvMatrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
-	mvMatrix.Rotate(landRotate[0], 1, 0, 0);
-	mvMatrix.Rotate(landRotate[1], 0, 1, 0);
-	mvMatrix.Rotate(landRotate[2], 0, 0, 1);
-	mvMatrix.Scale(landScale[0], landScale[1], landScale[2]);
-
-	// get matrices
-	float m[16];
-	mvMatrix.GetMatrix(m);
-	float p[16];
-	pMatrix.GetMatrix(p);
-
-	// bind shader
-	pipelineProgram->Bind();
-
-	// set variable
-	pipelineProgram->SetModelViewMatrix(m);
-	pipelineProgram->SetProjectionMatrix(p);
-
 	// set uniforms
 	setUniforms();
 
-	// draw
-	vaos[currentVaoIndex]->draw();
-	if ((currentVaoIndex == 2 || currentVaoIndex == 3) && wireframeEnabled) {
-		vaos[4]->draw();
+	for (int i = 0; i < fields.size(); i++) {
+		fields[i]->setActive(i == currentFieldIndex);
 	}
+	if ((currentFieldIndex == 2 || currentFieldIndex == 3) && wireframeEnabled) {
+		fields[4]->setActive(true);
+	}
+	holder->transform->setPosition(landTranslate, true);
+	holder->transform->setEulerAngles(landRotate, true);
+	holder->transform->setScale(landScale, true);
+
+	// update entities
+	EntityManager::getInstance()->update();
 
 	glutSwapBuffers();
 }
@@ -450,25 +410,25 @@ void keyboardFunc(unsigned char key, int x, int y) {
 
 		// point mode
 		case '1':
-			currentVaoIndex = 0;
+			currentFieldIndex = 0;
 			glUniform1i(polygonModeLoc, 0);
 			break;
 
 		// line mode
 		case '2':
-			currentVaoIndex = 1;
+			currentFieldIndex = 1;
 			glUniform1i(polygonModeLoc, 0);
 			break;
 
 		// triangle mode
 		case '3':
-			currentVaoIndex = 2;
+			currentFieldIndex = 2;
 			glUniform1i(polygonModeLoc, 0);
 			break;
 
 		// smoothened mode
 		case '4':
-			currentVaoIndex = 3;
+			currentFieldIndex = 3;
 			glUniform1i(polygonModeLoc, 1);
 			break;
 	
@@ -616,8 +576,10 @@ void mouseMotionFunc(int x, int y) {
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
-	pMatrix.LoadIdentity();
-	pMatrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 3000.0f);
+	Camera::currentCamera->setPerspective(Camera::currentCamera->fieldOfView,
+										  (float)w / (float)h,
+										  Camera::currentCamera->zNear,
+										  Camera::currentCamera->zFar);
 }
 
 void initScene() {
@@ -637,9 +599,37 @@ void initScene() {
 	int ret = pipelineProgram->Init(shaderBasePath);
 	if (ret != 0) abort();
 
+	holder = EntityManager::getInstance()->createEntity("Holder");
 
-	mvMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
-	pMatrix.SetMatrixMode(OpenGLMatrix::Projection);
+	Entity* points = EntityManager::getInstance()->createEntity("Points");
+	points->addComponent(new Renderer(GL_POINTS));
+	points->setParent(holder);
+	fields.push_back(points);
+
+	Entity* lines = EntityManager::getInstance()->createEntity("Lines");
+	lines->addComponent(new Renderer(GL_LINE_STRIP));
+	lines->setParent(holder);
+	fields.push_back(lines);
+
+	Entity* triangles = EntityManager::getInstance()->createEntity("Triangles");
+	triangles->addComponent(new Renderer(GL_TRIANGLE_STRIP));
+	triangles->setParent(holder);
+	fields.push_back(triangles);
+
+	Entity* smoothened = EntityManager::getInstance()->createEntity("Smoothened");
+	smoothened->addComponent(new Renderer(GL_TRIANGLE_STRIP));
+	smoothened->setParent(holder);
+	fields.push_back(smoothened);
+
+	Entity* wireframe = EntityManager::getInstance()->createEntity("Wireframe");
+	wireframe->addComponent(new Renderer(GL_LINE_STRIP));
+	wireframe->setParent(holder);
+	fields.push_back(wireframe);
+	
+
+	camera = EntityManager::getInstance()->createEntity("Camera");
+	camera->addComponent(new Camera());
+	camera->getComponent<Camera>()->zFar = 3000.0f;
 
 	generateField();
 
