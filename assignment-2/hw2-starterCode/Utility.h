@@ -347,15 +347,16 @@ public:
 
 	// Set vertex positions, colors and indices data
 	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
+	void setNormals(vector<vec3> normals);
 	// Use model view matrix, projection matrix and draw mode to draw
-	void draw(float* m, float* v, float* p, float* n, GLenum drawMode);
+	void draw(float m[16], float v[16], float p[16], float n[16], GLenum drawMode);
 	// Send data to shaders
 	template<class T> void sendData(vector<T> data, int size, string name);
 
 private:
-	GLuint positionBuffer, colorBuffer, indexBuffer;
+	GLuint positionBuffer, colorBuffer, indexBuffer, normalBuffer;
 	GLuint vertexArray;
-	int numVertices, numColors, numIndices;
+	int numVertices, numColors, numIndices, numNormals;
 };
 
 

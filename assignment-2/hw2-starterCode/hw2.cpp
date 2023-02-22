@@ -341,7 +341,6 @@ void displayFunc() {
 	// update entities
 	SceneManager::getInstance()->update();
 
-	log(Camera::currentCamera->getEntity()->transform->getPosition(true) - light->transform->getPosition(true));
 	glutSwapBuffers();
 }
 
@@ -526,7 +525,8 @@ void initScene() {
 	// restart index
 	glEnable(GL_PRIMITIVE_RESTART);
 	glPrimitiveRestartIndex(RESTARTINDEX);
-	//glEnable(GL_RESCALE_NORMAL);
+
+	glEnable(GL_NORMALIZE);
 
 	// pipeline
 	milestonePipeline = SceneManager::getInstance()->createPipelineProgram(shaderBasePath);
@@ -555,13 +555,16 @@ void initObjects() {
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
 	ground->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
-	ground->transform->setPosition(vec3(0, -0.5, 0), true);
+	ground->transform->setPosition(vec3(0, -1, 0), true);
 	ground->transform->setScale(vec3(100, 1, 100), true);
 
 	light = SceneManager::getInstance()->createEntity("Light");
-	light->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
 	light->addComponent(new Light());
 	light->transform->setPosition(vec3(0, 3, 0), true);
+
+	auto* light2 = SceneManager::getInstance()->createEntity("Light");
+	light2->addComponent(new Light());
+	light2->transform->setPosition(vec3(0, 3, 50), true);
 
 	createSplineObjects();
 }

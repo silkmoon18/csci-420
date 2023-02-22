@@ -78,7 +78,7 @@ void SceneManager::setLightings() {
 	// set lightings
 	for (int i = 0; i < pipelinePrograms.size(); i++) {
 		BasicPipelineProgram* pipeline = pipelinePrograms[i];
-		
+
 		GLuint loc = glGetUniformLocation(pipeline->GetProgramHandle(), "numOfLights");
 		glUniform1i(loc, lights.size());
 		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightPositions");
@@ -336,12 +336,29 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 	vector<vec3> positions;
 	vector<vec4> colors;
 	vector<int> indices;
+	vector<vec3> normals;
 	switch (shape) {
 		case Shape::Cube:
-			positions = { vec3(0.5, -0.5, 0.5), vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(-0.5, -0.5, 0.5),
-							 vec3(0.5, -0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5) };
-			indices = { 3, 0, 7, 4, 5, 0, 1, 3, 2, 7, 6, 5, 2, 1 };
-			drawMode = GL_TRIANGLE_STRIP;
+			positions = { vec3(-0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(-0.5, 0.5, 0.5),
+				vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
+				vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5),
+				vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5), vec3(0.5, -0.5, -0.5),
+				vec3(-0.5, -0.5, -0.5), vec3(0.5, -0.5, -0.5), vec3(-0.5, -0.5, 0.5),
+				vec3(0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(0.5, -0.5, -0.5),
+				vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5),
+				vec3(-0.5, -0.5, 0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, 0.5, 0.5) };
+			
+			normals = { vec3(0, 0, 1), vec3(0, 0, 1), vec3(0, 0, 1),
+				vec3(0, 0, 1), vec3(0, 1, 0), vec3(0, 1, 0),
+				vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 0, -1),
+				vec3(0, 0, -1), vec3(0, 0, -1), vec3(0, 0, -1),
+				vec3(0, -1, 0), vec3(0, -1, 0), vec3(0, -1, 0),
+				vec3(0, -1, 0), vec3(1, 0, 0), vec3(1, 0, 0),
+				vec3(1, 0, 0), vec3(1, 0, 0), vec3(-1, 0, 0),
+				vec3(-1, 0, 0), vec3(-1, 0, 0), vec3(-1, 0, 0) };
+			
+			indices = { 0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7, 8, 9, 10, 10, 9, 11, 12, 13, 14, 14, 13, 15, 16, 17, 18, 18, 17, 19, 20, 21, 22, 22, 21, 23 };
+			drawMode = GL_TRIANGLES;
 			break;
 		case Shape::Sphere:
 			// to-do
@@ -354,6 +371,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 	}
 	colors = vector<vec4>(positions.size(), color);
 	vao = new VertexArrayObject(pipelineProgram, positions, colors, indices);
+	vao->setNormals(normals);
 }
 void Renderer::onUpdate() {
 	if (!vao) return;
@@ -411,7 +429,6 @@ void Physics::onUpdate() {
 }
 #pragma endregion
 
-
 #pragma region Camera
 Camera* Camera::currentCamera = nullptr;
 Camera::Camera(bool setToCurrent) {
@@ -450,6 +467,7 @@ void Camera::onUpdate() {
 }
 #pragma endregion
 
+#pragma region Light
 Light::Light() {
 	ambient = vec4(0, 0, 0, 1);
 	diffuse = vec4(.8, .8, .8, 1);
@@ -459,6 +477,7 @@ Light::Light() {
 void Light::onUpdate() {
 
 }
+#pragma endregion
 
 #pragma region PlayerController
 PlayerController::PlayerController() {
@@ -480,7 +499,6 @@ void PlayerController::onUpdate() {
 
 }
 #pragma endregion
-
 
 #pragma region VertexArrayObject
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
@@ -543,6 +561,25 @@ void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors,
 	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+}
+void VertexArrayObject::setNormals(vector<vec3> normals) {
+	numNormals = normals.size();
+	if (numNormals == 0) {
+		printf("\nerror: the number of normals cannot be 0. \n");
+		return;
+	}if (numVertices != numNormals) {
+		printf("\nerror: the number of vertices %i does not match the number of normals %i. \n", numVertices, numNormals);
+		return;
+	}
+	glGenBuffers(1, &normalBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3)* numNormals, &normals[0], GL_STATIC_DRAW);
+
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "normal");
+	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
 }
 void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum drawMode) {
 	pipelineProgram->Bind();

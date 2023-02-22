@@ -28,7 +28,7 @@ void BasicPipelineProgram::SetProjectionMatrix(const float* m) {
 	glUniformMatrix4fv(h_projectionMatrix, 1, GL_FALSE, m);
 }
 void BasicPipelineProgram::SetNormalMatrix(const float* m) {
-	// Pass "m" to the pipeline program, as the view matrix.
+	// Pass "m" to the pipeline program, as the normal matrix.
 	glUniformMatrix4fv(h_normalMatrix, 1, GL_FALSE, m);
 }
 int BasicPipelineProgram::SetShaderVariableHandles() {
