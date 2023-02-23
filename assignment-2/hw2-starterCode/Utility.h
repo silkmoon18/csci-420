@@ -109,9 +109,11 @@ private:
 class SceneManager : public Singleton<SceneManager> {
 public:
 	friend Light;
-	void setLightings();
+
+	bool isLightingEnabled = false;
 	// Update all entities. Called once per frame.
 	void update(); 
+
 	// Create a new entity
 	Entity* createEntity(string name = ""); 
 	BasicPipelineProgram* createPipelineProgram(string shaderPath);
@@ -124,6 +126,8 @@ private:
 	vector<vec4> diffuses;
 	vector<vec4> speculars;
 	vector<Light*> lights;
+
+	void setLightings();
 };
 
 // Basic entity
@@ -248,14 +252,14 @@ public:
 	friend Entity;
 
 	// Preset shapes
-	enum Shape { Cube, Sphere, Cylinder }; 
+	enum Shape { Cube, Sphere, Cylinder, Plane }; 
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
 	vec4 ambient = vec4(1, 1, 1, 1); // ambient coefficient
 	vec4 diffuse = vec4(1, 1, 1, 1); // diffuse coefficient
 	vec4 specular = vec4(.9, .9, .9, 1); // specular coefficient
-	float shininess = 50; // shininess coefficient
+	float shininess = 0; // shininess coefficient
 
 	Renderer(VertexArrayObject* vao);
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
@@ -333,8 +337,13 @@ class PlayerController : public Component {
 public:
 	friend Entity;
 
+	float speed = 10.0f;
+
+	void move(vec4 input, float verticalMove);
 	// Move horizontally
-	void moveOnGround(vec4 input, float step);
+	void moveOnGround(vec4 input);
+	// do sprint
+	void sprint();
 
 	PlayerController();
 
@@ -355,15 +364,16 @@ public:
 	// Set vertex positions, colors and indices data
 	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 	void setNormals(vector<vec3> normals);
+	void setTexCoords(vector<vec2> texCoords);
 	// Use model view matrix, projection matrix and draw mode to draw
 	void draw(float m[16], float v[16], float p[16], float n[16], GLenum drawMode);
 	// Send data to shaders
 	template<class T> void sendData(vector<T> data, int size, string name);
 
 private:
-	GLuint positionBuffer, colorBuffer, indexBuffer, normalBuffer;
+	GLuint positionBuffer, colorBuffer, indexBuffer, normalBuffer, texCoordBuffer;
 	GLuint vertexArray;
-	int numVertices, numColors, numIndices, numNormals;
+	int numVertices, numColors, numIndices, numNormals, numTexCoords;
 };
 
 

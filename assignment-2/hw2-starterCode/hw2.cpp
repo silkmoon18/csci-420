@@ -61,9 +61,9 @@ Entity* light;
 vec3 playerAngles(0);
 vec3 worldCameraAngles(0);
 vec4 moveInput(0); // w, s, a, d
+float verticalMove = 0.0f;
 float mouseSensitivity = 5.0f;
 float xAngleLimit= 85;
-float moveSpeed = 5.0f;
 bool isControllingPlayer = true;
 
 // display window
@@ -77,9 +77,6 @@ string imageDirectory;
 int currentImageIndex = 0;
 int screenshotIndex = 0;
 
-
-// physics
-float rcSpeed = 1.0f;
 
 // other params
 bool isTakingScreenshot = false;
@@ -316,18 +313,11 @@ void idleFunc() {
 }
 
 void HandleMoveInput() {
-	float step = moveSpeed * Timer::getInstance()->getDeltaTime();
 	if (isControllingPlayer) {
-		player->getComponent<PlayerController>()->moveOnGround(moveInput, step);
+		player->getComponent<PlayerController>()->moveOnGround(moveInput);
 	}
 	else {
-		float z = moveInput.x - moveInput.y;
-		float x = moveInput.w - moveInput.z;
-		if (z == 0 && x == 0) return;
-
-		vec3 move = normalize(worldCamera->transform->getForwardVector(false) * z + worldCamera->transform->getRightVector(false) * x) * step;
-		vec3 position = worldCamera->transform->getPosition(false) + move;
-		worldCamera->transform->setPosition(position, false);
+		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
 Entity* test;
@@ -345,9 +335,14 @@ void displayFunc() {
 }
 
 void HandleJump() {
-	Physics* physics = player->getComponent<Physics>();
-	if (physics->isOnGround) {
-		physics->velocity.y = 5;
+	if (isControllingPlayer) {
+		Physics* physics = player->getComponent<Physics>();
+		if (physics->isOnGround) {
+			physics->velocity.y = 5;
+		}
+	}
+	else {
+		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
 void keyboardFunc(unsigned char key, int x, int y) {
@@ -357,8 +352,8 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			break;
 
 		case ' ':
-			if (!isControllingPlayer) return;
-			HandleJump();
+			if (isControllingPlayer) HandleJump();
+			else verticalMove = 1;
 			break;
 
 		case 'w':
@@ -373,7 +368,10 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case 'd':
 			moveInput.w = 1;
 			break;
-			// toggle screenshots recording
+		case 'c':
+			verticalMove = -1;
+			break;
+		// toggle screenshots recording
 		case 'x':
 			isTakingScreenshot = !isTakingScreenshot;
 			break;
@@ -403,6 +401,12 @@ void keyboardUpFunc(unsigned char key, int x, int y) {
 			break;
 		case 'd':
 			moveInput.w = 0;
+			break;
+		case ' ':
+			verticalMove = 0;
+			break;
+		case 'c':
+			verticalMove = 0;
 			break;
 	}
 }
@@ -542,19 +546,20 @@ void initObjects() {
 	worldCamera = SceneManager::getInstance()->createEntity("WorldCamera");
 	worldCamera->transform->setPosition(vec3(20, 20, 20), true);
 	worldCamera->addComponent(new Camera());
+	worldCamera->addComponent(new PlayerController());
 	worldCamera->transform->faceTo(vec3(0));
 	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
 
 	player = SceneManager::getInstance()->createEntity("Player");
+	player->transform->setPosition(vec3(0, 0, 5), true);
 	player->addComponent(new Camera());
 	player->getComponent<Camera>()->setCurrent();
 	player->addComponent(new PlayerController());
 	player->addComponent(new Physics(0.75f));
-	player->transform->setPosition(vec3(0, 0, 5), true);
 	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
-	ground->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Cube));
+	ground->addComponent(new Renderer(milestonePipeline, Renderer::Shape::Plane));
 	ground->transform->setPosition(vec3(0, -1, 0), true);
 	ground->transform->setScale(vec3(100, 1, 100), true);
 

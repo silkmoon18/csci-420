@@ -79,7 +79,12 @@ void SceneManager::setLightings() {
 	for (int i = 0; i < pipelinePrograms.size(); i++) {
 		BasicPipelineProgram* pipeline = pipelinePrograms[i];
 
-		GLuint loc = glGetUniformLocation(pipeline->GetProgramHandle(), "numOfLights");
+		GLuint loc = glGetUniformLocation(pipeline->GetProgramHandle(), "isLightingEnabled");
+		glUniform1i(loc, isLightingEnabled);
+		
+		if (!isLightingEnabled) continue;
+
+		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "numOfLights");
 		glUniform1i(loc, lights.size());
 		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightPositions");
 		glUniform3fv(loc, positions.size(), reinterpret_cast<GLfloat*>(&positions[0]));
@@ -93,6 +98,8 @@ void SceneManager::setLightings() {
 }
 void SceneManager::update() {
 	setLightings();
+	
+
 	for (int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
 
@@ -348,9 +355,11 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 	vector<vec4> colors;
 	vector<int> indices;
 	vector<vec3> normals;
+	vector<vec2> texCoords;
 	switch (shape) {
 		case Shape::Cube:
-			positions = { vec3(-0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(-0.5, 0.5, 0.5),
+			positions = { 
+				vec3(-0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(-0.5, 0.5, 0.5),
 				vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
 				vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5),
 				vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5), vec3(0.5, -0.5, -0.5),
@@ -358,8 +367,9 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 				vec3(0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(0.5, -0.5, -0.5),
 				vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5),
 				vec3(-0.5, -0.5, 0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, 0.5, 0.5) };
-			
-			normals = { vec3(0, 0, 1), vec3(0, 0, 1), vec3(0, 0, 1),
+
+			normals = { 
+				vec3(0, 0, 1), vec3(0, 0, 1), vec3(0, 0, 1),
 				vec3(0, 0, 1), vec3(0, 1, 0), vec3(0, 1, 0),
 				vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 0, -1),
 				vec3(0, 0, -1), vec3(0, 0, -1), vec3(0, 0, -1),
@@ -367,7 +377,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 				vec3(0, -1, 0), vec3(1, 0, 0), vec3(1, 0, 0),
 				vec3(1, 0, 0), vec3(1, 0, 0), vec3(-1, 0, 0),
 				vec3(-1, 0, 0), vec3(-1, 0, 0), vec3(-1, 0, 0) };
-			
+
 			indices = { 0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7, 8, 9, 10, 10, 9, 11, 12, 13, 14, 14, 13, 15, 16, 17, 18, 18, 17, 19, 20, 21, 22, 22, 21, 23 };
 			drawMode = GL_TRIANGLES;
 			break;
@@ -377,12 +387,34 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 		case Shape::Cylinder:
 			// to-do
 			break;
+		case Shape::Plane:
+			positions = {
+				vec3(0.5, 0.5, 0),
+				vec3(-0.5, 0.5, 0),
+				vec3(-0.5, -0.5, 0),
+				vec3(0.5, -0.5, 0) }
+			;
+			normals = {
+				vec3(0, 0, 1),
+				vec3(0, 0, 1),
+				vec3(0, 0, 1),
+				vec3(0, 0, 1) }
+			;
+			indices = {0, 1, 2, 0, 2, 3 };
+			texCoords = {
+				vec2(1, 0),
+				vec2(0, 0),
+				vec2(0, 1),
+				vec2(1, 1) };
+			drawMode = GL_TRIANGLES;
+			break;
 		default:
 			break;
 	}
 	colors = vector<vec4>(positions.size(), color);
 	vao = new VertexArrayObject(pipelineProgram, positions, colors, indices);
 	vao->setNormals(normals);
+	vao->setTexCoords(texCoords);
 }
 void Renderer::onUpdate() {
 	if (!vao) return;
@@ -480,10 +512,13 @@ void Camera::onUpdate() {
 
 #pragma region Light
 Light::Light() {
-	ambient = vec4(0, 0, 0, 1);
+	ambient = vec4(0.4, 0.4, 0.4, 1);
 	diffuse = vec4(.8, .8, .8, 1);
 	specular = vec4(1, 1, 1, 1);
 	SceneManager::getInstance()->lights.push_back(this);
+
+	// debug 
+	ambient = vec4(1);
 }
 void Light::onUpdate() {
 
@@ -494,11 +529,28 @@ void Light::onUpdate() {
 PlayerController::PlayerController() {
 
 }
-void PlayerController::moveOnGround(vec4 input, float step) {
+void PlayerController::move(vec4 input, float verticalMove) {
+	float z = input.x - input.y;
+	float x = input.w - input.z;
+	if (z == 0 && x == 0 && verticalMove == 0) return;
+
+	if (verticalMove > 0.0f) verticalMove = 1.0f;
+	else if (verticalMove < 0.0f) verticalMove = -1.0f;
+
+	vec3 move(0);
+	float step = Timer::getInstance()->getDeltaTime() * speed;
+	vec3 horizontalDirection = entity->transform->getForwardVector(true) * z + entity->transform->getRightVector(true) * x;
+	if (length(horizontalDirection) > 0.0f) move += normalize(horizontalDirection) * step;
+	move += worldUp * step * verticalMove;
+	vec3 position = entity->transform->getPosition(true) + move;
+	entity->transform->setPosition(position, true);
+}
+void PlayerController::moveOnGround(vec4 input) {
 	float z = input.x - input.y;
 	float x = input.w - input.z;
 	if (z == 0 && x == 0) return;
 
+	float step = Timer::getInstance()->getDeltaTime() * speed;
 	vec3 forward = normalize(getProjectionOnPlane(entity->transform->getForwardVector(true)));
 	vec3 right = normalize(getProjectionOnPlane(entity->transform->getRightVector(true)));
 	vec3 move = normalize(x * right + z * forward) * step;
@@ -584,13 +636,28 @@ void VertexArrayObject::setNormals(vector<vec3> normals) {
 	}
 	glGenBuffers(1, &normalBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3)* numNormals, &normals[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numNormals, &normals[0], GL_STATIC_DRAW);
 
 	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "normal");
 	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 
+}
+void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
+	numTexCoords = texCoords.size();
+	if (numTexCoords == 0) {
+		printf("\nerror: the number of texture coordinates cannot be 0. \n");
+		return;
+	}
+	glGenBuffers(1, &texCoordBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, texCoordBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec2) * numTexCoords, &texCoords[0], GL_STATIC_DRAW);
+
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "texCoord");
+	glBindBuffer(GL_ARRAY_BUFFER, texCoordBuffer);
+	glEnableVertexAttribArray(loc);
+	glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
 void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum drawMode) {
 	pipelineProgram->Bind();
