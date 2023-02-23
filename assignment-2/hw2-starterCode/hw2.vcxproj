@@ -28,8 +28,13 @@
     <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\openGLHelper-starterCode\basic.fragmentShader.glsl" />
-    <None Include="..\openGLHelper-starterCode\basic.vertexShader.glsl" />
+    <None Include="shaders\basic.fragmentShader.glsl" />
+    <None Include="shaders\basic.vertexShader.glsl" />
+    <None Include="shaders\texture\basic.fragmentShader.glsl" />
+    <None Include="shaders\texture\basic.vertexShader.glsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Textures\Ground.jpg" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{14A47A0E-7A6F-404B-93BE-FC1C1EDB1D39}</ProjectGuid>

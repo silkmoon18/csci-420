@@ -10,7 +10,6 @@ uniform mat4 normalMatrix;
 in vec3 position;
 in vec4 color;
 in vec3 normal;
-in vec2 texCoord;
 
 out vec4 col;
 out vec3 vertexNormal;

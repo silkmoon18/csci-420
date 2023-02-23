@@ -16,6 +16,15 @@
     <Filter Include="shaders">
       <UniqueIdentifier>{159c2671-e4ad-4039-af21-2dabcfb2367e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Textures">
+      <UniqueIdentifier>{e62802f9-0374-4000-adab-fd106ee1e742}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\milestone">
+      <UniqueIdentifier>{6d83fcdc-21e9-454c-ac4c-6f4c0a48684a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\texture">
+      <UniqueIdentifier>{5a48bc0c-c13c-40a4-bb3b-3fd8902ecdc5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="hw2.cpp">
@@ -61,11 +70,22 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\openGLHelper-starterCode\basic.fragmentShader.glsl">
-      <Filter>shaders</Filter>
+    <None Include="shaders\basic.fragmentShader.glsl">
+      <Filter>shaders\milestone</Filter>
     </None>
-    <None Include="..\openGLHelper-starterCode\basic.vertexShader.glsl">
-      <Filter>shaders</Filter>
+    <None Include="shaders\basic.vertexShader.glsl">
+      <Filter>shaders\milestone</Filter>
     </None>
+    <None Include="shaders\texture\basic.fragmentShader.glsl">
+      <Filter>shaders\texture</Filter>
+    </None>
+    <None Include="shaders\texture\basic.vertexShader.glsl">
+      <Filter>shaders\texture</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Textures\Ground.jpg">
+      <Filter>Textures</Filter>
+    </Image>
   </ItemGroup>
 </Project>

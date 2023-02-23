@@ -7,17 +7,19 @@
 #include "glm/gtx/euler_angles.hpp"
 #include "glm/gtx/matrix_decompose.hpp"
 #include "basicPipelineProgram.h"
-#include "openGLMatrix.h"
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/epsilon.hpp"
 #include "glm/gtc/type_ptr.hpp"
+#include "imageIO.h"
 
 #include <vector>
 #include <map>
 #include <algorithm>
 #include <iostream>
+#include <string>
+#include <filesystem>
 
 using namespace std;
 using namespace glm;
@@ -58,7 +60,11 @@ vec3 extractPosition(mat4 m);
 // Extract rotation from mat4
 quat extractRotation(mat4 m); 
 // Extract scale from mat4
-vec3 extractScale(mat4 m); 
+vec3 extractScale(mat4 m);
+// copied from assignment-2 start code
+int initTexture(const char* imageFilename, GLuint textureHandle);
+// get current directory
+string getCurrentDirectory();
 
 // Get type of a class
 template<class T> string getType(); 
@@ -264,7 +270,11 @@ public:
 	Renderer(VertexArrayObject* vao);
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
+	void setTexture(string imagePath);
+
 protected:
+	GLuint textureHandle;
+
 	void onUpdate() override;
 };
 
