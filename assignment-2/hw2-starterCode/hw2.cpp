@@ -218,7 +218,7 @@ void createSplineObjects() {
 		Spline spline = splines[i];
 
 		Entity* coaster = SceneManager::getInstance()->createEntity("RollerCoaster_" + to_string(rollerCoasters.size()));
-		coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline)));
+		coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
 		coaster->addComponent(new RollerCoaster(spline));
 		coaster->getComponent<RollerCoaster>()->render();
 		rollerCoasters.push_back(coaster);
@@ -489,26 +489,21 @@ void initObjects() {
 	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
-	Renderer* groundRenderer = new Renderer(texturePipeline, Renderer::Shape::Plane);
-	groundRenderer->setTexture(textureDirectory + "/Ground.jpg");
+	Renderer* groundRenderer = new Renderer(texturePipeline, Shape::Type::Plane);
+	groundRenderer->setTexture(textureDirectory + "/ground.jpg");
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, -1, 0), true);
 	ground->transform->setScale(vec3(500, 1, 500), true);
 
-	sky = SceneManager::getInstance()->createEntity("Sky");
-	sky->transform->setPosition(vec3(0, 0, 0), true);
-	sky->transform->setScale(vec3(50, 50, 50), true);
-	Renderer* skyRenderer = new Renderer(skyboxPipeline, Renderer::Shape::Cube);
-	skyRenderer->useLight = false;
-	string skyboxImages[6] = { 
+	string skyboxImages[6] = {
 		textureDirectory + "/right.jpg",
 		textureDirectory + "/left.jpg",
-		textureDirectory + "/top.jpg",
 		textureDirectory + "/bottom.jpg",
-		textureDirectory + "/back.jpg",
-		textureDirectory + "/front.jpg" };
-	skyRenderer->setTexture(skyboxImages);
-	sky->addComponent(skyRenderer);
+		textureDirectory + "/top.jpg",
+		textureDirectory + "/front.jpg",
+		textureDirectory + "/back.jpg", };
+	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, skyboxImages);
+
 	light = SceneManager::getInstance()->createEntity("Light");
 	Light* directionalLight = new Light();
 	directionalLight->setDirectional();

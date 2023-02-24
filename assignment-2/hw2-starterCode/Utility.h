@@ -117,16 +117,18 @@ public:
 	friend Light;
 
 	bool isLightingEnabled = false;
-	// Update all entities. Called once per frame.
-	void update(); 
 
 	// Create a new entity
-	Entity* createEntity(string name = ""); 
+	Entity* createEntity(string name = "");
+	Entity* createSkybox(BasicPipelineProgram* pipeline, string textureNames[6]);
 	BasicPipelineProgram* createPipelineProgram(string shaderPath);
+	// Update all entities. Called once per frame.
+	void update();
 
 private:
 	vector<BasicPipelineProgram*> pipelinePrograms;
 	vector<Entity*> entities; // all entities
+	Entity* skybox = nullptr;
 	vector<int> lightModes;
 	vector<vec3> lightDirections;
 	vector<vec3> lightPositions;
@@ -254,13 +256,26 @@ private:
 	void onUpdate() override;
 };
 
+class Shape {
+public:
+	// Preset shapes
+	enum Type { Cube, Sphere, Cylinder, Plane };
+
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec4> colors;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode = GL_POINTS;
+
+	Shape(Type type);
+};
+
 // Entity renderer
 class Renderer : public Component {
 public:
 	friend Entity;
 
-	// Preset shapes
-	enum Shape { Cube, Sphere, Cylinder, Plane }; 
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
@@ -271,8 +286,8 @@ public:
 	vec4 specular = vec4(.9, .9, .9, 1); // specular coefficient
 	float shininess = 0; // shininess coefficient
 
-	Renderer(VertexArrayObject* vao);
-	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
+	Renderer(VertexArrayObject* vao, GLenum drawMode);
+	Renderer(BasicPipelineProgram* pipelineProgram, Shape::Type shapeType);
 
 	// Set 2d texture
 	void setTexture(string imageName);
@@ -376,7 +391,6 @@ protected:
 	void onUpdate() override;
 };
 
-
 // Handles VAO related operations
 // Used in renderer
 class VertexArrayObject {
@@ -384,12 +398,14 @@ public:
 	BasicPipelineProgram* pipelineProgram; 
 
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram);
-	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices);
+	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices);
 
 	// Bind pipeline
 	void bindPipeline();
 	// Set vertex positions, colors and indices data
-	void setVertices(vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices);
+	void setPositions(vector<vec3> positions);
+	void setColors(vector<vec4> colors);
+	void setIndices(vector<int> indices);
 	void setNormals(vector<vec3> normals);
 	void setTexCoords(vector<vec2> texCoords);
 	// Use model view matrix, projection matrix and draw mode to draw
@@ -402,7 +418,6 @@ private:
 	GLuint vertexArray;
 	int numVertices, numColors, numIndices, numNormals, numTexCoords;
 };
-
 
 // represents one control point along the spline 
 struct Point {

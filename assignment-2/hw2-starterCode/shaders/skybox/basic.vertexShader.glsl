@@ -8,12 +8,16 @@ uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 
 in vec3 position;
+in vec4 color;
 
+out vec4 col;
 out vec3 textureCoord;
 
 void main()
 {
     textureCoord = position;
-    gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0);
+    mat4 view = mat4(mat3(viewMatrix));
+    gl_Position = projectionMatrix * view * vec4(position, 1.0);
+    col = color / 255.0f;
 }
 

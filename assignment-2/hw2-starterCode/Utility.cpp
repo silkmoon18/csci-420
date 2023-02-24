@@ -123,7 +123,7 @@ int initTexture(string imageName, GLuint textureHandle) {
 }
 int initTexture(string imageNames[6], GLuint textureHandle) {
 	// bind the texture
-	glBindTexture(GL_TEXTURE_2D, textureHandle);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textureHandle);
 
 	// read the texture image
 	ImageIO images[6];
@@ -153,6 +153,7 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 
 		// fill the pixelsRGBA array with the image pixels
 		memset(pixelsRGBA, 0, 4 * width * height); // set all bytes to 0
+
 		for (int h = 0; h < height; h++) {
 			for (int w = 0; w < width; w++) {
 				// assign some default byte values (for the case where img.getBytesPerPixel() < 4)
@@ -171,11 +172,11 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 		// initialize the texture
 		glTexImage2D(
 			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-			0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, pixelsRGBA
+			0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA
 		);
 
 		// de-allocate the pixel array -- it is no longer needed
-		//delete[] pixelsRGBA;
+		delete[] pixelsRGBA;
 	}
 
 
@@ -193,7 +194,7 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
 	printf("Max available anisotropic samples: %f\n", fLargest);
 	// set anisotropic texture filtering
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
+	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
 
 	// query for any errors
 	GLenum errCode = glGetError();
@@ -265,17 +266,6 @@ void SceneManager::setLightings() {
 		glUniform3f(loc, pos[0], pos[1], pos[2]);
 	}
 }
-void SceneManager::update() {
-	setLightings();
-
-	for (int i = 0; i < entities.size(); i++) {
-		Entity* entity = entities[i];
-
-		// update root entities only
-		if (entity->getParent()) continue;
-		entity->update();
-	}
-}
 Entity* SceneManager::createEntity(string name) {
 	if (name.empty()) {
 		// set default name
@@ -286,6 +276,20 @@ Entity* SceneManager::createEntity(string name) {
 	printf("Entity \"%s\" created. Number of entities: %i\n", name.c_str(), entities.size());
 	return entity;
 }
+Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textureNames[6]) {
+	skybox = new Entity("Skybox");
+	skybox->transform->setPosition(vec3(0, 0, 0), true);
+	Shape* shape = new Shape(Shape::Type::Cube);
+	VertexArrayObject* vao = new VertexArrayObject(pipeline);
+	vao->setPositions(shape->positions);
+	vao->setIndices(shape->indices);
+	vao->setColors(shape->colors);
+	Renderer* skyRenderer = new Renderer(vao, shape->drawMode);
+	skyRenderer->useLight = false;
+	skyRenderer->setTexture(textureNames);
+	skybox->addComponent(skyRenderer);
+	return skybox;
+}
 BasicPipelineProgram* SceneManager::createPipelineProgram(string shaderPath) {
 	BasicPipelineProgram* pipeline = new BasicPipelineProgram;
 	int ret = pipeline->Init((getCurrentDirectory() + shaderPath).c_str());
@@ -294,7 +298,23 @@ BasicPipelineProgram* SceneManager::createPipelineProgram(string shaderPath) {
 	printf("Pipeline program created. Shader path: %s. Number of pipelines: %i. \n", shaderPath.c_str(), pipelinePrograms.size());
 	return pipeline;
 }
+void SceneManager::update() {
+	setLightings();
 
+	if (skybox) {
+		glDepthMask(GL_FALSE);
+		skybox->update();
+		glDepthMask(GL_TRUE);
+	}
+
+	for (int i = 0; i < entities.size(); i++) {
+		Entity* entity = entities[i];
+
+		// update root entities only
+		if (entity->getParent()) continue;
+		entity->update();
+	}
+}
 #pragma endregion
 
 #pragma region Transform
@@ -511,19 +531,11 @@ void Component::update() {
 }
 #pragma endregion
 
-#pragma region Renderer
-Renderer::Renderer(VertexArrayObject* vao) {
-	this->vao = vao;
-}
-Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
-	vector<vec3> lightPositions;
-	vector<vec4> colors;
-	vector<int> indices;
-	vector<vec3> normals;
-	vector<vec2> texCoords;
-	switch (shape) {
+#pragma region Shape
+Shape::Shape(Type type) {
+	switch (type) {
 		case Shape::Cube:
-			lightPositions = { 
+			positions = {
 				vec3(-0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(-0.5, 0.5, 0.5),
 				vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
 				vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5),
@@ -533,7 +545,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 				vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5),
 				vec3(-0.5, -0.5, 0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, 0.5, 0.5) };
 
-			normals = { 
+			normals = {
 				vec3(0, 0, 1), vec3(0, 0, 1), vec3(0, 0, 1),
 				vec3(0, 0, 1), vec3(0, 1, 0), vec3(0, 1, 0),
 				vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 0, -1),
@@ -553,7 +565,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 			// to-do
 			break;
 		case Shape::Plane:
-			lightPositions = {
+			positions = {
 				vec3(0.5, 0, 0.5),
 				vec3(-0.5, 0, 0.5),
 				vec3(-0.5, 0, -0.5),
@@ -565,7 +577,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 				vec3(0, 1, 0),
 				vec3(0, 1, 0) }
 			;
-			indices = {0, 1, 2, 0, 2, 3 };
+			indices = { 0, 1, 2, 0, 2, 3 };
 			texCoords = {
 				vec2(1, 0),
 				vec2(0, 0),
@@ -576,10 +588,21 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 		default:
 			break;
 	}
-	colors = vector<vec4>(lightPositions.size(), color);
-	vao = new VertexArrayObject(pipelineProgram, lightPositions, colors, indices);
-	vao->setNormals(normals);
-	vao->setTexCoords(texCoords);
+	colors = vector<vec4>(positions.size(), vec4(255));
+}
+#pragma endregion
+
+#pragma region Renderer
+Renderer::Renderer(VertexArrayObject* vao, GLenum drawMode) {
+	this->vao = vao;
+	this->drawMode = drawMode;
+}
+Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape::Type shapeType) {
+	Shape shape(shapeType);
+	vao = new VertexArrayObject(pipelineProgram, shape.positions, shape.colors, shape.indices);
+	vao->setNormals(shape.normals);
+	vao->setTexCoords(shape.texCoords);
+	drawMode = shape.drawMode;
 }
 void Renderer::setTexture(string imageName) {
 	textureType = GL_TEXTURE_2D;
@@ -757,69 +780,75 @@ void PlayerController::onUpdate() {
 
 #pragma region VertexArrayObject
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
-	this->pipelineProgram = pipelineProgram;
-}
-VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices) {
 	if (!pipelineProgram) {
 		printf("error: pipeline program cannot be null. \n");
 		return;
 	}
 	this->pipelineProgram = pipelineProgram;
-	setVertices(lightPositions, colors, indices);
+	// generate vertex array
+	glGenVertexArrays(1, &vertexArray);
+}
+VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram,
+									 vector<vec3> positions,
+									 vector<vec4> colors, 
+									 vector<int> indices) : VertexArrayObject(pipelineProgram) {
+	setPositions(positions);
+	setColors(colors);
+	setIndices(indices);
 }
 void VertexArrayObject::bindPipeline() {
 	pipelineProgram->Bind();
 }
-void VertexArrayObject::setVertices(vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices) {
-	numVertices = lightPositions.size();
-	numColors = colors.size();
-	numIndices = indices.size();
+void VertexArrayObject::setPositions(vector<vec3> positions) {
+	numVertices = positions.size();
 	if (numVertices == 0) {
 		printf("\nerror: the number of vertices cannot be 0. \n");
 		return;
-	}if (numColors == 0) {
-		printf("\nerror: the number of colors cannot be 0. \n");
-		return;
-	}if (numIndices == 0) {
-		printf("\nerror: the number of indices cannot be 0. \n");
-		return;
-	}if (numVertices != numColors) {
-		printf("\nerror: the number of vertices %i does not match the number of colors %i. \n", numVertices, numColors);
-		return;
 	}
-
-	// generate vertex array
-	glGenVertexArrays(1, &vertexArray);
 	glBindVertexArray(vertexArray);
 
 	// position data
 	glGenBuffers(1, &positionBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numVertices, &lightPositions[0], GL_STATIC_DRAW);
-
-	// color data
-	glGenBuffers(1, &colorBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numColors, &colors[0], GL_STATIC_DRAW);
-
-	// index data
-	glGenBuffers(1, &indexBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * numIndices, &indices[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numVertices, &positions[0], GL_STATIC_DRAW);
 
 	// position attribute
 	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
 	glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+}
+void VertexArrayObject::setColors(vector<vec4> colors) {
+	numColors = colors.size(); 
+	if (numColors == 0) {
+		printf("\nerror: the number of colors cannot be 0. \n");
+		return;
+	}
+	glBindVertexArray(vertexArray);
+
+	// color data
+	glGenBuffers(1, &colorBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec4) * numColors, &colors[0], GL_STATIC_DRAW);
 
 	// color attribute
-	loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+	GLuint loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
 	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+}
+void VertexArrayObject::setIndices(vector<int> indices) {
+	numIndices = indices.size(); 
+	if (numIndices == 0) {
+		printf("\nerror: the number of indices cannot be 0. \n");
+		return;
+	}
+	glBindVertexArray(vertexArray);
 
-	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
+	// index data
+	glGenBuffers(1, &indexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int)* numIndices, &indices[0], GL_STATIC_DRAW);
 }
 void VertexArrayObject::setNormals(vector<vec3> normals) {
 	numNormals = normals.size();
@@ -840,12 +869,11 @@ void VertexArrayObject::setNormals(vector<vec3> normals) {
 	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
-
 }
 void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 	numTexCoords = texCoords.size();
 	if (numTexCoords == 0) {
-		printf("\nerror: the number of texture coordinates cannot be 0. \n");
+		printf("\nWarning: the number of texture coordinates cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -860,6 +888,9 @@ void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 	glVertexAttribPointer(loc, 2, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
 void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum drawMode) {
+	if (numVertices != numColors) {
+		printf("\nWarning: the number of vertices %i does not match the number of colors %i. \n", numVertices, numColors);
+	}
 	pipelineProgram->Bind();
 	pipelineProgram->SetModelMatrix(m);
 	pipelineProgram->SetViewMatrix(v);
@@ -869,8 +900,6 @@ void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum draw
 	glDrawElements(drawMode, numIndices, GL_UNSIGNED_INT, 0);
 }
 #pragma endregion
-
-
 
 #pragma region RollerCoaster
 RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
@@ -949,7 +978,7 @@ void RollerCoaster::render() {
 	vector<vec3> pointNormals;
 	vector<vec3> pointBinormals;
 
-	vector<vec3> lightPositions;
+	vector<vec3> positions;
 	vector<vec4> colors;
 	vector<int> indices;
 	vector<vec3> normals;
@@ -980,7 +1009,7 @@ void RollerCoaster::render() {
 		vec4 color = vec4(1) * 255.0f;
 
 		if (i == 0) {
-			lightPositions.insert(lightPositions.end(), { v0, v1, v2, v3 });
+			positions.insert(positions.end(), { v0, v1, v2, v3 });
 
 			colors.insert(colors.end(), { color, color, color, color });
 
@@ -990,7 +1019,7 @@ void RollerCoaster::render() {
 			normals.insert(normals.end(), { -t, -t, -t, -t });
 		}
 
-		lightPositions.insert(lightPositions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
+		positions.insert(positions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
 		colors.insert(colors.end(), { color, color, color, color, color, color, color, color });
 		normals.insert(normals.end(), { b, b, n, n, -b, -b, -n, -n });
 		if (i > 0) {
@@ -1002,7 +1031,7 @@ void RollerCoaster::render() {
 						   index + 6, index + 14, index + 7, index + 7, index + 14, index + 15 });
 		}
 		if (i == numOfVertices - 1) {
-			lightPositions.insert(lightPositions.end(), { v0, v1, v2, v3 });
+			positions.insert(positions.end(), { v0, v1, v2, v3 });
 
 			colors.insert(colors.end(), { color, color, color, color });
 
@@ -1015,13 +1044,15 @@ void RollerCoaster::render() {
 	vertexNormals = pointNormals;
 
 	// set up renderer
-	renderer->vao->setVertices(lightPositions, colors, indices);
+	renderer->vao->setPositions(positions);
+	renderer->vao->setColors(colors);
+	renderer->vao->setIndices(indices);
 	renderer->vao->setNormals(normals);
 	renderer->drawMode = GL_TRIANGLES;
 
 	// set up seat
 	seat = SceneManager::getInstance()->createEntity("Seat");
-	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, Renderer::Shape::Cube));
+	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, Shape::Type::Cube));
 	seat->setParent(entity);
 	moveSeat();
 }

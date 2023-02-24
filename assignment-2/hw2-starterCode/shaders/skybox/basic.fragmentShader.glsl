@@ -6,12 +6,13 @@
 
 uniform samplerCube skybox;
 
+in vec4 col;
 in vec3 textureCoord;
 
 out vec4 c;
 
 void main()
 {
-    c = texture(skybox, textureCoord);
+    c = texture(skybox, textureCoord) * col;
 }
 
