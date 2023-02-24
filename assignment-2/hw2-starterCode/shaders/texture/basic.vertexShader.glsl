@@ -1,5 +1,9 @@
 #version 150
 
+//
+// Texture vertex shader
+//
+
 const float eps = 0.00001f;
 
 uniform mat4 modelMatrix;

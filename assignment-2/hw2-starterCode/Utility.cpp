@@ -47,7 +47,10 @@ void log(quat q, bool endOfLine) {
 	string newLine = endOfLine ? "\n" : "";
 	printf("quat(%f, %f, %f, %f)%s", q.x, q.y, q.z, q.w, newLine.c_str());
 }
-int initTexture(const char* imageFilename, GLuint textureHandle) {
+int initTexture(string imageName, GLuint textureHandle) {
+	imageName = getCurrentDirectory() + imageName;
+	const char* imageFilename = imageName.c_str();
+
 	// read the texture image
 	ImageIO img;
 	ImageIO::fileFormatType imgFormat;
@@ -118,6 +121,89 @@ int initTexture(const char* imageFilename, GLuint textureHandle) {
 
 	return 0;
 }
+int initTexture(string imageNames[6], GLuint textureHandle) {
+	// bind the texture
+	glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+	// read the texture image
+	ImageIO images[6];
+	ImageIO::fileFormatType imgFormat;
+	for (int i = 0; i < 6; i++) {
+		ImageIO img = images[i];
+		string imageName = getCurrentDirectory() + imageNames[i];
+		const char* imageFilename = (imageName).c_str();
+
+		ImageIO::errorType err = img.load(imageFilename, &imgFormat);
+
+		if (err != ImageIO::OK) {
+			printf("Loading texture from %s failed.\n", imageFilename);
+			return -1;
+		}
+
+		// check that the number of bytes is a multiple of 4
+		if (img.getWidth() * img.getBytesPerPixel() % 4) {
+			printf("Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+			return -1;
+		}
+
+		// allocate space for an array of pixels
+		int width = img.getWidth();
+		int height = img.getHeight();
+		unsigned char* pixelsRGBA = new unsigned char[4 * width * height]; // we will use 4 bytes per pixel, i.e., RGBA
+
+		// fill the pixelsRGBA array with the image pixels
+		memset(pixelsRGBA, 0, 4 * width * height); // set all bytes to 0
+		for (int h = 0; h < height; h++) {
+			for (int w = 0; w < width; w++) {
+				// assign some default byte values (for the case where img.getBytesPerPixel() < 4)
+				pixelsRGBA[4 * (h * width + w) + 0] = 0; // red
+				pixelsRGBA[4 * (h * width + w) + 1] = 0; // green
+				pixelsRGBA[4 * (h * width + w) + 2] = 0; // blue
+				pixelsRGBA[4 * (h * width + w) + 3] = 255; // alpha channel; fully opaque
+
+				// set the RGBA channels, based on the loaded image
+				int numChannels = img.getBytesPerPixel();
+				for (int c = 0; c < numChannels; c++) // only set as many channels as are available in the loaded image; the rest get the default value
+					pixelsRGBA[4 * (h * width + w) + c] = img.getPixel(w, h, c);
+			}
+		}
+
+		// initialize the texture
+		glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+			0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, pixelsRGBA
+		);
+
+		// de-allocate the pixel array -- it is no longer needed
+		//delete[] pixelsRGBA;
+	}
+
+
+	// generate the mipmaps for this texture
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	// set the texture parameters
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	// query support for anisotropic texture filtering
+	GLfloat fLargest;
+	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
+	printf("Max available anisotropic samples: %f\n", fLargest);
+	// set anisotropic texture filtering
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
+
+	// query for any errors
+	GLenum errCode = glGetError();
+	if (errCode != 0) {
+		printf("Texture initialization error. Error code: %d.\n", errCode);
+		return -1;
+	}
+
+	return 0;
+}
 string getCurrentDirectory() {
 	return filesystem::current_path().string();
 }
@@ -135,42 +221,52 @@ void Timer::setCurrentTime(int currentTime) {
 
 #pragma region SceneManager
 void SceneManager::setLightings() {
-	positions.clear();
-	ambients.clear();
-	diffuses.clear();
-	speculars.clear();
+	lightModes.clear();
+	lightDirections.clear();
+	lightPositions.clear();
+	lightAmbients.clear();
+	lightDiffuses.clear();
+	lightSpeculars.clear();
 	for (int i = 0; i < lights.size(); i++) {
 		Light* light = lights[i];
 
-		positions.push_back(light->getEntity()->transform->getPosition(true));
-		ambients.push_back(light->ambient);
-		diffuses.push_back(light->diffuse);
-		speculars.push_back(light->specular);
+		lightModes.push_back(light->getMode());
+		lightDirections.push_back(light->direction);
+		lightPositions.push_back(light->getEntity()->transform->getPosition(true));
+		lightAmbients.push_back(light->ambient);
+		lightDiffuses.push_back(light->diffuse);
+		lightSpeculars.push_back(light->specular);
 	}
 	// set lightings
 	for (int i = 0; i < pipelinePrograms.size(); i++) {
 		BasicPipelineProgram* pipeline = pipelinePrograms[i];
+		pipeline->Bind();
 
-		GLuint loc = glGetUniformLocation(pipeline->GetProgramHandle(), "isLightingEnabled");
-		glUniform1i(loc, int(isLightingEnabled));
+		GLuint handle = pipeline->GetProgramHandle();
 		
 		if (!isLightingEnabled) continue;
 
-		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "numOfLights");
+		GLuint loc = glGetUniformLocation(handle, "numOfLights");
 		glUniform1i(loc, lights.size());
-		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightPositions");
-		glUniform3fv(loc, positions.size(), reinterpret_cast<GLfloat*>(&positions[0]));
-		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightAmbients");
-		glUniform4fv(loc, ambients.size(), reinterpret_cast<GLfloat*>(&ambients[0]));
-		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightDiffuses");
-		glUniform4fv(loc, diffuses.size(), reinterpret_cast<GLfloat*>(&diffuses[0]));
-		loc = glGetUniformLocation(pipeline->GetProgramHandle(), "lightSpeculars");
-		glUniform4fv(loc, speculars.size(), reinterpret_cast<GLfloat*>(&speculars[0]));
+		loc = glGetUniformLocation(handle, "lightModes");
+		glUniform1iv(loc, lightModes.size(), reinterpret_cast<GLint*>(&lightModes[0]));
+		loc = glGetUniformLocation(handle, "lightDirections");
+		glUniform3fv(loc, lightDirections.size(), reinterpret_cast<GLfloat*>(&lightDirections[0]));
+		loc = glGetUniformLocation(handle, "lightPositions");
+		glUniform3fv(loc, lightPositions.size(), reinterpret_cast<GLfloat*>(&lightPositions[0]));
+		loc = glGetUniformLocation(handle, "lightAmbients");
+		glUniform4fv(loc, lightAmbients.size(), reinterpret_cast<GLfloat*>(&lightAmbients[0]));
+		loc = glGetUniformLocation(handle, "lightDiffuses");
+		glUniform4fv(loc, lightDiffuses.size(), reinterpret_cast<GLfloat*>(&lightDiffuses[0]));
+		loc = glGetUniformLocation(handle, "lightSpeculars");
+		glUniform4fv(loc, lightSpeculars.size(), reinterpret_cast<GLfloat*>(&lightSpeculars[0]));
+		loc = glGetUniformLocation(handle, "eyePosition");
+		vec3 pos = Camera::currentCamera->getEntity()->transform->getPosition(true);
+		glUniform3f(loc, pos[0], pos[1], pos[2]);
 	}
 }
 void SceneManager::update() {
 	setLightings();
-	
 
 	for (int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
@@ -200,7 +296,6 @@ BasicPipelineProgram* SceneManager::createPipelineProgram(string shaderPath) {
 }
 
 #pragma endregion
-
 
 #pragma region Transform
 Transform::Transform() {
@@ -346,7 +441,6 @@ void Transform::onUpdate() {
 }
 #pragma endregion
 
-
 #pragma region Entity 
 Entity::Entity(string name) {
 	this->name = name;
@@ -398,7 +492,6 @@ string Entity::toClassKey(string type) {
 }
 #pragma endregion
 
-
 #pragma region Component
 Component::Component() {
 	// hided constructor
@@ -423,14 +516,14 @@ Renderer::Renderer(VertexArrayObject* vao) {
 	this->vao = vao;
 }
 Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
-	vector<vec3> positions;
+	vector<vec3> lightPositions;
 	vector<vec4> colors;
 	vector<int> indices;
 	vector<vec3> normals;
 	vector<vec2> texCoords;
 	switch (shape) {
 		case Shape::Cube:
-			positions = { 
+			lightPositions = { 
 				vec3(-0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(-0.5, 0.5, 0.5),
 				vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
 				vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5),
@@ -460,7 +553,7 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 			// to-do
 			break;
 		case Shape::Plane:
-			positions = {
+			lightPositions = {
 				vec3(0.5, 0, 0.5),
 				vec3(-0.5, 0, 0.5),
 				vec3(-0.5, 0, -0.5),
@@ -483,27 +576,40 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 		default:
 			break;
 	}
-	colors = vector<vec4>(positions.size(), color);
-	vao = new VertexArrayObject(pipelineProgram, positions, colors, indices);
+	colors = vector<vec4>(lightPositions.size(), color);
+	vao = new VertexArrayObject(pipelineProgram, lightPositions, colors, indices);
 	vao->setNormals(normals);
 	vao->setTexCoords(texCoords);
 }
-
-void Renderer::setTexture(string imagePath) {
+void Renderer::setTexture(string imageName) {
+	textureType = GL_TEXTURE_2D;
+	vao->bindPipeline();
 	glGenTextures(1, &textureHandle);
-	int code = initTexture((getCurrentDirectory() + imagePath).c_str(), textureHandle);
+	int code = initTexture(imageName, textureHandle);
 	if (code != 0) {
 		printf("Error loading the texture image.\n");
-		exit(EXIT_FAILURE);
+		//exit(EXIT_FAILURE);
 	}
 }
-
+void Renderer::setTexture(string imageNames[6]) {
+	textureType = GL_TEXTURE_CUBE_MAP;
+	vao->bindPipeline();
+	glGenTextures(1, &textureHandle);
+	int code = initTexture(imageNames, textureHandle);
+	if (code != 0) {
+		printf("Error loading the texture image.\n");
+		//exit(EXIT_FAILURE);
+	}
+}
 void Renderer::onUpdate() {
 	if (!vao) return;
 
 	// set material data
 	BasicPipelineProgram* pipelineProgram = vao->pipelineProgram;
-	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
+
+	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "isLightingEnabled");
+	glUniform1i(loc, int(useLight && SceneManager::getInstance()->isLightingEnabled));
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
 	glUniform4f(loc, ambient[0], ambient[1], ambient[2], ambient[3]);
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
 	glUniform4f(loc, diffuse[0], diffuse[1], diffuse[2], diffuse[3]);
@@ -512,9 +618,8 @@ void Renderer::onUpdate() {
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
 	glUniform1f(loc, shininess);
 
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "eyePosition");
-	vec3 pos = Camera::currentCamera->getEntity()->transform->getPosition(true);
-	glUniform3f(loc, pos[0], pos[1], pos[2]);
+	glBindTexture(textureType, textureHandle);
+
 	// get matrices
 	float m[16], v[16], p[16], n[16];
 	mat4 modelMatrix = entity->getModelMatrix();
@@ -594,14 +699,21 @@ void Camera::onUpdate() {
 
 #pragma region Light
 Light::Light() {
-	ambient = vec4(0.4, 0.4, 0.4, 1);
-	diffuse = vec4(.8, .8, .8, 1);
-	specular = vec4(1, 1, 1, 1);
 	SceneManager::getInstance()->lights.push_back(this);
-
+	//ambient = vec4(0, 0, 0, 1);
+}
+Light::Mode Light::getMode() {
+	return mode;
 }
 void Light::onUpdate() {
 
+}
+void Light::setDirectional(vec3 direction) {
+	this->direction = normalize(direction);
+	mode = Directional;
+}
+void Light::setPoint() {
+	mode = Point;
 }
 #pragma endregion
 
@@ -647,17 +759,19 @@ void PlayerController::onUpdate() {
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
 	this->pipelineProgram = pipelineProgram;
 }
-VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices) {
+VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices) {
 	if (!pipelineProgram) {
 		printf("error: pipeline program cannot be null. \n");
 		return;
 	}
 	this->pipelineProgram = pipelineProgram;
-	setVertices(positions, colors, indices);
-	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
+	setVertices(lightPositions, colors, indices);
 }
-void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices) {
-	numVertices = positions.size();
+void VertexArrayObject::bindPipeline() {
+	pipelineProgram->Bind();
+}
+void VertexArrayObject::setVertices(vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices) {
+	numVertices = lightPositions.size();
 	numColors = colors.size();
 	numIndices = indices.size();
 	if (numVertices == 0) {
@@ -681,7 +795,7 @@ void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors,
 	// position data
 	glGenBuffers(1, &positionBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numVertices, &positions[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * numVertices, &lightPositions[0], GL_STATIC_DRAW);
 
 	// color data
 	glGenBuffers(1, &colorBuffer);
@@ -704,6 +818,8 @@ void VertexArrayObject::setVertices(vector<vec3> positions, vector<vec4> colors,
 	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 	glEnableVertexAttribArray(loc);
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
+
+	printf("Created VAO: numVertices %i, numColors %i, numIndices %i\n", numVertices, numColors, numIndices);
 }
 void VertexArrayObject::setNormals(vector<vec3> normals) {
 	numNormals = normals.size();
@@ -830,12 +946,13 @@ void RollerCoaster::render() {
 		return;
 	}
 
-	vector<vec3> normals;
-	vector<vec3> binormals;
+	vector<vec3> pointNormals;
+	vector<vec3> pointBinormals;
 
-	vector<vec3> positions;
+	vector<vec3> lightPositions;
 	vector<vec4> colors;
 	vector<int> indices;
+	vector<vec3> normals;
 
 	// calculate normals and binormals
 	for (int i = 0; i < numOfVertices; i++) {
@@ -847,40 +964,60 @@ void RollerCoaster::render() {
 			n = normalize(cross(t, v));
 		}
 		else {
-			n = normalize(cross(binormals[i - 1], t));
+			n = normalize(cross(pointBinormals[i - 1], t));
 		}
 		vec3 b = normalize(cross(t, n));
 
-		normals.push_back(n);
-		binormals.push_back(b);
+		pointNormals.push_back(n);
+		pointBinormals.push_back(b);
 
 		// calculate positions, colors and indices
 		vec3 v0 = p + size * (-n + b);
 		vec3 v1 = p + size * (n + b);
 		vec3 v2 = p + size * (n - b);
 		vec3 v3 = p + size * (-n - b);
-		positions.insert(positions.end(), { v0, v1, v2, v3 });
 
-		vec4 color = vec4(n, 1) * 255.0f;
-		colors.insert(colors.end(), { color, color, color, color });
+		vec4 color = vec4(1) * 255.0f;
 
-		if (i == 0 || i == numOfVertices - 1) {
-			int index = 4 * i;
-			indices.insert(indices.end(), { index, index + 1, index + 3, index + 2, RESTARTINDEX });
+		if (i == 0) {
+			lightPositions.insert(lightPositions.end(), { v0, v1, v2, v3 });
+
+			colors.insert(colors.end(), { color, color, color, color });
+
+			int index = 0;
+			indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 2, index + 3 });
+
+			normals.insert(normals.end(), { -t, -t, -t, -t });
 		}
+
+		lightPositions.insert(lightPositions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
+		colors.insert(colors.end(), { color, color, color, color, color, color, color, color });
+		normals.insert(normals.end(), { b, b, n, n, -b, -b, -n, -n });
 		if (i > 0) {
-			int index = 4 * (i - 1);
+			int index = 8 * (i - 1) + 4;
 			indices.insert(indices.end(),
-						   { index, index + 4, index + 1, index + 5,
-						   index + 2, index + 6, index + 3, index + 7,
-						   index, index + 4, RESTARTINDEX });
+						   { index, index + 8, index + 1, index + 1, index + 8, index + 9,
+						   index + 2, index + 10, index + 3, index + 3, index + 10, index + 11,
+						   index + 4, index + 12, index + 5, index + 5, index + 12, index + 13,
+						   index + 6, index + 14, index + 7, index + 7, index + 14, index + 15 });
+		}
+		if (i == numOfVertices - 1) {
+			lightPositions.insert(lightPositions.end(), { v0, v1, v2, v3 });
+
+			colors.insert(colors.end(), { color, color, color, color });
+
+			int index = 8 * i + 12;
+			indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 3, index + 2 });
+
+			normals.insert(normals.end(), { t, t, t, t });
 		}
 	}
-	vertexNormals = normals;
+	vertexNormals = pointNormals;
 
 	// set up renderer
-	renderer->vao->setVertices(positions, colors, indices);
-	renderer->drawMode = GL_TRIANGLE_STRIP;
+	renderer->vao->setVertices(lightPositions, colors, indices);
+	renderer->vao->setNormals(normals);
+	renderer->drawMode = GL_TRIANGLES;
 
 	// set up seat
 	seat = SceneManager::getInstance()->createEntity("Seat");

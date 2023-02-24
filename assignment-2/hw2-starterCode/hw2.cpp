@@ -40,6 +40,7 @@ using namespace glm;
 
 BasicPipelineProgram* milestonePipeline;
 BasicPipelineProgram* texturePipeline;
+BasicPipelineProgram* skyboxPipeline;
 
 
 int mousePos[2]; // x,y coordinate of the mouse position
@@ -55,6 +56,7 @@ CONTROL_STATE controlState = ROTATE;
 Entity* worldCamera;
 Entity* player;
 Entity* ground;
+Entity* sky;
 Entity* light;
 
 // controls
@@ -63,7 +65,7 @@ vec3 worldCameraAngles(0);
 vec4 moveInput(0); // w, s, a, d
 float verticalMove = 0.0f;
 float mouseSensitivity = 5.0f;
-float xAngleLimit= 85;
+float xAngleLimit = 85;
 bool isControllingPlayer = true;
 
 // display window
@@ -301,7 +303,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 		case 'c':
 			verticalMove = -1;
 			break;
-		// toggle screenshots recording
+			// toggle screenshots recording
 		case 'x':
 			isTakingScreenshot = !isTakingScreenshot;
 			break;
@@ -464,8 +466,8 @@ void initScene() {
 
 	// pipeline
 	milestonePipeline = SceneManager::getInstance()->createPipelineProgram(shaderDirectory + "/milestone");
-
 	texturePipeline = SceneManager::getInstance()->createPipelineProgram(shaderDirectory + "/texture");
+	skyboxPipeline = SceneManager::getInstance()->createPipelineProgram(shaderDirectory + "/skybox");
 
 	cout << "\nGL error: " << glGetError() << endl;
 }
@@ -487,14 +489,30 @@ void initObjects() {
 	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
-	Renderer* renderer = new Renderer(texturePipeline, Renderer::Shape::Plane);
-	renderer->setTexture(textureDirectory + "/Ground.jpg");
-	ground->addComponent(renderer);
+	Renderer* groundRenderer = new Renderer(texturePipeline, Renderer::Shape::Plane);
+	groundRenderer->setTexture(textureDirectory + "/Ground.jpg");
+	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, -1, 0), true);
-	ground->transform->setScale(vec3(100, 1, 100), true);
+	ground->transform->setScale(vec3(500, 1, 500), true);
 
+	sky = SceneManager::getInstance()->createEntity("Sky");
+	sky->transform->setPosition(vec3(0, 0, 0), true);
+	sky->transform->setScale(vec3(50, 50, 50), true);
+	Renderer* skyRenderer = new Renderer(skyboxPipeline, Renderer::Shape::Cube);
+	skyRenderer->useLight = false;
+	string skyboxImages[6] = { 
+		textureDirectory + "/right.jpg",
+		textureDirectory + "/left.jpg",
+		textureDirectory + "/top.jpg",
+		textureDirectory + "/bottom.jpg",
+		textureDirectory + "/back.jpg",
+		textureDirectory + "/front.jpg" };
+	skyRenderer->setTexture(skyboxImages);
+	sky->addComponent(skyRenderer);
 	light = SceneManager::getInstance()->createEntity("Light");
-	light->addComponent(new Light());
+	Light* directionalLight = new Light();
+	directionalLight->setDirectional();
+	light->addComponent(directionalLight);
 	light->transform->setPosition(vec3(0, 3, 0), true);
 
 	//auto* light2 = SceneManager::getInstance()->createEntity("Light");

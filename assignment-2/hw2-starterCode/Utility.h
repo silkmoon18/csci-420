@@ -127,10 +127,12 @@ public:
 private:
 	vector<BasicPipelineProgram*> pipelinePrograms;
 	vector<Entity*> entities; // all entities
-	vector<vec3> positions;
-	vector<vec4> ambients;
-	vector<vec4> diffuses;
-	vector<vec4> speculars;
+	vector<int> lightModes;
+	vector<vec3> lightDirections;
+	vector<vec3> lightPositions;
+	vector<vec4> lightAmbients;
+	vector<vec4> lightDiffuses;
+	vector<vec4> lightSpeculars;
 	vector<Light*> lights;
 
 	void setLightings();
@@ -262,6 +264,8 @@ public:
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
+	GLenum textureType = GL_TEXTURE_2D;
+	bool useLight = true;
 	vec4 ambient = vec4(1, 1, 1, 1); // ambient coefficient
 	vec4 diffuse = vec4(1, 1, 1, 1); // diffuse coefficient
 	vec4 specular = vec4(.9, .9, .9, 1); // specular coefficient
@@ -270,7 +274,10 @@ public:
 	Renderer(VertexArrayObject* vao);
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
-	void setTexture(string imagePath);
+	// Set 2d texture
+	void setTexture(string imageName);
+	// Set cube texture
+	void setTexture(string imageNames[6]);
 
 protected:
 	GLuint textureHandle;
@@ -331,14 +338,22 @@ protected:
 // Light
 class Light : public Component {
 public:
+	enum Mode {Directional, Point};
 
-	vec4 ambient; // ambient color
-	vec4 diffuse; // diffuse color
-	vec4 specular; // specular color
+	vec3 direction;
+	vec4 ambient = vec4(0.4, 0.4, 0.4, 1); // ambient color
+	vec4 diffuse = vec4(.8, .8, .8, 1); // diffuse color
+	vec4 specular = vec4(1, 1, 1, 1); // specular color
 
 	Light();
 
+	Mode getMode();
+	void setDirectional(vec3 direction = vec3(-1, -1, -1));
+	void setPoint();
+
 protected:
+	Mode mode = Point;
+
 	void onUpdate() override;
 };
 
@@ -369,10 +384,12 @@ public:
 	BasicPipelineProgram* pipelineProgram; 
 
 	VertexArrayObject(BasicPipelineProgram* pipelineProgram);
-	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> positions, vector<vec4> colors, vector<int> indices);
+	VertexArrayObject(BasicPipelineProgram* pipelineProgram, vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices);
 
+	// Bind pipeline
+	void bindPipeline();
 	// Set vertex positions, colors and indices data
-	void setVertices(vector<vec3> positions, vector<vec4> colors, vector<int> indices);
+	void setVertices(vector<vec3> lightPositions, vector<vec4> colors, vector<int> indices);
 	void setNormals(vector<vec3> normals);
 	void setTexCoords(vector<vec2> texCoords);
 	// Use model view matrix, projection matrix and draw mode to draw

@@ -28,8 +28,10 @@
     <ClInclude Include="Utility.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\basic.fragmentShader.glsl" />
-    <None Include="shaders\basic.vertexShader.glsl" />
+    <None Include="shaders\milestone\basic.fragmentShader.glsl" />
+    <None Include="shaders\milestone\basic.vertexShader.glsl" />
+    <None Include="shaders\skybox\basic.fragmentShader.glsl" />
+    <None Include="shaders\skybox\basic.vertexShader.glsl" />
     <None Include="shaders\texture\basic.fragmentShader.glsl" />
     <None Include="shaders\texture\basic.vertexShader.glsl" />
   </ItemGroup>

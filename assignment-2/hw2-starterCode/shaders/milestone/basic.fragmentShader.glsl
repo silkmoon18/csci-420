@@ -1,8 +1,14 @@
 #version 150
 
+//
+// Milestone vertex shader
+//
+
 const int MAX_LIGHT_AMOUNT = 10;
 
 uniform int numOfLights;
+uniform int lightModes[MAX_LIGHT_AMOUNT];
+uniform vec3 lightDirections[MAX_LIGHT_AMOUNT];
 uniform vec3 lightPositions[MAX_LIGHT_AMOUNT];
 uniform vec4 lightAmbients[MAX_LIGHT_AMOUNT];
 uniform vec4 lightDiffuses[MAX_LIGHT_AMOUNT];
@@ -27,7 +33,13 @@ void main()
     vec4 diffuse = vec4(0, 0, 0, 1);; 
     vec4 specular = vec4(0, 0, 0, 1);
     for (int i = 0; i < numOfLights; i++) {
-        vec3 lightVector = normalize(lightPositions[i] - fragmentPosition);
+        vec3 lightVector;
+        if (lightModes[i] == 0) {
+            lightVector = normalize(-lightDirections[i]);
+        }
+        else if (lightModes[i] == 1) {
+            lightVector = normalize(lightPositions[i] - fragmentPosition);
+        }
         ambient += ambientCoef * lightAmbients[i]; 
 
         float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
