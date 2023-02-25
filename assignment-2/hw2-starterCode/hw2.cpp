@@ -89,22 +89,22 @@ int currentFrame = 0;
 // ---assignment-2---
 
 // the spline array 
-Spline* splines;
+vector<Spline> splines;
 // total number of splines 
 int numSplines;
 
 // catmull-rom spline
 vector<Entity*> rollerCoasters;
 int currentCoasterIndex = -1;
+float activatableDistance = 5.0f;
 
 
 
 
 int loadSplines(char* argv) {
-	char* cName = (char*)malloc(128 * sizeof(char));
+	char* fileName = (char*)malloc(128 * sizeof(char));;
 	FILE* fileList;
 	FILE* fileSpline;
-	int iType, i = 0, j, iLength;
 
 	// load the track file 
 	fileList = fopen(argv, "r");
@@ -113,43 +113,31 @@ int loadSplines(char* argv) {
 		exit(1);
 	}
 
-	// stores the number of splines in a global variable 
-	fscanf(fileList, "%d", &numSplines);
-
-	splines = (Spline*)malloc(numSplines * sizeof(Spline));
-
 	// reads through the spline files 
-	for (j = 0; j < numSplines; j++) {
-		i = 0;
-		fscanf(fileList, "%s", cName);
-		fileSpline = fopen(cName, "r");
+	while (fscanf(fileList, "%s", fileName) != EOF) {
+		Spline spline;
+		fileSpline = fopen(fileName, "r");
 
 		if (fileSpline == NULL) {
 			printf("can't open file\n");
 			exit(1);
 		}
 
-		// gets length for spline file
-		fscanf(fileSpline, "%d %d", &iLength, &iType);
-
-		// allocate memory for all the points
-		splines[j].points = (Point*)malloc(iLength * sizeof(Point));
-		splines[j].numControlPoints = iLength;
-
+		float x, y, z;
 		// saves the data to the struct
-		while (fscanf(fileSpline, "%lf %lf %lf",
-					  &splines[j].points[i].x,
-					  &splines[j].points[i].y,
-					  &splines[j].points[i].z) != EOF) {
-			i++;
+		while (fscanf(fileSpline, "%f %f %f",
+					  &x,
+					  &y,
+					  &z) != EOF) {
+			spline.points.push_back(vec3(x, y, z));
 		}
+		spline.numControlPoints = spline.points.size();
+		splines.push_back(spline);
 	}
-
-	free(cName);
+	free(fileName);
 
 	return 0;
 }
-
 
 // write a screenshot to the specified filename
 void saveScreenshot() {
@@ -179,7 +167,6 @@ void saveScreenshot() {
 	delete[] screenshotData;
 }
 
-
 void HandleMouseInput(int mousePosDelta[2]) {
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
@@ -206,29 +193,38 @@ void HandleMouseInput(int mousePosDelta[2]) {
 		x -= angles->x + xAngleLimit;
 		angles->x = -xAngleLimit;
 	}
-	//quat pitch = angleAxis(radians(angles->x), worldRight);
-	//quat yaw = angleAxis(radians(angles->y), worldUp);
-	//player->transform->setRotation(yaw * pitch, true);
-
 	target->transform->rotateAround(y, worldUp, true);
 	target->transform->rotateAround(x, worldRight, false);
 }
+
 void createSplineObjects() {
-	for (int i = 0; i < numSplines; i++) {
-		Spline spline = splines[i];
+	Entity* coaster = SceneManager::getInstance()->createEntity("RollerCoaster");
+	coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
+	coaster->addComponent(new RollerCoaster(splines, true));
+	coaster->getComponent<RollerCoaster>()->render(vec3(0, 1, 0));
 
-		Entity* coaster = SceneManager::getInstance()->createEntity("RollerCoaster_" + to_string(rollerCoasters.size()));
-		coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
-		coaster->addComponent(new RollerCoaster(spline));
-		coaster->getComponent<RollerCoaster>()->render();
-		rollerCoasters.push_back(coaster);
-	}
-
+	rollerCoasters.push_back(coaster);
 	if (rollerCoasters.size() > 0) {
 		currentCoasterIndex = 0;
 	}
 }
 
+void ActivateRollerCoaster() {
+	float minDistance = INT_MAX;
+	int nearest = 0;
+	for (int i = 0; i < rollerCoasters.size(); i++) {
+		float d = distance(rollerCoasters[i]->getComponent<RollerCoaster>()->spline.points[0], player->transform->getPosition(true));
+		if (d < minDistance) {
+			minDistance = d;
+			nearest = i;
+		}
+	}
+	if (minDistance <= activatableDistance) {
+		rollerCoasters[nearest]->getComponent<RollerCoaster>()->carryTarget(player);
+		rollerCoasters[nearest]->getComponent<RollerCoaster>()->start();
+		printf("Roller coaster No.%i activated. \n", nearest + 1);
+	}
+}
 
 void idleFunc() {
 	// calculate delta time
@@ -252,8 +248,7 @@ void HandleMoveInput() {
 		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
-Entity* test;
-vec3 r(0);
+
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -277,6 +272,7 @@ void HandleJump() {
 		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
+
 void keyboardFunc(unsigned char key, int x, int y) {
 	switch (key) {
 		case 27: // ESC key
@@ -304,6 +300,9 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			verticalMove = -1;
 			break;
 			// toggle screenshots recording
+		case 'e':
+			ActivateRollerCoaster();
+			break;
 		case 'x':
 			isTakingScreenshot = !isTakingScreenshot;
 			break;
@@ -489,11 +488,10 @@ void initObjects() {
 	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
-	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane());
+	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(500, 500));
 	groundRenderer->setTexture(textureDirectory + "/ground.jpg");
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, -1, 0), true);
-	ground->transform->setScale(vec3(500, 1, 500), true);
 
 	string skyboxImages[6] = {
 		textureDirectory + "/right.jpg",
@@ -514,10 +512,11 @@ void initObjects() {
 	//light2->addComponent(new Light());
 	//light2->transform->setPosition(vec3(0, 3, 50), true);
 
-	Entity* test = SceneManager::getInstance()->createEntity("test");
-	test->transform->setPosition(vec3(0, 3, 0), true);
-	Renderer* testRenderer = new Renderer(milestonePipeline, makeSphere());
-	test->addComponent(testRenderer);
+	//Entity* test = SceneManager::getInstance()->createEntity("test");
+	//test->transform->setPosition(vec3(0, 3, 0), true);
+	//Renderer* testRenderer = new Renderer(texturePipeline, makeSphere());
+	//testRenderer->setTexture(skyboxImages);
+	//test->addComponent(testRenderer);
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 

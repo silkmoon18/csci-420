@@ -753,6 +753,7 @@ void Renderer::setTexture(string imageNames[6]) {
 void Renderer::onUpdate() {
 	if (!vao) return;
 
+	vao->bindPipeline();
 	// set material data
 	BasicPipelineProgram* pipelineProgram = vao->pipelineProgram;
 
@@ -783,7 +784,7 @@ void Renderer::onUpdate() {
 #pragma endregion
 
 #pragma region Physics
-Physics::Physics(float minDistance, bool checkGround) {
+Physics::Physics(bool checkGround, float minDistance) {
 	this->minDistance = minDistance;
 	this->checkGround = checkGround;
 }
@@ -798,7 +799,8 @@ void Physics::onUpdate() {
 		position += 0.5f * GRAVITY * deltaTime * deltaTime;
 		isOnGround = false;
 	}
-	if (position.y <= minY) {
+
+	if (checkGround && position.y <= minY) {
 		velocity.y = 0;
 		position.y = minY;
 		isOnGround = true;
@@ -1027,29 +1029,72 @@ void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum draw
 }
 #pragma endregion
 
+void RollerCoaster::subdivide(float u0, float u1, float maxLength, mat3x4 control) {
+	float umid = (u0 + u1) / 2;
+
+	vec4 uVector0(u0 * u0 * u0, u0 * u0, u0, 1);
+	vec3 point0 = uVector0 * BASIS * control;
+	vec4 uVector1(u1 * u1 * u1, u1 * u1, u1, 1);
+	vec3 point1 = uVector1 * BASIS * control;
+	if (distance(uVector0, uVector1) > maxLength) {
+		subdivide(u0, umid, maxLength, control);
+		subdivide(umid, u1, maxLength, control);
+	}
+	else {
+		vertexPositions.push_back(point0);
+		vertexPositions.push_back(point1);
+
+		vec4 uPrime0(3 * u0 * u0, 2 * u0, 1, 0);
+		vec4 uPrime1(3 * u1 * u1, 2 * u1, 1, 0);
+		vertexTangents.push_back(normalize(uPrime0 * BASIS * control));
+		vertexTangents.push_back(normalize(uPrime1 * BASIS * control));
+	}
+}
 #pragma region RollerCoaster
-RollerCoaster::RollerCoaster(Spline spline, int numOfStepsPerSegment) {
+RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scale, float maxLineLength) {
+	this->closedPath = closedPath;
+	this->maxLineLength = maxLineLength;
+
+	Spline spline;
+	vec3 offset = vec3(0);
+
+	spline.points.push_back(scale * splines[0].points[0] + offset);
+	spline.numControlPoints++;
+	for (int i = 0; i < splines.size(); i++) {
+		if (i > 0) offset -= splines[i].points[0];
+
+		spline.numControlPoints += splines[i].numControlPoints;
+		for (int j = 0; j < splines[i].numControlPoints; j++) {
+			spline.points.push_back(scale * splines[i].points[j] + offset);
+
+			if (i == splines.size() - 1 && j == splines[i].numControlPoints - 1) {
+				if (closedPath) {
+					spline.points.push_back(scale * splines[0].points[0] + offset);
+					spline.points.push_back(scale * splines[0].points[0] + offset);
+					spline.numControlPoints += 2;
+				}
+				else {
+					spline.points.push_back(scale * splines[i].points[j] + offset);
+					spline.numControlPoints++;
+				}
+			}
+		}
+		offset = splines[i].points[splines[i].numControlPoints - 1];
+	}
+	this->spline = spline;
+
 	// calculate data from spline
 	for (int j = 1; j < spline.numControlPoints - 2; j++) {
+		if (j == spline.numControlPoints - 4) {
+			startClosingIndex = vertexPositions.size() - 1;
+		}
 		mat3x4 control = mat3x4(
 			spline.points[j - 1].x, spline.points[j].x, spline.points[j + 1].x, spline.points[j + 2].x,
 			spline.points[j - 1].y, spline.points[j].y, spline.points[j + 1].y, spline.points[j + 2].y,
 			spline.points[j - 1].z, spline.points[j].z, spline.points[j + 1].z, spline.points[j + 2].z
 		);
 
-		// calculate positions and tangents
-		float delta = 1.0f / numOfStepsPerSegment;
-		for (int k = 0; k < numOfStepsPerSegment + 1; k++) {
-			float u = k * 1.0f / numOfStepsPerSegment;
-			vec4 uVector(u * u * u, u * u, u, 1);
-			vec3 point = uVector * BASIS * control;
-			vertexPositions.push_back(point);
-
-			vec4 uPrime(3 * u * u, 2 * u, 1, 0);
-			vertexTangents.push_back(normalize(uPrime * BASIS * control));
-
-			u += delta;
-		}
+		subdivide(0, 1, maxLineLength, control);
 	}
 	currentVertexIndex = 0;
 	numOfVertices = vertexPositions.size();
@@ -1081,9 +1126,16 @@ vec3 RollerCoaster::getCurrentDirection() {
 vec3 RollerCoaster::getCurrentNormal() {
 	return vertexNormals[currentVertexIndex];
 }
-void RollerCoaster::start(bool isRepeating, bool isTwoWay) {
+void RollerCoaster::carryTarget(Entity* target) {
+	Component* physics = target->getComponent<Physics>();
+	if (physics) {
+		physics->setActive(false);
+	}
+	target->setParent(seat);
+	target->transform->setPosition(vec3(0, 1, 0), false);
+}
+void RollerCoaster::start(bool isRepeating) {
 	this->isRepeating = isRepeating;
-	this->isTwoWay = isTwoWay;
 	setActive(true);
 }
 void RollerCoaster::pause() {
@@ -1094,12 +1146,14 @@ void RollerCoaster::reset() {
 	currentVertexIndex = 0;
 	moveSeat();
 }
-void RollerCoaster::render() {
+void RollerCoaster::render(vec3 normal) {
 	Renderer* renderer = entity->getComponent<Renderer>();
 	if (!renderer) {
 		printf("Error: cannot find Renderer to render the RollerCoaster. \n");
 		return;
 	}
+
+	normal = normalize(normal);
 
 	vector<vec3> pointNormals;
 	vector<vec3> pointBinormals;
@@ -1115,8 +1169,11 @@ void RollerCoaster::render() {
 		vec3 t = vertexTangents[i];
 		vec3 n;
 		if (i == 0) {
-			vec3 v(1, 0, 0);
-			n = normalize(cross(t, v));
+			n = normal;
+		}
+		else if (closedPath && i >= startClosingIndex) {
+			n = mix(pointNormals[startClosingIndex - 1], pointNormals[0],
+					(i - startClosingIndex) / (float)(numOfVertices - startClosingIndex));
 		}
 		else {
 			n = normalize(cross(pointBinormals[i - 1], t));
@@ -1134,37 +1191,52 @@ void RollerCoaster::render() {
 
 		vec4 color = vec4(1) * 255.0f;
 
-		if (i == 0) {
-			positions.insert(positions.end(), { v0, v1, v2, v3 });
-
-			colors.insert(colors.end(), { color, color, color, color });
-
-			int index = 0;
-			indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 2, index + 3 });
-
-			normals.insert(normals.end(), { -t, -t, -t, -t });
+		if (closedPath) {
+			positions.insert(positions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
+			colors.insert(colors.end(), { color, color, color, color, color, color, color, color });
+			normals.insert(normals.end(), { b, b, n, n, -b, -b, -n, -n });
+			if (i > 0) {
+				int index = 8 * (i - 1);
+				indices.insert(indices.end(),
+							   { index, index + 8, index + 1, index + 1, index + 8, index + 9,
+							   index + 2, index + 10, index + 3, index + 3, index + 10, index + 11,
+							   index + 4, index + 12, index + 5, index + 5, index + 12, index + 13,
+							   index + 6, index + 14, index + 7, index + 7, index + 14, index + 15 });
+			}
 		}
+		else {
+			if (i == 0) {
+				positions.insert(positions.end(), { v0, v1, v2, v3 });
 
-		positions.insert(positions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
-		colors.insert(colors.end(), { color, color, color, color, color, color, color, color });
-		normals.insert(normals.end(), { b, b, n, n, -b, -b, -n, -n });
-		if (i > 0) {
-			int index = 8 * (i - 1) + 4;
-			indices.insert(indices.end(),
-						   { index, index + 8, index + 1, index + 1, index + 8, index + 9,
-						   index + 2, index + 10, index + 3, index + 3, index + 10, index + 11,
-						   index + 4, index + 12, index + 5, index + 5, index + 12, index + 13,
-						   index + 6, index + 14, index + 7, index + 7, index + 14, index + 15 });
-		}
-		if (i == numOfVertices - 1) {
-			positions.insert(positions.end(), { v0, v1, v2, v3 });
+				colors.insert(colors.end(), { color, color, color, color });
 
-			colors.insert(colors.end(), { color, color, color, color });
+				int index = 0;
+				indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 2, index + 3 });
 
-			int index = 8 * i + 12;
-			indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 3, index + 2 });
+				normals.insert(normals.end(), { -t, -t, -t, -t });
+			}
 
-			normals.insert(normals.end(), { t, t, t, t });
+			positions.insert(positions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
+			colors.insert(colors.end(), { color, color, color, color, color, color, color, color });
+			normals.insert(normals.end(), { b, b, n, n, -b, -b, -n, -n });
+			if (i > 0) {
+				int index = 8 * (i - 1) + 4;
+				indices.insert(indices.end(),
+							   { index, index + 8, index + 1, index + 1, index + 8, index + 9,
+							   index + 2, index + 10, index + 3, index + 3, index + 10, index + 11,
+							   index + 4, index + 12, index + 5, index + 5, index + 12, index + 13,
+							   index + 6, index + 14, index + 7, index + 7, index + 14, index + 15 });
+			}
+			if (i == numOfVertices - 1) {
+				positions.insert(positions.end(), { v0, v1, v2, v3 });
+
+				colors.insert(colors.end(), { color, color, color, color });
+
+				int index = 8 * i + 12;
+				indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 3, index + 2 });
+
+				normals.insert(normals.end(), { t, t, t, t });
+			}
 		}
 	}
 	vertexNormals = pointNormals;
@@ -1178,16 +1250,33 @@ void RollerCoaster::render() {
 
 	// set up seat
 	seat = SceneManager::getInstance()->createEntity("Seat");
-	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube()));
 	seat->setParent(entity);
+	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, makeSphere()));
 	moveSeat();
+
+	//Entity* saddle = SceneManager::getInstance()->createEntity("Saddle");
+	//saddle->transform->setPosition(vec3(0, -0.45, 0), false);
+	//saddle->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 0.1, 1)));
+	//saddle->setParent(seat);
+
+	//Entity* back = SceneManager::getInstance()->createEntity("Back");
+	//back->setParent(seat);
+	//back->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 1, 0.1)));
+	//back->transform->setPosition(vec3(0, 0.1, 0.45), false);
 }
 void RollerCoaster::moveSeat() {
-	seat->transform->setPosition(getCurrentPosition(), false);
+	seat->transform->setPosition(getCurrentPosition(), true);
 	seat->transform->faceTo(seat->transform->getPosition(true) + getCurrentDirection(), getCurrentNormal());
 }
 void RollerCoaster::onUpdate() {
-	float step = speed * Timer::getInstance()->getDeltaTime();
+	float deltaTime = Timer::getInstance()->getDeltaTime();
+	float drag = dot(-vertexTangents[currentVertexIndex], Physics::GRAVITY);
+	speed -= drag * deltaTime;
+	if (speed < minSpeed) {
+		speed = minSpeed;
+	}
+	float step = speed * deltaTime;
+
 	// consume step
 	while (step > 0) {
 		float distanceToNext = vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
@@ -1205,11 +1294,12 @@ void RollerCoaster::onUpdate() {
 			}
 			else {
 				reset();
-				start(isTwoWay);
+				start();
 			}
 		}
 	}
 	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+
 	moveSeat();
 }
 #pragma endregion

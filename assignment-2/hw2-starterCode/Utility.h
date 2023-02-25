@@ -321,7 +321,7 @@ public:
 	bool isOnGround = false; // is ground reached
 	float minDistance = 0; // min distance limit to ground y-axis
 
-	Physics(float minDistance, bool checkGround = true);
+	Physics(bool checkGround = true, float minDistance = 0.0f);
 
 protected:
 	void onUpdate() override;
@@ -428,18 +428,11 @@ private:
 	int numVertices, numColors, numIndices, numNormals, numTexCoords;
 };
 
-// represents one control point along the spline 
-struct Point {
-	double x;
-	double y;
-	double z;
-};
-
 // spline struct 
 // contains how many control points the spline has, and an array of control points 
 struct Spline {
-	int numControlPoints;
-	Point* points;
+	int numControlPoints = 0;
+	vector<vec3> points;
 };
 
 // Based on catmull-rom spline
@@ -455,10 +448,12 @@ public:
 			S - 2, 3 - 2 * S, S, 0,
 			S, -S, 0, 0
 		);
+	Spline spline;
 	float speed = 10.0f;
+	float minSpeed = 5.0f;
 	Entity* seat = nullptr; // to be moved by coaster when performing
 
-	RollerCoaster(Spline spline, int numOfStepsPerSegment = 1000);
+	RollerCoaster(vector<Spline> splines, bool closedPath, float scale = 10.0f, float maxLineLength = 0.01f);
 
 	// Get current point position
 	vec3 getCurrentPosition();
@@ -466,19 +461,21 @@ public:
 	vec3 getCurrentDirection();
 	// Get current point normal
 	vec3 getCurrentNormal();
+	void carryTarget(Entity* target);
 	// Start the coaster
-	void start(bool isRepeating = true, bool isTwoWay = true);
+	void start(bool isRepeating = true);
 	// Pause the coaster
 	void pause();
 	// Reset the coaster
 	void reset();
 	// Generate the coaster from given spline data
-	void render();
+	void render(vec3 normal);
 
 protected:
+	float maxLineLength = 0.01f;
+	int startClosingIndex = -1;
+	bool closedPath = true;
 	bool isRepeating = false; // is repeating after finished
-	bool isTwoWay = true; // is the coaster moving two-way
-	bool isGoingForward = true; // is the coaster moving forward (used when isTwoWay is true)
 	float size = 0.5f; // size of the cross-section of the roller coaster
 	vector<vec3> vertexPositions;
 	vector<vec3> vertexNormals;
@@ -490,6 +487,8 @@ protected:
 
 	// Move seat to current vertex position
 	void moveSeat(); 
+	void subdivide(float u0, float u1, float maxLength, mat3x4 control);
+
 	void onUpdate() override;
 };
 
