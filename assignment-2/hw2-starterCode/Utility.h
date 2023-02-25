@@ -39,6 +39,8 @@ class PlayerController;
 class VertexArrayObject;
 class RollerCoaster;
 
+struct Shape;
+
 
 const float EPSILON = 0.000001f; // epsilon used for comparing vec3
 const int RESTARTINDEX = -1; // index for glPrimitiveRestartIndex
@@ -66,6 +68,11 @@ int initTexture(const char* imageFilename, GLuint textureHandle);
 // get current directory
 string getCurrentDirectory();
 
+Shape makePlane(float width = 1.0f, float length = 1.0f);
+Shape makeCube(float width = 1.0f, float length = 1.0f, float height = 1.0f);
+Shape makeSphere(float radius = 0.5f, int resolution = 50);
+Shape makeCylinder(float radius = 0.5f, float height = 1.0f, int resolution = 50);
+
 // Get type of a class
 template<class T> string getType(); 
 // Get type of an object
@@ -75,6 +82,23 @@ template<class T> string getType(T obj);
 void log(vec3 v, bool endOfLine = true); 
 // Debug log quat
 void log(quat q, bool endOfLine = true); 
+
+
+
+struct Shape {
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode;
+
+	Shape(
+		vector<vec3> positions,
+		vector<int> indices,
+		vector<vec3> normals,
+		vector<vec2> texCoords,
+		GLenum drawMode = GL_POINTS);
+};
 
 
 // Base class for singletons
@@ -256,21 +280,6 @@ private:
 	void onUpdate() override;
 };
 
-class Shape {
-public:
-	// Preset shapes
-	enum Type { Cube, Sphere, Cylinder, Plane };
-
-	vector<vec3> positions;
-	vector<int> indices;
-	vector<vec4> colors;
-	vector<vec3> normals;
-	vector<vec2> texCoords;
-	GLenum drawMode = GL_POINTS;
-
-	Shape(Type type);
-};
-
 // Entity renderer
 class Renderer : public Component {
 public:
@@ -287,7 +296,7 @@ public:
 	float shininess = 0; // shininess coefficient
 
 	Renderer(VertexArrayObject* vao, GLenum drawMode);
-	Renderer(BasicPipelineProgram* pipelineProgram, Shape::Type shapeType);
+	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
 	// Set 2d texture
 	void setTexture(string imageName);

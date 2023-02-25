@@ -489,7 +489,7 @@ void initObjects() {
 	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
-	Renderer* groundRenderer = new Renderer(texturePipeline, Shape::Type::Plane);
+	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane());
 	groundRenderer->setTexture(textureDirectory + "/ground.jpg");
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, -1, 0), true);
@@ -513,6 +513,11 @@ void initObjects() {
 	//auto* light2 = SceneManager::getInstance()->createEntity("Light");
 	//light2->addComponent(new Light());
 	//light2->transform->setPosition(vec3(0, 3, 50), true);
+
+	Entity* test = SceneManager::getInstance()->createEntity("test");
+	test->transform->setPosition(vec3(0, 3, 0), true);
+	Renderer* testRenderer = new Renderer(milestonePipeline, makeSphere());
+	test->addComponent(testRenderer);
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 

@@ -209,6 +209,194 @@ string getCurrentDirectory() {
 	return filesystem::current_path().string();
 }
 
+Shape makePlane(float width, float length) {
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode = GL_TRIANGLES;
+
+	float x = width / 2.0f;
+	float z = length / 2.0f;
+	positions = {
+		vec3(x, 0, z),
+		vec3(-x, 0, z),
+		vec3(-x, 0, -z),
+		vec3(x, 0, -z) }
+	;
+	normals = {
+		vec3(0, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 0) }
+	;
+	indices = { 0, 1, 2, 0, 2, 3 };
+	texCoords = {
+		vec2(1, 0),
+		vec2(0, 0),
+		vec2(0, 1),
+		vec2(1, 1) };
+
+	return Shape(positions, indices, normals, texCoords, drawMode);
+}
+Shape makeCube(float width, float length, float height) {
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode = GL_TRIANGLES;
+
+	float x = width / 2.0f;
+	float y = height / 2.0f;
+	float z = length / 2.0f;
+	positions = {
+		vec3(-x, -y, z), vec3(x, -y, z), vec3(-x, y, z),
+		vec3(x, y, z), vec3(-x, y, z), vec3(x, y, z),
+		vec3(-x, y, -z), vec3(x, y, -z), vec3(-x, y, -z),
+		vec3(x, y, -z), vec3(-x, -y, -z), vec3(x, -y, -z),
+		vec3(-x, -y, -z), vec3(x, -y, -z), vec3(-x, -y, z),
+		vec3(x, -y, z), vec3(x, -y, z), vec3(x, -y, -z),
+		vec3(x, y, z), vec3(x, y, -z), vec3(-x, -y, -z),
+		vec3(-x, -y, z), vec3(-x, y, -z), vec3(-x, y, z) };
+
+	normals = {
+		vec3(0, 0, 1), vec3(0, 0, 1), vec3(0, 0, 1),
+		vec3(0, 0, 1), vec3(0, 1, 0), vec3(0, 1, 0),
+		vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 0, -1),
+		vec3(0, 0, -1), vec3(0, 0, -1), vec3(0, 0, -1),
+		vec3(0, -1, 0), vec3(0, -1, 0), vec3(0, -1, 0),
+		vec3(0, -1, 0), vec3(1, 0, 0), vec3(1, 0, 0),
+		vec3(1, 0, 0), vec3(1, 0, 0), vec3(-1, 0, 0),
+		vec3(-1, 0, 0), vec3(-1, 0, 0), vec3(-1, 0, 0) };
+
+	indices = { 0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7, 8, 9, 10, 10, 9, 11, 12, 13, 14, 14, 13, 15, 16, 17, 18, 18, 17, 19, 20, 21, 22, 22, 21, 23 };
+
+	return Shape(positions, indices, normals, texCoords, drawMode);
+}
+Shape makeSphere(float radius, int resolution) {
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode = GL_TRIANGLES;
+
+	float rad = radians(360.0f / resolution);
+	float stackAngle = radians(90.0f) - rad;
+	float sectorAngle = radians(0.0f);
+
+	positions.push_back(vec3(0, radius, 0));
+	normals.push_back(vec3(0, radius, 0));
+
+	int index = 0;
+	for (int i = 1; i < resolution / 2; i++) {
+		for (int j = 0; j < resolution; j++) {
+			float x = radius * cos(stackAngle) * cos(sectorAngle);
+			float y = radius * sin(stackAngle);
+			float z = radius * cos(stackAngle) * sin(sectorAngle);
+
+			positions.push_back(vec3(x, y, z));
+			normals.push_back(vec3(x, y, z));
+
+			sectorAngle += rad;
+			index = (i - 1) * resolution + j;
+
+			if (i == 1) {
+				indices.push_back(0);
+				indices.push_back(index + 1);
+				if (j == resolution - 1) indices.push_back(1);
+				else indices.push_back(index + 2);
+			}
+			else {
+				index++;
+
+				indices.push_back(index - resolution);
+				if (j == resolution - 1) indices.push_back(index - 2 * resolution + 1);
+				else indices.push_back(index + 1 - resolution);
+				indices.push_back(index);
+
+				if (j == resolution - 1) indices.push_back(index + 1 - resolution);
+				else indices.push_back(index + 1);
+				indices.push_back(index);
+				if (j == resolution - 1) indices.push_back(index - 2 * resolution + 1);
+				else indices.push_back(index + 1 - resolution);
+			}
+		}
+		stackAngle -= rad;
+	}
+
+	positions.push_back(vec3(0, -radius, 0));
+	normals.push_back(vec3(0, -radius, 0));
+
+	for (int i = index - resolution + 1; i < index + 1; i++) {
+		indices.push_back(i);
+		if (i == index) indices.push_back(index - resolution + 1);
+		else indices.push_back(i + 1);
+		indices.push_back(index + 1);
+	}
+
+	return Shape(positions, indices, normals, texCoords, drawMode);
+}
+Shape makeCylinder(float radius, float height, int resolution) {
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode = GL_TRIANGLES;
+
+	float rad = radians(360.0f / resolution);
+	float prevX = 0;
+	float prevZ = radius;
+	for (int i = 0; i < resolution; i++) {
+		float x = prevX * cos(rad) - prevZ * sin(rad);
+		float y = height / 2;
+		float z = prevZ * cos(rad) + prevX * sin(rad);
+
+		positions.push_back(vec3(x, y, z));
+		positions.push_back(vec3(x, -y, z));
+
+		normals.push_back(vec3(x, 0, z));
+		normals.push_back(vec3(x, 0, z));
+
+		prevX = x;
+		prevZ = z;
+
+		int index = 2 * i;
+		if (i == resolution - 1) {
+			indices.push_back(index);
+			indices.push_back(0);
+			indices.push_back(index + 1);
+
+			indices.push_back(1);
+			indices.push_back(index + 1);
+			indices.push_back(0);
+		}
+		else {
+			indices.push_back(index);
+			indices.push_back(index + 2);
+			indices.push_back(index + 1);
+
+			indices.push_back(index + 3);
+			indices.push_back(index + 1);
+			indices.push_back(index + 2);
+		}
+	}
+
+	return Shape(positions, indices, normals, texCoords, drawMode);
+}
+
+Shape::Shape(
+	vector<vec3> positions,
+	vector<int> indices,
+	vector<vec3> normals,
+	vector<vec2> texCoords,
+	GLenum drawMode) {
+	this->positions = positions;
+	this->indices = indices;
+	this->normals = normals;
+	this->texCoords = texCoords;
+	this->drawMode = drawMode;
+}
+
 #pragma region Timer
 float Timer::getDeltaTime() {
 	return deltaTime;
@@ -244,7 +432,7 @@ void SceneManager::setLightings() {
 		pipeline->Bind();
 
 		GLuint handle = pipeline->GetProgramHandle();
-		
+
 		if (!isLightingEnabled) continue;
 
 		GLuint loc = glGetUniformLocation(handle, "numOfLights");
@@ -279,11 +467,11 @@ Entity* SceneManager::createEntity(string name) {
 Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textureNames[6]) {
 	skybox = new Entity("Skybox");
 	skybox->transform->setPosition(vec3(0, 0, 0), true);
-	Shape* shape = new Shape(Shape::Type::Cube);
+	Shape* shape = new Shape(makeCube());
 	VertexArrayObject* vao = new VertexArrayObject(pipeline);
 	vao->setPositions(shape->positions);
 	vao->setIndices(shape->indices);
-	vao->setColors(shape->colors);
+	vao->setColors(vector<vec4>(shape->positions.size(), vec4(255)));
 	Renderer* skyRenderer = new Renderer(vao, shape->drawMode);
 	skyRenderer->useLight = false;
 	skyRenderer->setTexture(textureNames);
@@ -531,75 +719,13 @@ void Component::update() {
 }
 #pragma endregion
 
-#pragma region Shape
-Shape::Shape(Type type) {
-	switch (type) {
-		case Shape::Cube:
-			positions = {
-				vec3(-0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(-0.5, 0.5, 0.5),
-				vec3(0.5, 0.5, 0.5), vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
-				vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, 0.5, -0.5),
-				vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5), vec3(0.5, -0.5, -0.5),
-				vec3(-0.5, -0.5, -0.5), vec3(0.5, -0.5, -0.5), vec3(-0.5, -0.5, 0.5),
-				vec3(0.5, -0.5, 0.5), vec3(0.5, -0.5, 0.5), vec3(0.5, -0.5, -0.5),
-				vec3(0.5, 0.5, 0.5), vec3(0.5, 0.5, -0.5), vec3(-0.5, -0.5, -0.5),
-				vec3(-0.5, -0.5, 0.5), vec3(-0.5, 0.5, -0.5), vec3(-0.5, 0.5, 0.5) };
-
-			normals = {
-				vec3(0, 0, 1), vec3(0, 0, 1), vec3(0, 0, 1),
-				vec3(0, 0, 1), vec3(0, 1, 0), vec3(0, 1, 0),
-				vec3(0, 1, 0), vec3(0, 1, 0), vec3(0, 0, -1),
-				vec3(0, 0, -1), vec3(0, 0, -1), vec3(0, 0, -1),
-				vec3(0, -1, 0), vec3(0, -1, 0), vec3(0, -1, 0),
-				vec3(0, -1, 0), vec3(1, 0, 0), vec3(1, 0, 0),
-				vec3(1, 0, 0), vec3(1, 0, 0), vec3(-1, 0, 0),
-				vec3(-1, 0, 0), vec3(-1, 0, 0), vec3(-1, 0, 0) };
-
-			indices = { 0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7, 8, 9, 10, 10, 9, 11, 12, 13, 14, 14, 13, 15, 16, 17, 18, 18, 17, 19, 20, 21, 22, 22, 21, 23 };
-			drawMode = GL_TRIANGLES;
-			break;
-		case Shape::Sphere:
-			// to-do
-			break;
-		case Shape::Cylinder:
-			// to-do
-			break;
-		case Shape::Plane:
-			positions = {
-				vec3(0.5, 0, 0.5),
-				vec3(-0.5, 0, 0.5),
-				vec3(-0.5, 0, -0.5),
-				vec3(0.5, 0, -0.5) }
-			;
-			normals = {
-				vec3(0, 1, 0),
-				vec3(0, 1, 0),
-				vec3(0, 1, 0),
-				vec3(0, 1, 0) }
-			;
-			indices = { 0, 1, 2, 0, 2, 3 };
-			texCoords = {
-				vec2(1, 0),
-				vec2(0, 0),
-				vec2(0, 1),
-				vec2(1, 1) };
-			drawMode = GL_TRIANGLES;
-			break;
-		default:
-			break;
-	}
-	colors = vector<vec4>(positions.size(), vec4(255));
-}
-#pragma endregion
-
 #pragma region Renderer
 Renderer::Renderer(VertexArrayObject* vao, GLenum drawMode) {
 	this->vao = vao;
 	this->drawMode = drawMode;
 }
-Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape::Type shapeType) {
-	Shape shape(shapeType);
-	vao = new VertexArrayObject(pipelineProgram, shape.positions, shape.colors, shape.indices);
+Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
+	vao = new VertexArrayObject(pipelineProgram, shape.positions, vector<vec4>(shape.positions.size(), color), shape.indices);
 	vao->setNormals(shape.normals);
 	vao->setTexCoords(shape.texCoords);
 	drawMode = shape.drawMode;
@@ -790,7 +916,7 @@ VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
 }
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram,
 									 vector<vec3> positions,
-									 vector<vec4> colors, 
+									 vector<vec4> colors,
 									 vector<int> indices) : VertexArrayObject(pipelineProgram) {
 	setPositions(positions);
 	setColors(colors);
@@ -819,7 +945,7 @@ void VertexArrayObject::setPositions(vector<vec3> positions) {
 	glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
 void VertexArrayObject::setColors(vector<vec4> colors) {
-	numColors = colors.size(); 
+	numColors = colors.size();
 	if (numColors == 0) {
 		printf("\nerror: the number of colors cannot be 0. \n");
 		return;
@@ -838,7 +964,7 @@ void VertexArrayObject::setColors(vector<vec4> colors) {
 	glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void*)0);
 }
 void VertexArrayObject::setIndices(vector<int> indices) {
-	numIndices = indices.size(); 
+	numIndices = indices.size();
 	if (numIndices == 0) {
 		printf("\nerror: the number of indices cannot be 0. \n");
 		return;
@@ -848,7 +974,7 @@ void VertexArrayObject::setIndices(vector<int> indices) {
 	// index data
 	glGenBuffers(1, &indexBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int)* numIndices, &indices[0], GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * numIndices, &indices[0], GL_STATIC_DRAW);
 }
 void VertexArrayObject::setNormals(vector<vec3> normals) {
 	numNormals = normals.size();
@@ -1052,7 +1178,7 @@ void RollerCoaster::render() {
 
 	// set up seat
 	seat = SceneManager::getInstance()->createEntity("Seat");
-	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, Shape::Type::Cube));
+	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube()));
 	seat->setParent(entity);
 	moveSeat();
 }
