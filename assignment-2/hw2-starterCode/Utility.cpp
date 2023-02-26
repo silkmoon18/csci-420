@@ -63,7 +63,7 @@ int initTexture(string imageName, GLuint textureHandle) {
 
 	// check that the number of bytes is a multiple of 4
 	if (img.getWidth() * img.getBytesPerPixel() % 4) {
-		printf("!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+		printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
 		return -1;
 	}
 
@@ -142,7 +142,7 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 
 		// check that the number of bytes is a multiple of 4
 		if (img.getWidth() * img.getBytesPerPixel() % 4) {
-			printf("!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+			printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
 			return -1;
 		}
 
@@ -380,6 +380,41 @@ Shape makeCylinder(float radius, float height, int resolution) {
 			indices.push_back(index + 2);
 		}
 	}
+
+	return Shape(positions, indices, normals, texCoords, drawMode);
+}
+Shape makeTetrahedron(float width, float height) {
+	vector<vec3> positions;
+	vector<int> indices;
+	vector<vec3> normals;
+	vector<vec2> texCoords;
+	GLenum drawMode = GL_TRIANGLES;
+
+	float x = width / 2.0f;
+	float y = height;
+	float z = sqrt(3) * x / 2;
+	float topZ = z - x / sqrt(3);
+	positions = {
+		vec3(x, 0, z), vec3(-x, 0, z), vec3(0, 0, -z),
+		vec3(x, 0, z), vec3(-x, 0, z), vec3(0, y, topZ),
+		vec3(-x, 0, z), vec3(0, 0, -z), vec3(0, y, topZ),
+		vec3(x, 0, z), vec3(0, 0, -z), vec3(0, y, topZ) };
+
+	vec3 bottomNormal = vec3(0, -1, 0);
+	vec3 frontNormal = normalize(cross(positions[0] - positions[5], positions[0] - positions[1]));
+	vec3 leftBackNormal = normalize(cross(positions[1] - positions[5], positions[1] - positions[2]));
+	vec3 rightBackNormal = normalize(cross(positions[0] - positions[2], positions[0] - positions[5]));
+	normals = {
+		bottomNormal, bottomNormal, bottomNormal,
+		frontNormal, frontNormal, frontNormal,
+		leftBackNormal, leftBackNormal, leftBackNormal,
+		rightBackNormal, rightBackNormal, rightBackNormal };
+
+	indices = {
+		0, 1, 2,
+		3, 4, 5,
+		6, 7, 8,
+		9, 10, 11};
 
 	return Shape(positions, indices, normals, texCoords, drawMode);
 }
@@ -751,7 +786,7 @@ void Renderer::setTexture(string imageName) {
 	glGenTextures(1, &textureHandle);
 	int code = initTexture(imageName, textureHandle);
 	if (code != 0) {
-		printf("!Error loading the texture image.\n");
+		printf("!!!Error loading the texture image.\n");
 		//exit(EXIT_FAILURE);
 	}
 }
@@ -761,13 +796,13 @@ void Renderer::setTexture(string imageNames[6]) {
 	glGenTextures(1, &textureHandle);
 	int code = initTexture(imageNames, textureHandle);
 	if (code != 0) {
-		printf("!Error loading the texture image.\n");
+		printf("!!!Error loading the texture image.\n");
 		//exit(EXIT_FAILURE);
 	}
 }
 void Renderer::render() {
 	if (!vao) {
-		printf("*Warning: no VAO found on the Renderer of Entity \"%s\". \n", entity->name.c_str());
+		printf("***Warning: no VAO found on the Renderer of Entity \"%s\". \n", entity->name.c_str());
 		return;
 	}
 
@@ -937,7 +972,7 @@ void PlayerController::onUpdate() {
 #pragma region VertexArrayObject
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
 	if (!pipelineProgram) {
-		printf("!Error: pipeline program cannot be null. \n");
+		printf("!!!Error: pipeline program cannot be null. \n");
 		return;
 	}
 	this->pipelineProgram = pipelineProgram;
@@ -958,7 +993,7 @@ void VertexArrayObject::bindPipeline() {
 void VertexArrayObject::setPositions(vector<vec3> positions) {
 	numVertices = positions.size();
 	if (numVertices == 0) {
-		printf("!Error: the number of vertices cannot be 0. \n");
+		printf("!!!Error: the number of vertices cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -977,7 +1012,7 @@ void VertexArrayObject::setPositions(vector<vec3> positions) {
 void VertexArrayObject::setColors(vector<vec4> colors) {
 	numColors = colors.size();
 	if (numColors == 0) {
-		printf("!Error: the number of colors cannot be 0. \n");
+		printf("!!!Error: the number of colors cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -996,7 +1031,7 @@ void VertexArrayObject::setColors(vector<vec4> colors) {
 void VertexArrayObject::setIndices(vector<int> indices) {
 	numIndices = indices.size();
 	if (numIndices == 0) {
-		printf("!Error: the number of indices cannot be 0. \n");
+		printf("!!!Error: the number of indices cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -1009,10 +1044,10 @@ void VertexArrayObject::setIndices(vector<int> indices) {
 void VertexArrayObject::setNormals(vector<vec3> normals) {
 	numNormals = normals.size();
 	if (numNormals == 0) {
-		printf("!Error: the number of normals cannot be 0. \n");
+		printf("!!!Error: the number of normals cannot be 0. \n");
 		return;
 	}if (numVertices != numNormals) {
-		printf("!Error: the number of vertices %i does not match the number of normals %i. \n", numVertices, numNormals);
+		printf("!!!Error: the number of vertices %i does not match the number of normals %i. \n", numVertices, numNormals);
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -1029,7 +1064,7 @@ void VertexArrayObject::setNormals(vector<vec3> normals) {
 void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 	numTexCoords = texCoords.size();
 	if (numTexCoords == 0) {
-		printf("*Warning: the number of texture coordinates is 0. \n");
+		printf("***Warning: the number of texture coordinates is 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -1045,7 +1080,7 @@ void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 }
 void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum drawMode) {
 	if (numVertices != numColors) {
-		printf("*Warning: the number of vertices %i is not the same as the number of colors %i. \n", numVertices, numColors);
+		printf("***Warning: the number of vertices %i is not the same as the number of colors %i. \n", numVertices, numColors);
 	}
 	pipelineProgram->Bind();
 	pipelineProgram->SetModelMatrix(m);
@@ -1172,7 +1207,7 @@ void RollerCoaster::reset() {
 void RollerCoaster::render(vec3 normal) {
 	Renderer* renderer = entity->getComponent<Renderer>();
 	if (!renderer) {
-		printf("!Error: cannot find Renderer to render the RollerCoaster. \n");
+		printf("!!!Error: cannot find Renderer to render the RollerCoaster. \n");
 		return;
 	}
 	printf("Rendering roller-coaster \"%s\"...\n", entity->name.c_str());

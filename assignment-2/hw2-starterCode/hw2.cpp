@@ -529,11 +529,10 @@ void initObjects() {
 	//light2->addComponent(new Light());
 	//light2->transform->setPosition(vec3(0, 3, 50), true);
 
-	//Entity* test = SceneManager::getInstance()->createEntity("test");
-	//test->transform->setPosition(vec3(0, 3, 0), true);
-	//Renderer* testRenderer = new Renderer(texturePipeline, makeSphere());
-	//testRenderer->setTexture(skyboxImages);
-	//test->addComponent(testRenderer);
+	Entity* test = SceneManager::getInstance()->createEntity("test");
+	test->transform->setPosition(vec3(0, 0, 5), true);
+	Renderer* testRenderer = new Renderer(milestonePipeline, makeTetrahedron(10, 10 * 3 / 4.0));
+	test->addComponent(testRenderer);
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 

@@ -1,3 +1,1 @@
-splines/rc.sp
-
-
+splines/magicMountain.sp

@@ -72,6 +72,7 @@ Shape makePlane(float width = 1.0f, float length = 1.0f);
 Shape makeCube(float width = 1.0f, float length = 1.0f, float height = 1.0f);
 Shape makeSphere(float radius = 0.5f, int resolution = 50);
 Shape makeCylinder(float radius = 0.5f, float height = 1.0f, int resolution = 50);
+Shape makeTetrahedron(float width = 1.0f, float height = 1.0f);
 
 // Get type of a class
 template<class T> string getType(); 
