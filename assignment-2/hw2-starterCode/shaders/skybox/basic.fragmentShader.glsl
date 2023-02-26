@@ -4,7 +4,7 @@
 // Skybox fragment shader
 //
 
-uniform samplerCube skybox;
+uniform samplerCube textureImageCube;
 
 in vec4 col;
 in vec3 textureCoord;
@@ -13,6 +13,6 @@ out vec4 c;
 
 void main()
 {
-    c = texture(skybox, textureCoord) * col;
+    c = texture(textureImageCube, textureCoord) * col;
 }
 

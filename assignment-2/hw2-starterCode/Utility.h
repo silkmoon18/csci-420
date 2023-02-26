@@ -145,7 +145,7 @@ public:
 
 	// Create a new entity
 	Entity* createEntity(string name = "");
-	Entity* createSkybox(BasicPipelineProgram* pipeline, string textureNames[6]);
+	Entity* createSkybox(BasicPipelineProgram* pipeline, string textureDirectory);
 	BasicPipelineProgram* createPipelineProgram(string shaderPath);
 	// Update all entities. Called once per frame.
 	void update();
@@ -304,14 +304,15 @@ public:
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
 	// Set 2d texture
-	void setTexture(string imageName);
+	void set2DTexture(string imageName);
 	// Set cube texture
-	void setTexture(string imageNames[6]);
+	void setCubeTexture(string textureDirectory);
 	void render();
 
 protected:
 	static inline vector<Renderer*> renderers;
 	GLuint textureHandle;
+	int textureTypeId = 0;
 
 	void onUpdate() override;
 };

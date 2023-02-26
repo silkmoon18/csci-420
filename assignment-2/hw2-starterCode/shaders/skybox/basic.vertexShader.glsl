@@ -4,6 +4,7 @@
 // Skybox vertex shader
 //
 
+uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 
@@ -17,7 +18,7 @@ void main()
 {
     textureCoord = position;
     mat4 view = mat4(mat3(viewMatrix));
-    gl_Position = projectionMatrix * view * vec4(position, 1.0);
+    gl_Position = projectionMatrix * view * modelMatrix * vec4(position, 1.0);
     col = color / 255.0f;
 }
 

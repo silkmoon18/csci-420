@@ -130,7 +130,7 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 	ImageIO::fileFormatType imgFormat;
 	for (int i = 0; i < 6; i++) {
 		ImageIO img = images[i];
-		string imageName = getCurrentDirectory() + imageNames[i];
+		string imageName = imageNames[i];
 		const char* imageFilename = (imageName).c_str();
 
 		ImageIO::errorType err = img.load(imageFilename, &imgFormat);
@@ -298,6 +298,10 @@ Shape makeSphere(float radius, int resolution) {
 			positions.push_back(vec3(x, y, z));
 			normals.push_back(vec3(x, y, z));
 
+			float s = fmod(sectorAngle, radians(360.0f)) / radians(360.0f);
+			float t = (fmod(stackAngle, radians(360.0f)) + radians(90.0f)) / radians(180.0f);
+			texCoords.push_back(vec2(s, t));
+			
 			sectorAngle += rad;
 			index = (i - 1) * resolution + j;
 
@@ -500,7 +504,7 @@ Entity* SceneManager::createEntity(string name) {
 	printf("Entity \"%s\" created. Number of entities: %i\n", name.c_str(), entities.size());
 	return entity;
 }
-Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textureNames[6]) {
+Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textureDirectory) {
 	skybox = new Entity("Skybox");
 	skybox->transform->setPosition(vec3(0, 0, 0), true);
 	Shape* shape = new Shape(makeCube());
@@ -510,7 +514,7 @@ Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textur
 	vao->setColors(vector<vec4>(shape->positions.size(), vec4(255)));
 	Renderer* skyRenderer = new Renderer(vao, shape->drawMode);
 	skyRenderer->useLight = false;
-	skyRenderer->setTexture(textureNames);
+	skyRenderer->setCubeTexture(textureDirectory);
 	skyRenderer->isSkyBox = true;
 	skybox->addComponent(skyRenderer);
 	return skybox;
@@ -786,24 +790,57 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 	drawMode = shape.drawMode;
 	renderers.push_back(this);
 }
-void Renderer::setTexture(string imageName) {
+void Renderer::set2DTexture(string imageName) {
 	textureType = GL_TEXTURE_2D;
+	textureTypeId = 0;
+
 	vao->bindPipeline();
 	glGenTextures(1, &textureHandle);
 	int code = initTexture(imageName, textureHandle);
 	if (code != 0) {
 		printf("!!!Error loading the texture image.\n");
-		//exit(EXIT_FAILURE);
 	}
 }
-void Renderer::setTexture(string imageNames[6]) {
+void Renderer::setCubeTexture(string textureDirectory) {
+	string imageNames[6];
+	textureDirectory = getCurrentDirectory() + textureDirectory;
+	for (const auto& entry : filesystem::directory_iterator(textureDirectory)) {
+		filesystem::path path = entry.path();
+
+		string extension = path.extension().string();
+		if (extension == ".jpg" || extension == ".jpeg") {
+			string filename = path.stem().string();
+			string filePath = textureDirectory + "/" + filename + ".jpg";
+			if (filename.compare("right") == 0) imageNames[0] = filePath;
+			else if (filename.compare("left") == 0) imageNames[1] = filePath;
+			else if (filename.compare("bottom") == 0) imageNames[2] = filePath;
+			else if (filename.compare("top") == 0) imageNames[3] = filePath;
+			else if (filename.compare("front") == 0) imageNames[4] = filePath;
+			else if (filename.compare("back") == 0) imageNames[5] = filePath;
+		}
+		else {
+			printf("Error: texture file %s is not jpg. \n", path.string().c_str());
+		}
+	}
+	int numOfImages = 0;
+	for (int i = 0; i < 6; i++) {
+		if (!imageNames[i].empty()) numOfImages++;
+	}
+	if (numOfImages < 6) {
+		printf("!!!Error: 6 images are needed for cubemap. Currently %i. \n", numOfImages);
+		return;
+	}
+
 	textureType = GL_TEXTURE_CUBE_MAP;
+	textureTypeId = 1;
+
 	vao->bindPipeline();
 	glGenTextures(1, &textureHandle);
+
+	printf("Loading textures from %s. \n", textureDirectory.c_str());
 	int code = initTexture(imageNames, textureHandle);
 	if (code != 0) {
 		printf("!!!Error loading the texture image.\n");
-		//exit(EXIT_FAILURE);
 	}
 }
 void Renderer::render() {
@@ -813,6 +850,7 @@ void Renderer::render() {
 	}
 
 	vao->bindPipeline();
+
 	// set material data
 	BasicPipelineProgram* pipelineProgram = vao->pipelineProgram;
 
@@ -827,6 +865,14 @@ void Renderer::render() {
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
 	glUniform1f(loc, shininess);
 
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureTypeId");
+	glUniform1i(loc, textureTypeId);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImage2D");
+	glUniform1i(loc, 0);
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImageCube");
+	glUniform1i(loc, 1);
+
+	glActiveTexture(GL_TEXTURE0 + textureTypeId);
 	glBindTexture(textureType, textureHandle);
 
 	// get matrices

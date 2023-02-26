@@ -19,49 +19,59 @@ uniform vec4 specularCoef;
 uniform float materialShininess; 
 uniform vec3 eyePosition;
 uniform int isLightingEnabled;
-uniform sampler2D textureImage; 
+uniform sampler2D textureImage2D; 
+uniform samplerCube textureImageCube;
+uniform int textureTypeId;
 
 in vec4 col;
 in vec3 vertexNormal;
 in vec3 fragmentPosition;
-in vec2 textureCoord;
+in vec2 planeTexCoord;
+in vec3 cubeTexCoord;
 
 out vec4 c;
 
 void main()
 {
-  vec4 color = texture(textureImage, textureCoord) * col;
-
-  if (isLightingEnabled == 1) {
-    vec4 ambient = vec4(0, 0, 0, 1);
-    vec4 diffuse = vec4(0, 0, 0, 1);; 
-    vec4 specular = vec4(0, 0, 0, 1);
-    for (int i = 0; i < numOfLights; i++) {
-        vec3 lightVector;
-        if (lightModes[i] == 0) {
-            lightVector = normalize(-lightDirections[i]);
-        }
-        else if (lightModes[i] == 1) {
-            lightVector = normalize(lightPositions[i] - fragmentPosition);
-        }
-        ambient += ambientCoef * lightAmbients[i]; 
-
-        float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
-        diffuse += diffuseCoef * lightDiffuses[i] * ndotl;
-  
-        vec3 R = normalize(reflect(-lightVector, vertexNormal));
-        vec3 eyeVector = normalize(eyePosition - fragmentPosition);
-        float rdotv = max(dot(R, eyeVector), 0.0);
-       
-        if (materialShininess > 0) {
-          specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess);
-        }      
+    vec4 color;
+    if (textureTypeId == 0) {
+        color = texture(textureImage2D, planeTexCoord) * col;
     }
-      // compute the final pixel color
-    c = (ambient + diffuse) * color + specular;
-  }
-  else {
-    c = color;
-  }
+    else {
+        color = texture(textureImageCube, cubeTexCoord) * col;
+    }
+
+    if (isLightingEnabled == 1) {
+        vec4 ambient = vec4(0, 0, 0, 1);
+        vec4 diffuse = vec4(0, 0, 0, 1);; 
+        vec4 specular = vec4(0, 0, 0, 1);
+        for (int i = 0; i < numOfLights; i++) {
+            vec3 lightVector;
+            if (lightModes[i] == 0) {
+                lightVector = normalize(-lightDirections[i]);
+            }
+            else if (lightModes[i] == 1) {
+                lightVector = normalize(lightPositions[i] - fragmentPosition);
+            }
+            ambient += ambientCoef * lightAmbients[i]; 
+
+            float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
+            diffuse += diffuseCoef * lightDiffuses[i] * ndotl;
+  
+            vec3 R = normalize(reflect(-lightVector, vertexNormal));
+            vec3 eyeVector = normalize(eyePosition - fragmentPosition);
+            float rdotv = max(dot(R, eyeVector), 0.0);
+       
+            if (materialShininess > 0) {
+                specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess);
+            }      
+        }
+        // compute the final pixel color
+        c = (ambient + diffuse) * color + specular;
+    }
+    else {
+        c = color;
+    }
+    c.w = 1;
 }
 

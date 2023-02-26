@@ -83,6 +83,8 @@ char windowTitle[512] = "CSCI 420 homework II";
 // images
 string shaderDirectory = "/shaders";
 string textureDirectory = "/textures";
+
+
 int currentImageIndex = 0;
 int screenshotIndex = 0;
 
@@ -250,9 +252,9 @@ void unrideCoaster() {
 	currentCoasterIndex = -1;
 }
 void TryActivateNearestRollerCoaster() {
-	float minDistance = INT_MAX;
+	float minDistance = (float)INT_MAX;
 	int nearest = 0;
-	for (int i = 0; i < rollerCoasters.size(); i++) {
+	for (unsigned int i = 0; i < rollerCoasters.size(); i++) {
 		float d = distance(rollerCoasters[i]->getComponent<RollerCoaster>()->spline.points[0], player->transform->getPosition(true));
 		if (d < minDistance) {
 			minDistance = d;
@@ -270,9 +272,9 @@ void TryActivateNearestRollerCoaster() {
 
 void updatePlanetModel() {
 	vec3 pivot = planet0->transform->getPosition(true);
-	planet1->transform->rotateAround(pivot, 0.1, vec3(0, 1, -1));
-	planet2->transform->rotateAround(pivot, -0.15, vec3(0, 1, 3));
-	planet3->transform->rotateAround(pivot, -0.3, vec3(0, 1, 0));
+	planet1->transform->rotateAround(pivot, 0.1f, vec3(0, 1, -1));
+	planet2->transform->rotateAround(pivot, -0.15f, vec3(0, 1, 3));
+	planet3->transform->rotateAround(pivot, -0.3f, vec3(0, 1, 0));
 }
 
 void idleFunc() {
@@ -294,6 +296,8 @@ void displayFunc() {
 
 
 	HandleMoveInput();
+
+	sky->transform->rotateAround(0.01f, worldForward, true);
 
 	updatePlanetModel();
 	// update entities
@@ -510,10 +514,6 @@ void initPlanetModel() {
 	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(5, 4)));
 	modelBase->setParent(planetModel);
 
-	planet0 = SceneManager::getInstance()->createEntity("Planet0");
-	planet0->transform->setPosition(vec3(0, 50, 0), false);
-	planet0->addComponent(new Renderer(milestonePipeline, makeSphere(10)));
-	planet0->setParent(modelBase);
 
 	planet1 = SceneManager::getInstance()->createEntity("Planet1");
 	planet1->transform->setPosition(vec3(15, 0, 0), false);
@@ -546,20 +546,11 @@ void initObjects() {
 	player->addComponent(new Physics(true, 1.75f));
 	playerAngles = player->transform->getEulerAngles(true);
 
-	ground = SceneManager::getInstance()->createEntity("Ground");
+	ground = SceneManager::getInstance()->createEntity("ground");
 	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(2000, 2000));
-	groundRenderer->setTexture(textureDirectory + "/ground.jpg");
+	groundRenderer->set2DTexture(textureDirectory + "/ground.jpg");
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, 0, 0), true);
-
-	string skyboxImages[6] = {
-		textureDirectory + "/right.jpg",
-		textureDirectory + "/left.jpg",
-		textureDirectory + "/bottom.jpg",
-		textureDirectory + "/top.jpg",
-		textureDirectory + "/front.jpg",
-		textureDirectory + "/back.jpg", };
-	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, skyboxImages);
 
 	light = SceneManager::getInstance()->createEntity("Light");
 	Light* directionalLight = new Light();
@@ -573,9 +564,18 @@ void initObjects() {
 
 	//Entity* test = SceneManager::getInstance()->createEntity("test");
 	//test->transform->setPosition(vec3(0, 0, 5), true);
-	//Renderer* testRenderer = new Renderer(milestonePipeline, makeTetrahedron(10, 10 * 3 / 4.0));
+	//Renderer* testRenderer = new Renderer(texturePipeline, makeCube(2, 2, 2));
+	//testRenderer->setCubeTexture(skyboxImages);
 	//test->addComponent(testRenderer);
 
+	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, textureDirectory + "/skybox");
+	
+	planet0 = SceneManager::getInstance()->createEntity("Planet0");
+	planet0->transform->setPosition(vec3(0, 50, 0), false);
+	Renderer* renderer0 = new Renderer(texturePipeline, makeSphere(10));
+	renderer0->setCubeTexture(textureDirectory + "/planet0");
+	planet0->addComponent(renderer0);
+	planet0->setParent(modelBase);
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 

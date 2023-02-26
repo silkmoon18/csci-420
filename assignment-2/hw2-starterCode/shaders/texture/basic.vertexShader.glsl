@@ -19,17 +19,19 @@ in vec2 texCoord;
 out vec4 col;
 out vec3 vertexNormal;
 out vec3 fragmentPosition;
-out vec2 textureCoord;
+out vec2 planeTexCoord;
+out vec3 cubeTexCoord;
 
 void main()
 {
-  vec3 pointPosition = vec3(modelMatrix * vec4(position, 1.0));
-  fragmentPosition = pointPosition;
-  vertexNormal = normalize(vec3(normalMatrix * vec4(normal, 1.0)));
+	vec3 pointPosition = vec3(modelMatrix * vec4(position, 1.0));
+	fragmentPosition = pointPosition;
+	vertexNormal = normalize(vec3(normalMatrix * vec4(normal, 1.0)));
 
-  gl_Position = projectionMatrix * viewMatrix * vec4(pointPosition, 1.0);
-  col = color / 255.0f;
+	gl_Position = projectionMatrix * viewMatrix * vec4(pointPosition, 1.0);
+	col = color / 255.0f;
 
-  textureCoord = texCoord;
+	planeTexCoord = texCoord;
+	cubeTexCoord = position;
 }
 
