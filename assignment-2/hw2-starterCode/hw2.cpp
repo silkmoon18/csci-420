@@ -526,7 +526,7 @@ void initPlanetModel() {
 	planet2->setParent(planet0);
 
 	planet3 = SceneManager::getInstance()->createEntity("Planet3");
-	planet3->transform->setPosition(vec3(40, 0, 0), false);
+	planet3->transform->setPosition(vec3(30, 0, 0), false);
 	planet3->addComponent(new Renderer(milestonePipeline, makeSphere(1.5)));
 	planet3->setParent(planet0);
 }
