@@ -209,6 +209,7 @@ string getCurrentDirectory() {
 	return filesystem::current_path().string();
 }
 
+#pragma region Shape
 Shape makePlane(float width, float length) {
 	vector<vec3> positions;
 	vector<int> indices;
@@ -418,7 +419,6 @@ Shape makeTetrahedron(float width, float height) {
 
 	return Shape(positions, indices, normals, texCoords, drawMode);
 }
-
 Shape::Shape(
 	vector<vec3> positions,
 	vector<int> indices,
@@ -431,6 +431,7 @@ Shape::Shape(
 	this->texCoords = texCoords;
 	this->drawMode = drawMode;
 }
+#pragma endregion
 
 #pragma region Timer
 float Timer::getDeltaTime() {
@@ -648,6 +649,11 @@ void Transform::rotateAround(float degree, vec3 axis, bool isWorld) {
 		q = q * angleAxis(radians(degree), axis);
 
 	setRotation(q, true);
+}
+void Transform::rotateAround(vec3 pivot, float degree, vec3 axis) {
+	quat q = angleAxis(radians(degree), axis);
+	setPosition(q * (getPosition(true) - pivot) + pivot, true);
+	setRotation(q * getRotation(true), true);
 }
 void Transform::faceTo(vec3 target, vec3 up) {
 	if (length(up) == 0) {

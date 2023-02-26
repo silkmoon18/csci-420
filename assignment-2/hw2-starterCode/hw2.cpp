@@ -59,6 +59,13 @@ Entity* ground;
 Entity* sky;
 Entity* light;
 
+Entity* planetModel;
+Entity* modelBase;
+Entity* planet0;
+Entity* planet1;
+Entity* planet2;
+Entity* planet3;
+
 // controls
 vec3 playerAngles(0);
 vec3 worldCameraAngles(0);
@@ -221,6 +228,7 @@ void createSplineObjects() {
 	coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
 	coaster->addComponent(new RollerCoaster(splines, true));
 	coaster->getComponent<RollerCoaster>()->render(vec3(0, 1, 0));
+	coaster->transform->setPosition(vec3(0, 0, -50), true);
 
 	rollerCoasters.push_back(coaster);
 }
@@ -231,7 +239,6 @@ void rideCoaster(RollerCoaster* coaster) {
 	player->setParent(coaster->seat);
 	player->transform->setPosition(vec3(0, 0, 0), false);
 }
-
 void unrideCoaster() {
 	player->getComponent<Physics>()->setActive(true);
 	player->getComponent<PlayerController>()->setActive(true);
@@ -242,7 +249,6 @@ void unrideCoaster() {
 	coaster->reset();
 	currentCoasterIndex = -1;
 }
-
 void TryActivateNearestRollerCoaster() {
 	float minDistance = INT_MAX;
 	int nearest = 0;
@@ -260,6 +266,13 @@ void TryActivateNearestRollerCoaster() {
 		currentCoasterIndex = nearest;
 		printf("Roller coaster No.%i activated. \n", nearest + 1);
 	}
+}
+
+void updatePlanetModel() {
+	vec3 pivot = planet0->transform->getPosition(true);
+	planet1->transform->rotateAround(pivot, 0.1, vec3(0, 1, -1));
+	planet2->transform->rotateAround(pivot, -0.15, vec3(0, 1, 3));
+	planet3->transform->rotateAround(pivot, -0.3, vec3(0, 1, 0));
 }
 
 void idleFunc() {
@@ -282,6 +295,7 @@ void displayFunc() {
 
 	HandleMoveInput();
 
+	updatePlanetModel();
 	// update entities
 	SceneManager::getInstance()->update();
 
@@ -488,6 +502,34 @@ void initScene() {
 	cout << "\nGL error: " << glGetError() << endl;
 }
 
+void initPlanetModel() {
+	planetModel = SceneManager::getInstance()->createEntity("PlanetModel");
+	planetModel->transform->setPosition(vec3(0, 0, 0), true);
+
+	modelBase = SceneManager::getInstance()->createEntity("ModelBase");
+	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(5, 4)));
+	modelBase->setParent(planetModel);
+
+	planet0 = SceneManager::getInstance()->createEntity("Planet0");
+	planet0->transform->setPosition(vec3(0, 50, 0), false);
+	planet0->addComponent(new Renderer(milestonePipeline, makeSphere(10)));
+	planet0->setParent(modelBase);
+
+	planet1 = SceneManager::getInstance()->createEntity("Planet1");
+	planet1->transform->setPosition(vec3(15, 0, 0), false);
+	planet1->addComponent(new Renderer(milestonePipeline, makeSphere(3)));
+	planet1->setParent(planet0);
+
+	planet2 = SceneManager::getInstance()->createEntity("Planet2");
+	planet2->transform->setPosition(vec3(20, 0, 0), false);
+	planet2->addComponent(new Renderer(milestonePipeline, makeSphere(4)));
+	planet2->setParent(planet0);
+
+	planet3 = SceneManager::getInstance()->createEntity("Planet3");
+	planet3->transform->setPosition(vec3(40, 0, 0), false);
+	planet3->addComponent(new Renderer(milestonePipeline, makeSphere(1.5)));
+	planet3->setParent(planet0);
+}
 void initObjects() {
 	worldCamera = SceneManager::getInstance()->createEntity("WorldCamera");
 	worldCamera->transform->setPosition(vec3(20, 20, 20), true);
@@ -497,18 +539,18 @@ void initObjects() {
 	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
 
 	player = SceneManager::getInstance()->createEntity("Player");
-	player->transform->setPosition(vec3(0, 0, 5), true);
+	player->transform->setPosition(vec3(0, 0, 100), true);
 	player->addComponent(new Camera());
 	player->getComponent<Camera>()->setCurrent();
 	player->addComponent(new PlayerController());
-	player->addComponent(new Physics(0.75f));
+	player->addComponent(new Physics(true, 1.75f));
 	playerAngles = player->transform->getEulerAngles(true);
 
 	ground = SceneManager::getInstance()->createEntity("Ground");
-	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(500, 500));
+	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(2000, 2000));
 	groundRenderer->setTexture(textureDirectory + "/ground.jpg");
 	ground->addComponent(groundRenderer);
-	ground->transform->setPosition(vec3(0, -1, 0), true);
+	ground->transform->setPosition(vec3(0, 0, 0), true);
 
 	string skyboxImages[6] = {
 		textureDirectory + "/right.jpg",
@@ -529,13 +571,15 @@ void initObjects() {
 	//light2->addComponent(new Light());
 	//light2->transform->setPosition(vec3(0, 3, 50), true);
 
-	Entity* test = SceneManager::getInstance()->createEntity("test");
-	test->transform->setPosition(vec3(0, 0, 5), true);
-	Renderer* testRenderer = new Renderer(milestonePipeline, makeTetrahedron(10, 10 * 3 / 4.0));
-	test->addComponent(testRenderer);
+	//Entity* test = SceneManager::getInstance()->createEntity("test");
+	//test->transform->setPosition(vec3(0, 0, 5), true);
+	//Renderer* testRenderer = new Renderer(milestonePipeline, makeTetrahedron(10, 10 * 3 / 4.0));
+	//test->addComponent(testRenderer);
+
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 
+	initPlanetModel();
 	createSplineObjects();
 }
 

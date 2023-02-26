@@ -257,6 +257,7 @@ public:
 	void setEulerAngles(vec3 angles, bool isWorld);
 	// Rotate around an axis (degrees)
 	void rotateAround(float degree, vec3 axis, bool isWorld);
+	void rotateAround(vec3 pivot, float degree, vec3 axis);
 	// Rotate to a target position
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
 	// Get local forward vector
