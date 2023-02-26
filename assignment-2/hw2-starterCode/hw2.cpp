@@ -196,6 +196,25 @@ void HandleMouseInput(int mousePosDelta[2]) {
 	target->transform->rotateAround(y, worldUp, true);
 	target->transform->rotateAround(x, worldRight, false);
 }
+void HandleMoveInput() {
+	if (isControllingPlayer) {
+		player->getComponent<PlayerController>()->moveOnGround(moveInput);
+	}
+	else {
+		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
+	}
+}
+void HandleJump() {
+	if (isControllingPlayer) {
+		Physics* physics = player->getComponent<Physics>();
+		if (physics->isOnGround) {
+			physics->velocity.y = 5;
+		}
+	}
+	else {
+		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
+	}
+}
 
 void createSplineObjects() {
 	Entity* coaster = SceneManager::getInstance()->createEntity("RollerCoaster");
@@ -204,12 +223,27 @@ void createSplineObjects() {
 	coaster->getComponent<RollerCoaster>()->render(vec3(0, 1, 0));
 
 	rollerCoasters.push_back(coaster);
-	if (rollerCoasters.size() > 0) {
-		currentCoasterIndex = 0;
-	}
 }
 
-void ActivateRollerCoaster() {
+void rideCoaster(RollerCoaster* coaster) {
+	player->getComponent<Physics>()->setActive(false);
+	player->getComponent<PlayerController>()->setActive(false);
+	player->setParent(coaster->seat);
+	player->transform->setPosition(vec3(0, 0, 0), false);
+}
+
+void unrideCoaster() {
+	player->getComponent<Physics>()->setActive(true);
+	player->getComponent<PlayerController>()->setActive(true);
+	player->setParent(nullptr);
+
+	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
+	player->transform->setPosition(coaster->getStartPosition(), true);
+	coaster->reset();
+	currentCoasterIndex = -1;
+}
+
+void TryActivateNearestRollerCoaster() {
 	float minDistance = INT_MAX;
 	int nearest = 0;
 	for (int i = 0; i < rollerCoasters.size(); i++) {
@@ -219,9 +253,11 @@ void ActivateRollerCoaster() {
 			nearest = i;
 		}
 	}
+	RollerCoaster* coaster = rollerCoasters[nearest]->getComponent<RollerCoaster>();
 	if (minDistance <= activatableDistance) {
-		rollerCoasters[nearest]->getComponent<RollerCoaster>()->carryTarget(player);
-		rollerCoasters[nearest]->getComponent<RollerCoaster>()->start();
+		rideCoaster(coaster);
+		coaster->start();
+		currentCoasterIndex = nearest;
 		printf("Roller coaster No.%i activated. \n", nearest + 1);
 	}
 }
@@ -240,15 +276,6 @@ void idleFunc() {
 	currentFrame++;
 }
 
-void HandleMoveInput() {
-	if (isControllingPlayer) {
-		player->getComponent<PlayerController>()->moveOnGround(moveInput);
-	}
-	else {
-		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
-	}
-}
-
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -261,29 +288,15 @@ void displayFunc() {
 	glutSwapBuffers();
 }
 
-void HandleJump() {
-	if (isControllingPlayer) {
-		Physics* physics = player->getComponent<Physics>();
-		if (physics->isOnGround) {
-			physics->velocity.y = 5;
-		}
-	}
-	else {
-		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
-	}
-}
-
 void keyboardFunc(unsigned char key, int x, int y) {
 	switch (key) {
 		case 27: // ESC key
 			exit(0); // exit the program
 			break;
-
 		case ' ':
 			if (isControllingPlayer) HandleJump();
 			else verticalMove = 1;
 			break;
-
 		case 'w':
 			moveInput.x = 1;
 			break;
@@ -301,7 +314,12 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			break;
 			// toggle screenshots recording
 		case 'e':
-			ActivateRollerCoaster();
+			if (currentCoasterIndex == -1) {
+				TryActivateNearestRollerCoaster();
+			}
+			else {
+				unrideCoaster();
+			}
 			break;
 		case 'x':
 			isTakingScreenshot = !isTakingScreenshot;
@@ -448,7 +466,6 @@ void reshapeFunc(int w, int h) {
 										  Camera::currentCamera->zFar);
 }
 
-
 void initScene() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_DEPTH_TEST);
@@ -591,7 +608,7 @@ int main(int argc, char* argv[]) {
 	if (result != GLEW_OK) {
 		cout << "error: " << glewGetErrorString(result) << endl;
 		exit(EXIT_FAILURE);
-	}
+}
 #endif
 
 	// do initialization

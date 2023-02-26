@@ -285,6 +285,9 @@ class Renderer : public Component {
 public:
 	friend Entity;
 
+	static vector<Renderer*> getRenderers();
+
+	bool isSkyBox = false;
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
@@ -302,8 +305,10 @@ public:
 	void setTexture(string imageName);
 	// Set cube texture
 	void setTexture(string imageNames[6]);
+	void render();
 
 protected:
+	static inline vector<Renderer*> renderers;
 	GLuint textureHandle;
 
 	void onUpdate() override;
@@ -337,7 +342,7 @@ public:
 	float zNear = 0.01f;
 	float zFar = 1000.0f;
 
-	static Camera* currentCamera; // current camera being used
+	static inline Camera* currentCamera = nullptr; // current camera being used
 
 	Camera(bool setCurrent = true);
 
@@ -351,6 +356,7 @@ public:
 	void setCurrent();
 	// Check if this is the current camera
 	bool isCurrentCamera();
+	void view();
 
 protected:
 	mat4 projectionMatrix = mat4(1);
@@ -453,15 +459,15 @@ public:
 	float minSpeed = 5.0f;
 	Entity* seat = nullptr; // to be moved by coaster when performing
 
-	RollerCoaster(vector<Spline> splines, bool closedPath, float scale = 10.0f, float maxLineLength = 0.01f);
+	RollerCoaster(vector<Spline> splines, bool closedPath, float scale = 10.0f, float maxLineLength = 0.1f);
 
+	vec3 getStartPosition();
 	// Get current point position
 	vec3 getCurrentPosition();
 	// Get current point forward direction
 	vec3 getCurrentDirection();
 	// Get current point normal
 	vec3 getCurrentNormal();
-	void carryTarget(Entity* target);
 	// Start the coaster
 	void start(bool isRepeating = true);
 	// Pause the coaster

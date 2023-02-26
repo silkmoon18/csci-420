@@ -63,7 +63,7 @@ int initTexture(string imageName, GLuint textureHandle) {
 
 	// check that the number of bytes is a multiple of 4
 	if (img.getWidth() * img.getBytesPerPixel() % 4) {
-		printf("Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+		printf("!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
 		return -1;
 	}
 
@@ -142,7 +142,7 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 
 		// check that the number of bytes is a multiple of 4
 		if (img.getWidth() * img.getBytesPerPixel() % 4) {
-			printf("Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+			printf("!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
 			return -1;
 		}
 
@@ -475,6 +475,7 @@ Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textur
 	Renderer* skyRenderer = new Renderer(vao, shape->drawMode);
 	skyRenderer->useLight = false;
 	skyRenderer->setTexture(textureNames);
+	skyRenderer->isSkyBox = true;
 	skybox->addComponent(skyRenderer);
 	return skybox;
 }
@@ -492,6 +493,7 @@ void SceneManager::update() {
 	if (skybox) {
 		glDepthMask(GL_FALSE);
 		skybox->update();
+		skybox->getComponent<Renderer>()->render();
 		glDepthMask(GL_TRUE);
 	}
 
@@ -501,6 +503,12 @@ void SceneManager::update() {
 		// update root entities only
 		if (entity->getParent()) continue;
 		entity->update();
+	}
+
+	Camera::currentCamera->view();
+	for (auto* renderer : Renderer::getRenderers()) {
+		if (renderer->isSkyBox) continue;
+		renderer->render();
 	}
 }
 #pragma endregion
@@ -670,6 +678,8 @@ Entity* Entity::getParent() {
 }
 void Entity::setParent(Entity* parent) {
 	this->parent = parent;
+	if (!parent) return;
+
 	parent->children.push_back(this);
 	transform->modelMatrix = parent->transform->modelMatrix * transform->modelMatrix;
 }
@@ -720,15 +730,20 @@ void Component::update() {
 #pragma endregion
 
 #pragma region Renderer
+vector<Renderer*> Renderer::getRenderers() {
+	return renderers;
+}
 Renderer::Renderer(VertexArrayObject* vao, GLenum drawMode) {
 	this->vao = vao;
 	this->drawMode = drawMode;
+	renderers.push_back(this);
 }
 Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color) {
 	vao = new VertexArrayObject(pipelineProgram, shape.positions, vector<vec4>(shape.positions.size(), color), shape.indices);
 	vao->setNormals(shape.normals);
 	vao->setTexCoords(shape.texCoords);
 	drawMode = shape.drawMode;
+	renderers.push_back(this);
 }
 void Renderer::setTexture(string imageName) {
 	textureType = GL_TEXTURE_2D;
@@ -736,7 +751,7 @@ void Renderer::setTexture(string imageName) {
 	glGenTextures(1, &textureHandle);
 	int code = initTexture(imageName, textureHandle);
 	if (code != 0) {
-		printf("Error loading the texture image.\n");
+		printf("!Error loading the texture image.\n");
 		//exit(EXIT_FAILURE);
 	}
 }
@@ -746,12 +761,15 @@ void Renderer::setTexture(string imageNames[6]) {
 	glGenTextures(1, &textureHandle);
 	int code = initTexture(imageNames, textureHandle);
 	if (code != 0) {
-		printf("Error loading the texture image.\n");
+		printf("!Error loading the texture image.\n");
 		//exit(EXIT_FAILURE);
 	}
 }
-void Renderer::onUpdate() {
-	if (!vao) return;
+void Renderer::render() {
+	if (!vao) {
+		printf("*Warning: no VAO found on the Renderer of Entity \"%s\". \n", entity->name.c_str());
+		return;
+	}
 
 	vao->bindPipeline();
 	// set material data
@@ -780,6 +798,10 @@ void Renderer::onUpdate() {
 
 	// draw
 	vao->draw(m, v, p, n, drawMode);
+}
+
+void Renderer::onUpdate() {
+	// renderers are updated by SceneManager
 }
 #pragma endregion
 
@@ -811,7 +833,6 @@ void Physics::onUpdate() {
 #pragma endregion
 
 #pragma region Camera
-Camera* Camera::currentCamera = nullptr;
 Camera::Camera(bool setToCurrent) {
 	projectionMatrix = perspective(radians(fieldOfView), aspect, zNear, zFar);
 	if (setToCurrent) {
@@ -837,7 +858,7 @@ void Camera::setCurrent() {
 bool Camera::isCurrentCamera() {
 	return Camera::currentCamera == this;
 }
-void Camera::onUpdate() {
+void Camera::view() {
 	if (!isCurrentCamera()) return;
 
 	// update view matrix
@@ -845,6 +866,9 @@ void Camera::onUpdate() {
 	vec3 center = position + entity->transform->getForwardVector(true);
 	vec3 up = entity->transform->getUpVector(true);
 	viewMatrix = lookAt(position, center, up);
+}
+void Camera::onUpdate() {
+	// cameras are updated by SceneManager
 }
 #pragma endregion
 
@@ -873,6 +897,8 @@ PlayerController::PlayerController() {
 
 }
 void PlayerController::move(vec4 input, float verticalMove) {
+	if (!isActivated) return;
+
 	float z = input.x - input.y;
 	float x = input.w - input.z;
 	if (z == 0 && x == 0 && verticalMove == 0) return;
@@ -889,6 +915,8 @@ void PlayerController::move(vec4 input, float verticalMove) {
 	entity->transform->setPosition(position, true);
 }
 void PlayerController::moveOnGround(vec4 input) {
+	if (!isActivated) return;
+
 	float z = input.x - input.y;
 	float x = input.w - input.z;
 	if (z == 0 && x == 0) return;
@@ -909,7 +937,7 @@ void PlayerController::onUpdate() {
 #pragma region VertexArrayObject
 VertexArrayObject::VertexArrayObject(BasicPipelineProgram* pipelineProgram) {
 	if (!pipelineProgram) {
-		printf("error: pipeline program cannot be null. \n");
+		printf("!Error: pipeline program cannot be null. \n");
 		return;
 	}
 	this->pipelineProgram = pipelineProgram;
@@ -930,7 +958,7 @@ void VertexArrayObject::bindPipeline() {
 void VertexArrayObject::setPositions(vector<vec3> positions) {
 	numVertices = positions.size();
 	if (numVertices == 0) {
-		printf("\nerror: the number of vertices cannot be 0. \n");
+		printf("!Error: the number of vertices cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -949,7 +977,7 @@ void VertexArrayObject::setPositions(vector<vec3> positions) {
 void VertexArrayObject::setColors(vector<vec4> colors) {
 	numColors = colors.size();
 	if (numColors == 0) {
-		printf("\nerror: the number of colors cannot be 0. \n");
+		printf("!Error: the number of colors cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -968,7 +996,7 @@ void VertexArrayObject::setColors(vector<vec4> colors) {
 void VertexArrayObject::setIndices(vector<int> indices) {
 	numIndices = indices.size();
 	if (numIndices == 0) {
-		printf("\nerror: the number of indices cannot be 0. \n");
+		printf("!Error: the number of indices cannot be 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -981,10 +1009,10 @@ void VertexArrayObject::setIndices(vector<int> indices) {
 void VertexArrayObject::setNormals(vector<vec3> normals) {
 	numNormals = normals.size();
 	if (numNormals == 0) {
-		printf("\nerror: the number of normals cannot be 0. \n");
+		printf("!Error: the number of normals cannot be 0. \n");
 		return;
 	}if (numVertices != numNormals) {
-		printf("\nerror: the number of vertices %i does not match the number of normals %i. \n", numVertices, numNormals);
+		printf("!Error: the number of vertices %i does not match the number of normals %i. \n", numVertices, numNormals);
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -1001,7 +1029,7 @@ void VertexArrayObject::setNormals(vector<vec3> normals) {
 void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 	numTexCoords = texCoords.size();
 	if (numTexCoords == 0) {
-		printf("\nWarning: the number of texture coordinates cannot be 0. \n");
+		printf("*Warning: the number of texture coordinates is 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -1017,7 +1045,7 @@ void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 }
 void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum drawMode) {
 	if (numVertices != numColors) {
-		printf("\nWarning: the number of vertices %i does not match the number of colors %i. \n", numVertices, numColors);
+		printf("*Warning: the number of vertices %i is not the same as the number of colors %i. \n", numVertices, numColors);
 	}
 	pipelineProgram->Bind();
 	pipelineProgram->SetModelMatrix(m);
@@ -1036,7 +1064,7 @@ void RollerCoaster::subdivide(float u0, float u1, float maxLength, mat3x4 contro
 	vec3 point0 = uVector0 * BASIS * control;
 	vec4 uVector1(u1 * u1 * u1, u1 * u1, u1, 1);
 	vec3 point1 = uVector1 * BASIS * control;
-	if (distance(uVector0, uVector1) > maxLength) {
+	if (distance(point0, point1) > maxLength) {
 		subdivide(u0, umid, maxLength, control);
 		subdivide(umid, u1, maxLength, control);
 	}
@@ -1108,6 +1136,9 @@ RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scal
 
 	// deactivated at defualt
 	setActive(false);
+}	
+vec3 RollerCoaster::getStartPosition() {
+	return vertexPositions[0] + 3.0f * cross(vertexTangents[0], vertexNormals[0]);
 }
 vec3 RollerCoaster::getCurrentPosition() {
 	vec3 position;
@@ -1126,14 +1157,6 @@ vec3 RollerCoaster::getCurrentDirection() {
 vec3 RollerCoaster::getCurrentNormal() {
 	return vertexNormals[currentVertexIndex];
 }
-void RollerCoaster::carryTarget(Entity* target) {
-	Component* physics = target->getComponent<Physics>();
-	if (physics) {
-		physics->setActive(false);
-	}
-	target->setParent(seat);
-	target->transform->setPosition(vec3(0, 1, 0), false);
-}
 void RollerCoaster::start(bool isRepeating) {
 	this->isRepeating = isRepeating;
 	setActive(true);
@@ -1149,9 +1172,10 @@ void RollerCoaster::reset() {
 void RollerCoaster::render(vec3 normal) {
 	Renderer* renderer = entity->getComponent<Renderer>();
 	if (!renderer) {
-		printf("Error: cannot find Renderer to render the RollerCoaster. \n");
+		printf("!Error: cannot find Renderer to render the RollerCoaster. \n");
 		return;
 	}
+	printf("Rendering roller-coaster \"%s\"...\n", entity->name.c_str());
 
 	normal = normalize(normal);
 
@@ -1251,18 +1275,19 @@ void RollerCoaster::render(vec3 normal) {
 	// set up seat
 	seat = SceneManager::getInstance()->createEntity("Seat");
 	seat->setParent(entity);
-	seat->addComponent(new Renderer(renderer->vao->pipelineProgram, makeSphere()));
 	moveSeat();
 
-	//Entity* saddle = SceneManager::getInstance()->createEntity("Saddle");
-	//saddle->transform->setPosition(vec3(0, -0.45, 0), false);
-	//saddle->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 0.1, 1)));
-	//saddle->setParent(seat);
+	Entity* saddle = SceneManager::getInstance()->createEntity("Saddle");
+	saddle->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 1, 0.1)));
+	saddle->transform->setPosition(vec3(0, -0.45, 0), false);
+	saddle->setParent(seat);
 
-	//Entity* back = SceneManager::getInstance()->createEntity("Back");
-	//back->setParent(seat);
-	//back->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 1, 0.1)));
-	//back->transform->setPosition(vec3(0, 0.1, 0.45), false);
+	Entity* back = SceneManager::getInstance()->createEntity("Back");
+	back->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 0.1, 1)));
+	back->transform->setPosition(vec3(0, 0, 0.45), false);
+	back->setParent(seat);
+
+	printf("Rendered roller-coaster \"%s\".\n", entity->name.c_str());
 }
 void RollerCoaster::moveSeat() {
 	seat->transform->setPosition(getCurrentPosition(), true);
