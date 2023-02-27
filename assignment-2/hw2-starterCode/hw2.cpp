@@ -271,10 +271,14 @@ void TryActivateNearestRollerCoaster() {
 }
 
 void updatePlanetModel() {
+	planet0->transform->rotateAround(-0.05f, vec3(0, 1, 0), false);
 	vec3 pivot = planet0->transform->getPosition(true);
+	planet1->transform->rotateAround(-0.01f, vec3(0, 1, 1), false);
 	planet1->transform->rotateAround(pivot, 0.1f, vec3(0, 1, -1));
-	planet2->transform->rotateAround(pivot, -0.15f, vec3(0, 1, 3));
-	planet3->transform->rotateAround(pivot, -0.3f, vec3(0, 1, 0));
+	planet2->transform->rotateAround(0.06f, vec3(-4, 1, 0), false);
+	planet2->transform->rotateAround(pivot, -0.12f, vec3(0, 1, 3));
+	planet3->transform->rotateAround(-0.09f, vec3(0, 1, 10), false);
+	planet3->transform->rotateAround(pivot, -0.2f, vec3(0, 1, 0));
 }
 
 void idleFunc() {
@@ -515,7 +519,7 @@ void initPlanetModel() {
 	modelBase->setParent(planetModel);
 
 	planet0 = SceneManager::getInstance()->createEntity("Planet0");
-	planet0->transform->setPosition(vec3(0, 50, 0), false);
+	planet0->transform->setPosition(vec3(0, 35, 0), false);
 	planet0->addComponent(new Renderer(texturePipeline, makeSphere(10)));
 	planet0->getComponent<Renderer>()->setCubeTexture(textureDirectory + "/planet0");
 	planet0->setParent(modelBase);
