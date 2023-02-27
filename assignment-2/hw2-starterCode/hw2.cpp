@@ -514,20 +514,28 @@ void initPlanetModel() {
 	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(5, 4)));
 	modelBase->setParent(planetModel);
 
+	planet0 = SceneManager::getInstance()->createEntity("Planet0");
+	planet0->transform->setPosition(vec3(0, 50, 0), false);
+	planet0->addComponent(new Renderer(texturePipeline, makeSphere(10)));
+	planet0->getComponent<Renderer>()->setCubeTexture(textureDirectory + "/planet0");
+	planet0->setParent(modelBase);
 
 	planet1 = SceneManager::getInstance()->createEntity("Planet1");
 	planet1->transform->setPosition(vec3(15, 0, 0), false);
-	planet1->addComponent(new Renderer(milestonePipeline, makeSphere(3)));
+	planet1->addComponent(new Renderer(texturePipeline, makeSphere(3)));
+	planet1->getComponent<Renderer>()->setCubeTexture(textureDirectory + "/planet1");
 	planet1->setParent(planet0);
 
 	planet2 = SceneManager::getInstance()->createEntity("Planet2");
 	planet2->transform->setPosition(vec3(20, 0, 0), false);
-	planet2->addComponent(new Renderer(milestonePipeline, makeSphere(4)));
+	planet2->addComponent(new Renderer(texturePipeline, makeSphere(4)));
+	planet2->getComponent<Renderer>()->setCubeTexture(textureDirectory + "/planet2");
 	planet2->setParent(planet0);
 
 	planet3 = SceneManager::getInstance()->createEntity("Planet3");
 	planet3->transform->setPosition(vec3(30, 0, 0), false);
-	planet3->addComponent(new Renderer(milestonePipeline, makeSphere(1.5)));
+	planet3->addComponent(new Renderer(texturePipeline, makeSphere(1.5)));
+	planet3->getComponent<Renderer>()->setCubeTexture(textureDirectory + "/planet3");
 	planet3->setParent(planet0);
 }
 void initObjects() {
@@ -569,13 +577,6 @@ void initObjects() {
 	//test->addComponent(testRenderer);
 
 	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, textureDirectory + "/skybox");
-	
-	planet0 = SceneManager::getInstance()->createEntity("Planet0");
-	planet0->transform->setPosition(vec3(0, 50, 0), false);
-	Renderer* renderer0 = new Renderer(texturePipeline, makeSphere(10));
-	renderer0->setCubeTexture(textureDirectory + "/planet0");
-	planet0->addComponent(renderer0);
-	planet0->setParent(modelBase);
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 

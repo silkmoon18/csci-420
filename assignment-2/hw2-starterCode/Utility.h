@@ -381,7 +381,7 @@ public:
 	Light();
 
 	Mode getMode();
-	void setDirectional(vec3 direction = vec3(-1, -1, -1));
+	void setDirectional(vec3 direction = vec3(1, -1, -1));
 	void setPoint();
 
 protected:
