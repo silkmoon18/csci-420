@@ -374,8 +374,8 @@ public:
 	enum Mode {Directional, Point};
 
 	vec3 direction;
-	vec4 ambient = vec4(0.4, 0.4, 0.4, 1); // ambient color
-	vec4 diffuse = vec4(.8, .8, .8, 1); // diffuse color
+	vec4 ambient = vec4(0, 0, 0, 1); // ambient color
+	vec4 diffuse = vec4(0.9, 0.9, 0.9, 1); // diffuse color
 	vec4 specular = vec4(1, 1, 1, 1); // specular color
 
 	Light();
@@ -478,14 +478,13 @@ public:
 	// Reset the coaster
 	void reset();
 	// Generate the coaster from given spline data
-	void render(vec3 normal);
+	void render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec4 saddleColor, vec4 backColor);
 
 protected:
 	float maxLineLength = 0.01f;
 	int startClosingIndex = -1;
 	bool closedPath = true;
 	bool isRepeating = false; // is repeating after finished
-	float size = 0.5f; // size of the cross-section of the roller coaster
 	vector<vec3> vertexPositions;
 	vector<vec3> vertexNormals;
 	vector<vec3> vertexTangents;
@@ -497,6 +496,7 @@ protected:
 	// Move seat to current vertex position
 	void moveSeat(); 
 	void subdivide(float u0, float u1, float maxLength, mat3x4 control);
+	void makeTrack(float width, float height, float offset, vec4 color);
 
 	void onUpdate() override;
 };

@@ -70,6 +70,7 @@ Entity* planet3;
 vec3 playerAngles(0);
 vec3 worldCameraAngles(0);
 vec4 moveInput(0); // w, s, a, d
+bool lockView = false;
 float verticalMove = 0.0f;
 float mouseSensitivity = 5.0f;
 float xAngleLimit = 85;
@@ -177,6 +178,8 @@ void saveScreenshot() {
 }
 
 void HandleMouseInput(int mousePosDelta[2]) {
+	if (lockView) return;
+
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
 	vec3* angles;
@@ -224,16 +227,13 @@ void HandleJump() {
 		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
-
-void createSplineObjects() {
-	Entity* coaster = SceneManager::getInstance()->createEntity("RollerCoaster");
-	coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
-	coaster->addComponent(new RollerCoaster(splines, true));
-	coaster->getComponent<RollerCoaster>()->render(vec3(0, 1, 0));
-	coaster->transform->setPosition(vec3(0, 0, -50), true);
-
-	rollerCoasters.push_back(coaster);
+void ResetPlayerView() {
+	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
+	player->transform->faceTo(
+		player->transform->getPosition(true) + coaster->getCurrentDirection(),
+		coaster->getCurrentNormal());
 }
+
 
 void rideCoaster(RollerCoaster* coaster) {
 	player->getComponent<Physics>()->setActive(false);
@@ -248,14 +248,17 @@ void unrideCoaster() {
 
 	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
 	player->transform->setPosition(coaster->getStartPosition(), true);
+	player->transform->faceTo(player->transform->getPosition(true) + worldForward, worldUp);
 	coaster->reset();
 	currentCoasterIndex = -1;
+	lockView = false;
 }
 void TryActivateNearestRollerCoaster() {
 	float minDistance = (float)INT_MAX;
 	int nearest = 0;
 	for (unsigned int i = 0; i < rollerCoasters.size(); i++) {
-		float d = distance(rollerCoasters[i]->getComponent<RollerCoaster>()->spline.points[0], player->transform->getPosition(true));
+		vec3 start = rollerCoasters[i]->getComponent<RollerCoaster>()->getStartPosition();
+		float d = distance(start, player->transform->getPosition(true));
 		if (d < minDistance) {
 			minDistance = d;
 			nearest = i;
@@ -266,6 +269,8 @@ void TryActivateNearestRollerCoaster() {
 		rideCoaster(coaster);
 		coaster->start();
 		currentCoasterIndex = nearest;
+		ResetPlayerView();
+		lockView = true;
 		printf("Roller coaster No.%i activated. \n", nearest + 1);
 	}
 }
@@ -298,12 +303,12 @@ void idleFunc() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
 	HandleMoveInput();
 
 	sky->transform->rotateAround(0.01f, worldForward, true);
 
 	updatePlanetModel();
+
 	// update entities
 	SceneManager::getInstance()->update();
 
@@ -341,6 +346,14 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			}
 			else {
 				unrideCoaster();
+			}
+			break;
+		case 'r':
+			if (currentCoasterIndex != -1) {
+				lockView = !lockView;
+				if (lockView) {
+					ResetPlayerView();
+				}
 			}
 			break;
 		case 'x':
@@ -510,12 +523,60 @@ void initScene() {
 	cout << "\nGL error: " << glGetError() << endl;
 }
 
+void initRollerCoaster() {
+	Entity* coaster = SceneManager::getInstance()->createEntity("MagicMountain");
+	coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
+	coaster->addComponent(new RollerCoaster(vector<Spline>(1, splines[0]), true));
+	coaster->getComponent<RollerCoaster>()->render(vec3(0, 1, 0),
+												   vec4(196, 69, 54, 255), vec4(237, 221, 212, 255),
+												   vec4(25, 114, 120, 255), vec4(40, 61, 59, 255));
+	coaster->transform->setPosition(vec3(0, 0, -100), true);
+
+	rollerCoasters.push_back(coaster);
+
+	//Entity* coaster1 = SceneManager::getInstance()->createEntity("Oblivion");
+	//coaster1->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
+	//coaster1->addComponent(new RollerCoaster(vector<Spline>(1, splines[1]), true, 1));
+	//coaster1->getComponent<RollerCoaster>()->render(vec3(0, 1, 0),
+	//												vec4(196, 69, 54, 255), vec4(237, 221, 212, 255),
+	//												vec4(25, 114, 120, 255), vec4(40, 61, 59, 255));
+	//coaster1->transform->setPosition(vec3(0, 0, -50), true);
+
+	//rollerCoasters.push_back(coaster1);
+}
+Entity* generateStreetLamp() {
+	Entity* parent = SceneManager::getInstance()->createEntity("StreetLamp");
+
+	Entity* pole = SceneManager::getInstance()->createEntity("Pole");
+	pole->addComponent(new Renderer(milestonePipeline, makeCylinder(0.1f, 15), vec4(35, 57, 91, 255)));
+	pole->getComponent<Renderer>()->shininess = 100;
+	pole->transform->setPosition(vec3(0, 7.5, 0), true);
+	pole->setParent(parent);
+
+	Entity* hanger = SceneManager::getInstance()->createEntity("Hanger");
+	hanger->addComponent(new Renderer(milestonePipeline, makeCylinder(0.1f, 5), vec4(35, 57, 91, 255)));
+	hanger->getComponent<Renderer>()->shininess = 100;
+	hanger->transform->setPosition(vec3(0, 7.5, -2.5), true);
+	hanger->transform->setEulerAngles(vec3(-75, 0, 0), true);
+	hanger->setParent(pole);
+
+	Entity* lamp = SceneManager::getInstance()->createEntity("Lamp");
+	lamp->addComponent(new Renderer(milestonePipeline, makeSphere()));
+	lamp->getComponent<Renderer>()->useLight = false;
+	lamp->transform->setPosition(vec3(0, 7.5, -5), true);
+	lamp->addComponent(new Light());
+	lamp->getComponent<Light>()->diffuse = vec4(0.1, 0.1, 0.1, 1);
+	lamp->setParent(pole);
+
+	return parent;
+}
 void initPlanetModel() {
 	planetModel = SceneManager::getInstance()->createEntity("PlanetModel");
-	planetModel->transform->setPosition(vec3(0, 0, 0), true);
+	planetModel->transform->setPosition(vec3(0, 0, -50), true);
 
 	modelBase = SceneManager::getInstance()->createEntity("ModelBase");
-	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(5, 4)));
+	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(20, 6), vec4(3, 25, 30, 255)));
+	modelBase->getComponent<Renderer>()->shininess = 1000;
 	modelBase->setParent(planetModel);
 
 	planet0 = SceneManager::getInstance()->createEntity("Planet0");
@@ -551,7 +612,7 @@ void initObjects() {
 	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
 
 	player = SceneManager::getInstance()->createEntity("Player");
-	player->transform->setPosition(vec3(0, 0, 100), true);
+	player->transform->setPosition(vec3(0, 0, 5), true);
 	player->addComponent(new Camera());
 	player->getComponent<Camera>()->setCurrent();
 	player->addComponent(new PlayerController());
@@ -567,25 +628,40 @@ void initObjects() {
 	light = SceneManager::getInstance()->createEntity("Light");
 	Light* directionalLight = new Light();
 	directionalLight->setDirectional();
+	directionalLight->ambient = vec4(0.4, 0.4, 0.4, 1);
 	light->addComponent(directionalLight);
 	light->transform->setPosition(vec3(0, 3, 0), true);
 
-	//auto* light2 = SceneManager::getInstance()->createEntity("Light");
-	//light2->addComponent(new Light());
-	//light2->transform->setPosition(vec3(0, 3, 50), true);
-
 	//Entity* test = SceneManager::getInstance()->createEntity("test");
-	//test->transform->setPosition(vec3(0, 0, 5), true);
-	//Renderer* testRenderer = new Renderer(texturePipeline, makeCube(2, 2, 2));
-	//testRenderer->setCubeTexture(skyboxImages);
+	//test->transform->setPosition(vec3(0, 0.01f, 5), true);
+	//Renderer* testRenderer = new Renderer(texturePipeline, makePlane(2, 2), vec4(0));
 	//test->addComponent(testRenderer);
 
 	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, textureDirectory + "/skybox");
 
 	SceneManager::getInstance()->isLightingEnabled = true;
 
+	Entity* lamp1 = generateStreetLamp();
+	lamp1->transform->rotateAround(90, worldUp, true);
+	lamp1->transform->setPosition(vec3(20, 0, 0), true);
+	Entity* lamp2 = generateStreetLamp();
+	lamp2->transform->rotateAround(-90, worldUp, true);
+	lamp2->transform->setPosition(vec3(-20, 0, 0), true);
+	Entity* lamp3 = generateStreetLamp();
+	lamp3->transform->rotateAround(90, worldUp, true);
+	lamp3->transform->setPosition(vec3(20, 0, -20), true);
+	Entity* lamp4 = generateStreetLamp();
+	lamp4->transform->rotateAround(-90, worldUp, true);
+	lamp4->transform->setPosition(vec3(-20, 0, -20), true);
+	Entity* lamp5 = generateStreetLamp();
+	lamp5->transform->rotateAround(90, worldUp, true);
+	lamp5->transform->setPosition(vec3(20, 0, -40), true);
+	Entity* lamp6 = generateStreetLamp();
+	lamp6->transform->rotateAround(-90, worldUp, true);
+	lamp6->transform->setPosition(vec3(-20, 0, -40), true);
+
 	initPlanetModel();
-	createSplineObjects();
+	initRollerCoaster();
 }
 
 int main(int argc, char* argv[]) {

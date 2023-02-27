@@ -397,8 +397,8 @@ Shape makeTetrahedron(float width, float height) {
 
 	float x = width / 2.0f;
 	float y = height;
-	float z = sqrt(3) * x / 2;
-	float topZ = z - x / sqrt(3);
+	float z = (float)sqrt(3) * x / 2;
+	float topZ = z - x / (float)sqrt(3);
 	positions = {
 		vec3(x, 0, z), vec3(-x, 0, z), vec3(0, 0, -z),
 		vec3(x, 0, z), vec3(-x, 0, z), vec3(0, y, topZ),
@@ -456,7 +456,7 @@ void SceneManager::setLightings() {
 	lightAmbients.clear();
 	lightDiffuses.clear();
 	lightSpeculars.clear();
-	for (int i = 0; i < lights.size(); i++) {
+	for (unsigned int i = 0; i < lights.size(); i++) {
 		Light* light = lights[i];
 
 		lightModes.push_back(light->getMode());
@@ -467,7 +467,7 @@ void SceneManager::setLightings() {
 		lightSpeculars.push_back(light->specular);
 	}
 	// set lightings
-	for (int i = 0; i < pipelinePrograms.size(); i++) {
+	for (unsigned int i = 0; i < pipelinePrograms.size(); i++) {
 		BasicPipelineProgram* pipeline = pipelinePrograms[i];
 		pipeline->Bind();
 
@@ -537,7 +537,7 @@ void SceneManager::update() {
 		glDepthMask(GL_TRUE);
 	}
 
-	for (int i = 0; i < entities.size(); i++) {
+	for (unsigned int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
 
 		// update root entities only
@@ -624,9 +624,9 @@ vec3 Transform::getEulerAngles(bool isWorld) {
 		angles.y = offset - angles.y;
 		angles.z += offset;
 	}
-	angles.x = fmod(angles.x, 360);
-	angles.y = fmod(angles.y, 360);
-	angles.z = fmod(angles.z, 360);
+	angles.x = (float)fmod(angles.x, 360);
+	angles.y = (float)fmod(angles.y, 360);
+	angles.z = (float)fmod(angles.z, 360);
 	return angles;
 }
 void Transform::setEulerAngles(vec3 angles, bool isWorld) {
@@ -738,7 +738,7 @@ void Entity::update() {
 	for (auto const& kvp : typeToComponent) {
 		kvp.second->update();
 	}
-	for (int i = 0; i < children.size(); i++) {
+	for (unsigned int i = 0; i < children.size(); i++) {
 		children[i]->update();
 	}
 }
@@ -1175,7 +1175,7 @@ RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scal
 
 	spline.points.push_back(scale * splines[0].points[0] + offset);
 	spline.numControlPoints++;
-	for (int i = 0; i < splines.size(); i++) {
+	for (unsigned int i = 0; i < splines.size(); i++) {
 		if (i > 0) offset -= splines[i].points[0];
 
 		spline.numControlPoints += splines[i].numControlPoints;
@@ -1215,7 +1215,7 @@ RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scal
 	numOfVertices = vertexPositions.size();
 
 	// calculate distances
-	for (int i = 0; i < vertexPositions.size() - 1; i++) {
+	for (unsigned int i = 0; i < vertexPositions.size() - 1; i++) {
 		float distanceToNext = distance(vertexPositions[i], vertexPositions[i + 1]);
 		vertexDistances.push_back(distanceToNext);
 	}
@@ -1225,7 +1225,7 @@ RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scal
 	setActive(false);
 }	
 vec3 RollerCoaster::getStartPosition() {
-	return vertexPositions[0] + 3.0f * cross(vertexTangents[0], vertexNormals[0]);
+	return vertexPositions[0] + 3.0f * cross(vertexTangents[0], vertexNormals[0]) + entity->transform->getPosition(true);;
 }
 vec3 RollerCoaster::getCurrentPosition() {
 	vec3 position;
@@ -1235,7 +1235,8 @@ vec3 RollerCoaster::getCurrentPosition() {
 	else {
 		position = mix(vertexPositions[currentVertexIndex], vertexPositions[currentVertexIndex + 1], currentSegmentProgress);
 	}
-	position += vertexNormals[currentVertexIndex] * size * 2.0f;
+	position += 0.7f * vertexNormals[currentVertexIndex];
+	position += entity->transform->getPosition(true);
 	return position;
 }
 vec3 RollerCoaster::getCurrentDirection() {
@@ -1256,7 +1257,7 @@ void RollerCoaster::reset() {
 	currentVertexIndex = 0;
 	moveSeat();
 }
-void RollerCoaster::render(vec3 normal) {
+void RollerCoaster::render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec4 saddleColor, vec4 backColor) {
 	Renderer* renderer = entity->getComponent<Renderer>();
 	if (!renderer) {
 		printf("!!!Error: cannot find Renderer to render the RollerCoaster. \n");
@@ -1269,12 +1270,6 @@ void RollerCoaster::render(vec3 normal) {
 	vector<vec3> pointNormals;
 	vector<vec3> pointBinormals;
 
-	vector<vec3> positions;
-	vector<vec4> colors;
-	vector<int> indices;
-	vector<vec3> normals;
-
-	// calculate normals and binormals
 	for (int i = 0; i < numOfVertices; i++) {
 		vec3 p = vertexPositions[i];
 		vec3 t = vertexTangents[i];
@@ -1290,17 +1285,60 @@ void RollerCoaster::render(vec3 normal) {
 			n = normalize(cross(pointBinormals[i - 1], t));
 		}
 		vec3 b = normalize(cross(t, n));
-
 		pointNormals.push_back(n);
 		pointBinormals.push_back(b);
 
-		// calculate positions, colors and indices
-		vec3 v0 = p + size * (-n + b);
-		vec3 v1 = p + size * (n + b);
-		vec3 v2 = p + size * (n - b);
-		vec3 v3 = p + size * (-n - b);
+		if (i % 50 == 0) {
+			Entity* crossbar = SceneManager::getInstance()->createEntity("Crossbar_" + to_string(i));
+			crossbar->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1.0f, 0.5f, 0.1f), crossbarColor));
+			crossbar->transform->setPosition(p, true);
+			crossbar->transform->faceTo(crossbar->transform->getPosition(true) + t, n);
+			crossbar->setParent(entity);
+		}
+	}
+	vertexNormals = pointNormals;
+	
+	makeTrack(0.3f, 0.05f, -0.5f, trackColor);
+	makeTrack(0.3f, 0.05f, 0.5f, trackColor);
 
-		vec4 color = vec4(1) * 255.0f;
+	// set up seat
+	seat = SceneManager::getInstance()->createEntity("Seat");
+	seat->setParent(entity);
+	moveSeat();
+
+	Entity* saddle = SceneManager::getInstance()->createEntity("Saddle");
+	saddle->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1.25f, 1, 0.2f), saddleColor));
+	saddle->transform->setPosition(vec3(0, -0.55, 0), false);
+	saddle->setParent(seat);
+
+	Entity* back = SceneManager::getInstance()->createEntity("Back");
+	back->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 0.1f, 1), backColor));
+	back->transform->setPosition(vec3(0, 0, 0.45), false);
+	back->setParent(seat);
+
+	printf("Rendered roller-coaster \"%s\".\n", entity->name.c_str());
+}
+void RollerCoaster::makeTrack(float width, float height, float offset, vec4 color) {
+	vector<vec3> positions;
+	vector<vec4> colors;
+	vector<int> indices;
+	vector<vec3> normals;
+
+	float x = width / 2.0f;
+	float y = height / 2.0f;
+	Entity* track = SceneManager::getInstance()->createEntity("Track");
+	// calculate normals and binormals
+	for (int i = 0; i < numOfVertices; i++) {
+		vec3 p = vertexPositions[i];
+		vec3 t = vertexTangents[i];
+		vec3 n = vertexNormals[i];
+		vec3 b = normalize(cross(t, n));
+
+		// calculate positions, colors and indices
+		vec3 v0 = p + y * (-n) + x * b - b * offset;
+		vec3 v1 = p + y * n + x * b - b * offset;
+		vec3 v2 = p + y * n - x * b - b * offset;
+		vec3 v3 = p + y * (-n) + x * (-b) - b * offset;
 
 		if (closedPath) {
 			positions.insert(positions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
@@ -1318,12 +1356,10 @@ void RollerCoaster::render(vec3 normal) {
 		else {
 			if (i == 0) {
 				positions.insert(positions.end(), { v0, v1, v2, v3 });
-
 				colors.insert(colors.end(), { color, color, color, color });
 
 				int index = 0;
 				indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 2, index + 3 });
-
 				normals.insert(normals.end(), { -t, -t, -t, -t });
 			}
 
@@ -1340,41 +1376,24 @@ void RollerCoaster::render(vec3 normal) {
 			}
 			if (i == numOfVertices - 1) {
 				positions.insert(positions.end(), { v0, v1, v2, v3 });
-
 				colors.insert(colors.end(), { color, color, color, color });
 
 				int index = 8 * i + 12;
 				indices.insert(indices.end(), { index, index + 1, index + 2, index, index + 3, index + 2 });
-
 				normals.insert(normals.end(), { t, t, t, t });
 			}
 		}
 	}
-	vertexNormals = pointNormals;
 
-	// set up renderer
-	renderer->vao->setPositions(positions);
-	renderer->vao->setColors(colors);
-	renderer->vao->setIndices(indices);
-	renderer->vao->setNormals(normals);
-	renderer->drawMode = GL_TRIANGLES;
-
-	// set up seat
-	seat = SceneManager::getInstance()->createEntity("Seat");
-	seat->setParent(entity);
-	moveSeat();
-
-	Entity* saddle = SceneManager::getInstance()->createEntity("Saddle");
-	saddle->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 1, 0.1)));
-	saddle->transform->setPosition(vec3(0, -0.45, 0), false);
-	saddle->setParent(seat);
-
-	Entity* back = SceneManager::getInstance()->createEntity("Back");
-	back->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 0.1, 1)));
-	back->transform->setPosition(vec3(0, 0, 0.45), false);
-	back->setParent(seat);
-
-	printf("Rendered roller-coaster \"%s\".\n", entity->name.c_str());
+	VertexArrayObject* vao = new VertexArrayObject(entity->getComponent<Renderer>()->vao->pipelineProgram);
+	vao->setPositions(positions);
+	vao->setColors(colors);
+	vao->setIndices(indices);
+	vao->setNormals(normals);
+	Renderer* renderer = new Renderer(vao, GL_TRIANGLES);
+	track->addComponent(renderer);
+	track->transform->setPosition(vec3(0, 0, 0), false);
+	track->setParent(entity);
 }
 void RollerCoaster::moveSeat() {
 	seat->transform->setPosition(getCurrentPosition(), true);
