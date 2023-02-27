@@ -506,6 +506,9 @@ void initScene() {
 	glEnable(GL_PRIMITIVE_RESTART);
 	glPrimitiveRestartIndex(RESTARTINDEX);
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glEnable(GL_NORMALIZE);
 
 	// pipeline
@@ -622,7 +625,6 @@ void initObjects() {
 	ground = SceneManager::getInstance()->createEntity("ground");
 	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(2000, 2000));
 	groundRenderer->set2DTexture(textureDirectory + "/ground.jpg");
-	groundRenderer->vao->setTexCoords();
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, 0, 0), true);
 
