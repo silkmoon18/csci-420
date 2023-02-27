@@ -530,6 +530,7 @@ BasicPipelineProgram* SceneManager::createPipelineProgram(string shaderPath) {
 void SceneManager::update() {
 	setLightings();
 
+	// draw skybox first
 	if (skybox) {
 		glDepthMask(GL_FALSE);
 		skybox->update();
@@ -537,6 +538,7 @@ void SceneManager::update() {
 		glDepthMask(GL_TRUE);
 	}
 
+	// update entities
 	for (unsigned int i = 0; i < entities.size(); i++) {
 		Entity* entity = entities[i];
 
@@ -545,6 +547,7 @@ void SceneManager::update() {
 		entity->update();
 	}
 
+	// finally update camera and draw everything
 	Camera::currentCamera->view();
 	for (auto* renderer : Renderer::getRenderers()) {
 		if (renderer->isSkyBox) continue;
@@ -851,9 +854,8 @@ void Renderer::render() {
 
 	vao->bindPipeline();
 
-	// set material data
 	BasicPipelineProgram* pipelineProgram = vao->pipelineProgram;
-
+	// pass material data
 	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "isLightingEnabled");
 	glUniform1i(loc, int(useLight && SceneManager::getInstance()->isLightingEnabled));
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
@@ -864,7 +866,7 @@ void Renderer::render() {
 	glUniform4f(loc, specular[0], specular[1], specular[2], specular[3]);
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
 	glUniform1f(loc, shininess);
-
+	// pass texture data
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureTypeId");
 	glUniform1i(loc, textureTypeId);
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImage2D");
@@ -1173,6 +1175,7 @@ RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scal
 	Spline spline;
 	vec3 offset = vec3(0);
 
+	// put all splines together
 	spline.points.push_back(scale * splines[0].points[0] + offset);
 	spline.numControlPoints++;
 	for (unsigned int i = 0; i < splines.size(); i++) {
@@ -1266,10 +1269,8 @@ void RollerCoaster::render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec
 	printf("Rendering roller-coaster \"%s\"...\n", entity->name.c_str());
 
 	normal = normalize(normal);
-
 	vector<vec3> pointNormals;
 	vector<vec3> pointBinormals;
-
 	for (int i = 0; i < numOfVertices; i++) {
 		vec3 p = vertexPositions[i];
 		vec3 t = vertexTangents[i];
@@ -1277,7 +1278,7 @@ void RollerCoaster::render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec
 		if (i == 0) {
 			n = normal;
 		}
-		else if (closedPath && i >= startClosingIndex) {
+		else if (closedPath && i >= startClosingIndex) { // interpolates normals
 			n = mix(pointNormals[startClosingIndex - 1], pointNormals[0],
 					(i - startClosingIndex) / (float)(numOfVertices - startClosingIndex));
 		}
@@ -1340,7 +1341,7 @@ void RollerCoaster::makeTrack(float width, float height, float offset, vec4 colo
 		vec3 v2 = p + y * n - x * b - b * offset;
 		vec3 v3 = p + y * (-n) + x * (-b) - b * offset;
 
-		if (closedPath) {
+		if (closedPath) { // don't need to draw the cross-section faces at the start and end
 			positions.insert(positions.end(), { v0, v1, v1, v2, v2, v3, v3, v0 });
 			colors.insert(colors.end(), { color, color, color, color, color, color, color, color });
 			normals.insert(normals.end(), { b, b, n, n, -b, -b, -n, -n });
@@ -1353,7 +1354,7 @@ void RollerCoaster::makeTrack(float width, float height, float offset, vec4 colo
 							   index + 6, index + 14, index + 7, index + 7, index + 14, index + 15 });
 			}
 		}
-		else {
+		else { //draw the cross-section faces at the start and end
 			if (i == 0) {
 				positions.insert(positions.end(), { v0, v1, v2, v3 });
 				colors.insert(colors.end(), { color, color, color, color });
@@ -1400,6 +1401,7 @@ void RollerCoaster::moveSeat() {
 	seat->transform->faceTo(seat->transform->getPosition(true) + getCurrentDirection(), getCurrentNormal());
 }
 void RollerCoaster::onUpdate() {
+	// physical calculation
 	float deltaTime = Timer::getInstance()->getDeltaTime();
 	float drag = dot(-vertexTangents[currentVertexIndex], Physics::GRAVITY);
 	speed -= drag * deltaTime;
@@ -1430,7 +1432,6 @@ void RollerCoaster::onUpdate() {
 		}
 	}
 	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
-
 	moveSeat();
 }
 #pragma endregion

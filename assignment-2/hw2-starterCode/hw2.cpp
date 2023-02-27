@@ -299,7 +299,6 @@ void idleFunc() {
 	glutPostRedisplay();
 	currentFrame++;
 }
-
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -314,7 +313,6 @@ void displayFunc() {
 
 	glutSwapBuffers();
 }
-
 void keyboardFunc(unsigned char key, int x, int y) {
 	switch (key) {
 		case 27: // ESC key
@@ -371,7 +369,6 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			break;
 	}
 }
-
 void keyboardUpFunc(unsigned char key, int x, int y) {
 	switch (key) {
 		case 'w':
@@ -394,7 +391,6 @@ void keyboardUpFunc(unsigned char key, int x, int y) {
 			break;
 	}
 }
-
 void mouseButtonFunc(int button, int state, int x, int y) {
 	// a mouse button has has been pressed or depressed
 
@@ -433,7 +429,6 @@ void mouseButtonFunc(int button, int state, int x, int y) {
 	mousePos[0] = x;
 	mousePos[1] = y;
 }
-
 void mouseMotionDragFunc(int x, int y) {
 	// mouse has moved and one of the mouse buttons is pressed (dragging)
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
@@ -484,14 +479,12 @@ void mouseMotionDragFunc(int x, int y) {
 	mousePos[0] = x;
 	mousePos[1] = y;
 }
-
 void mouseMotionFunc(int x, int y) {
 	// mouse has moved
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
 }
-
 void reshapeFunc(int w, int h) {
 	glViewport(0, 0, w, h);
 
@@ -522,7 +515,6 @@ void initScene() {
 
 	cout << "\nGL error: " << glGetError() << endl;
 }
-
 void initRollerCoaster() {
 	Entity* coaster = SceneManager::getInstance()->createEntity("MagicMountain");
 	coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
@@ -570,9 +562,17 @@ Entity* generateStreetLamp() {
 
 	return parent;
 }
+Entity* generateRoad() {
+	Entity* road = SceneManager::getInstance()->createEntity("Road");
+	road->transform->setScale(vec3(20, 0.2f, 30), true);
+	Renderer* renderer = new Renderer(texturePipeline, makeCube());
+	renderer->setCubeTexture(textureDirectory + "/road");
+	road->addComponent(renderer);
+	return road;
+}
 void initPlanetModel() {
 	planetModel = SceneManager::getInstance()->createEntity("PlanetModel");
-	planetModel->transform->setPosition(vec3(0, 0, -50), true);
+	planetModel->transform->setPosition(vec3(0, 0, -75), true);
 
 	modelBase = SceneManager::getInstance()->createEntity("ModelBase");
 	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(20, 6), vec4(3, 25, 30, 255)));
@@ -622,6 +622,7 @@ void initObjects() {
 	ground = SceneManager::getInstance()->createEntity("ground");
 	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(2000, 2000));
 	groundRenderer->set2DTexture(textureDirectory + "/ground.jpg");
+	groundRenderer->vao->setTexCoords();
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, 0, 0), true);
 
@@ -631,11 +632,6 @@ void initObjects() {
 	directionalLight->ambient = vec4(0.4, 0.4, 0.4, 1);
 	light->addComponent(directionalLight);
 	light->transform->setPosition(vec3(0, 3, 0), true);
-
-	//Entity* test = SceneManager::getInstance()->createEntity("test");
-	//test->transform->setPosition(vec3(0, 0.01f, 5), true);
-	//Renderer* testRenderer = new Renderer(texturePipeline, makePlane(2, 2), vec4(0));
-	//test->addComponent(testRenderer);
 
 	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, textureDirectory + "/skybox");
 
@@ -659,6 +655,16 @@ void initObjects() {
 	Entity* lamp6 = generateStreetLamp();
 	lamp6->transform->rotateAround(-90, worldUp, true);
 	lamp6->transform->setPosition(vec3(-20, 0, -40), true);
+
+	Entity* road1 = generateRoad();
+	road1->transform->setPosition(vec3(10, 0.05f, -5), true);
+	Entity* road2 = generateRoad();
+	road2->transform->setPosition(vec3(-10, 0.05f, -5), true);
+	Entity* road3 = generateRoad();
+	road3->transform->setPosition(vec3(10, 0.05f, -35), true);
+	Entity* road4 = generateRoad();
+	road4->transform->setPosition(vec3(-10, 0.05f, -35), true);
+
 
 	initPlanetModel();
 	initRollerCoaster();

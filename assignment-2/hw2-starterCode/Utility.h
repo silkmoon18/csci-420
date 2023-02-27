@@ -63,11 +63,15 @@ vec3 extractPosition(mat4 m);
 quat extractRotation(mat4 m); 
 // Extract scale from mat4
 vec3 extractScale(mat4 m);
-// copied from assignment-2 start code
+// Copied and modified from assignment-2 start code
+// Initialize a 2d texture
 int initTexture(const char* imageFilename, GLuint textureHandle);
-// get current directory
+// Initialize a cube texture
+int initTexture(string imageNames[6], GLuint textureHandle);
+// Get current directory
 string getCurrentDirectory();
 
+// Generate data of shapes
 Shape makePlane(float width = 1.0f, float length = 1.0f);
 Shape makeCube(float width = 1.0f, float length = 1.0f, float height = 1.0f);
 Shape makeSphere(float radius = 0.5f, int resolution = 50);
@@ -84,8 +88,7 @@ void log(vec3 v, bool endOfLine = true);
 // Debug log quat
 void log(quat q, bool endOfLine = true); 
 
-
-
+// Shape data
 struct Shape {
 	vector<vec3> positions;
 	vector<int> indices;
@@ -145,23 +148,27 @@ public:
 
 	// Create a new entity
 	Entity* createEntity(string name = "");
+	// Create the skybox
 	Entity* createSkybox(BasicPipelineProgram* pipeline, string textureDirectory);
+	// Create a pipeline
 	BasicPipelineProgram* createPipelineProgram(string shaderPath);
 	// Update all entities. Called once per frame.
 	void update();
 
 private:
-	vector<BasicPipelineProgram*> pipelinePrograms;
-	vector<Entity*> entities; // all entities
-	Entity* skybox = nullptr;
-	vector<int> lightModes;
+	vector<BasicPipelineProgram*> pipelinePrograms; // pipeline programs
+	vector<Entity*> entities; // entities
+	Entity* skybox = nullptr; // skybox
+	// data of lights in the scene
+	vector<Light*> lights;
+	vector<int> lightModes; 
 	vector<vec3> lightDirections;
 	vector<vec3> lightPositions;
 	vector<vec4> lightAmbients;
 	vector<vec4> lightDiffuses;
 	vector<vec4> lightSpeculars;
-	vector<Light*> lights;
 
+	// Pass lighting data to shaders
 	void setLightings();
 };
 
@@ -194,7 +201,7 @@ public:
 	template<class T> bool containsComponent();
 
 protected:
-	bool isActivated = true;
+	bool isActivated = true; // is this entity active
 	map<string, Component*> typeToComponent; // keys of component class type to added components
 	Entity* parent = nullptr; // parent entity
 	vector<Entity*> children; // child entities
@@ -257,6 +264,7 @@ public:
 	void setEulerAngles(vec3 angles, bool isWorld);
 	// Rotate around an axis (degrees)
 	void rotateAround(float degree, vec3 axis, bool isWorld);
+	// Rotate around an axis of a pivot (degrees)
 	void rotateAround(vec3 pivot, float degree, vec3 axis);
 	// Rotate to a target position
 	void faceTo(vec3 target, vec3 up = vec3(0, 1, 0));
@@ -287,14 +295,15 @@ class Renderer : public Component {
 public:
 	friend Entity;
 
+	// Get all renderers
 	static vector<Renderer*> getRenderers();
 
-	bool isSkyBox = false;
+	bool isSkyBox = false; // is this rendering a skybox
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
-	GLenum textureType = GL_TEXTURE_2D;
-	bool useLight = true;
+	GLenum textureType = GL_TEXTURE_2D; // texture type
+	bool useLight = true; // is this rendered with lights
 	vec4 ambient = vec4(1, 1, 1, 1); // ambient coefficient
 	vec4 diffuse = vec4(1, 1, 1, 1); // diffuse coefficient
 	vec4 specular = vec4(.9, .9, .9, 1); // specular coefficient
@@ -307,12 +316,13 @@ public:
 	void set2DTexture(string imageName);
 	// Set cube texture
 	void setCubeTexture(string textureDirectory);
+	// Render
 	void render();
 
 protected:
-	static inline vector<Renderer*> renderers;
-	GLuint textureHandle;
-	int textureTypeId = 0;
+	static inline vector<Renderer*> renderers; // renderers
+	GLuint textureHandle; // texture handle
+	int textureTypeId = 0; // 0: 2d, 1: cube
 
 	void onUpdate() override;
 };
@@ -359,6 +369,7 @@ public:
 	void setCurrent();
 	// Check if this is the current camera
 	bool isCurrentCamera();
+	// Update camera view
 	void view();
 
 protected:
@@ -373,15 +384,18 @@ class Light : public Component {
 public:
 	enum Mode {Directional, Point};
 
-	vec3 direction;
+	vec3 direction; // direction for directional light
 	vec4 ambient = vec4(0, 0, 0, 1); // ambient color
 	vec4 diffuse = vec4(0.9, 0.9, 0.9, 1); // diffuse color
 	vec4 specular = vec4(1, 1, 1, 1); // specular color
 
 	Light();
 
+	// Get light mode
 	Mode getMode();
+	// Set to directional light
 	void setDirectional(vec3 direction = vec3(1, -1, -1));
+	// Set to point light
 	void setPoint();
 
 protected:
@@ -400,8 +414,6 @@ public:
 	void move(vec4 input, float verticalMove);
 	// Move horizontally
 	void moveOnGround(vec4 input);
-	// do sprint
-	void sprint();
 
 	PlayerController();
 
@@ -420,7 +432,7 @@ public:
 
 	// Bind pipeline
 	void bindPipeline();
-	// Set vertex positions, colors and indices data
+	// Set data
 	void setPositions(vector<vec3> positions);
 	void setColors(vector<vec4> colors);
 	void setIndices(vector<int> indices);
@@ -460,10 +472,11 @@ public:
 	Spline spline;
 	float speed = 10.0f;
 	float minSpeed = 5.0f;
-	Entity* seat = nullptr; // to be moved by coaster when performing
+	Entity* seat = nullptr; // to be moved by coaster
 
 	RollerCoaster(vector<Spline> splines, bool closedPath, float scale = 10.0f, float maxLineLength = 0.1f);
 
+	// Get start position
 	vec3 getStartPosition();
 	// Get current point position
 	vec3 getCurrentPosition();
@@ -481,10 +494,11 @@ public:
 	void render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec4 saddleColor, vec4 backColor);
 
 protected:
-	float maxLineLength = 0.01f;
-	int startClosingIndex = -1;
-	bool closedPath = true;
+	float maxLineLength = 0.01f; // line length for subdivision
+	int startClosingIndex = -1; // point index where path starts to get closing when closedPath == true
+	bool closedPath = true; // is the rail path closed
 	bool isRepeating = false; // is repeating after finished
+	// vertex data
 	vector<vec3> vertexPositions;
 	vector<vec3> vertexNormals;
 	vector<vec3> vertexTangents;
@@ -495,7 +509,9 @@ protected:
 
 	// Move seat to current vertex position
 	void moveSeat(); 
+	// Calculate spline data by subdivision
 	void subdivide(float u0, float u1, float maxLength, mat3x4 control);
+	// Generate a track
 	void makeTrack(float width, float height, float offset, vec4 color);
 
 	void onUpdate() override;
