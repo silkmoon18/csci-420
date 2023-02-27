@@ -21,7 +21,8 @@ Features:
 9. Physically realistic motion.
 10. Multiple light sources. (1 directional light, 6 street lamps)
 11. Controllable player and a world camera.
-12. A rough framework "Utility.h". Details in "Utility.cpp". 
+12. .sp contains only point positions, no need to include the number of points. track.txt contains only .sp file paths, no need to include the number of .sp files.
+13. A rough framework "Utility.h". Details in "Utility.cpp". 
 
 ![image-20230227091431313](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230227091431313.png)
 
