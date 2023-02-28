@@ -644,6 +644,29 @@ Entity* generatePaifang(vec4 pillarColor, vec4 boardColor, vec4 topColor) {
 
 	return paifang;
 }
+Entity* generateBuilding(int type, vec3 position, vec3 size) {
+	type = std::clamp(type, 1, 3);
+	Entity* building = SceneManager::getInstance()->createEntity("Building");
+	building->transform->setPosition(position, true);
+	building->transform->setScale(size, true);
+	building->addComponent(new Renderer(texturePipeline, makeCube()));
+	building->getComponent<Renderer>()->setCubeTexture(textureDirectory + "/building" + to_string(type));
+	return building;
+}
+void initBuildings(int numRows, int numColumns, vec3 offset) {
+	float distance = 50;
+	for (int i = 0; i < numColumns; i++) {
+		for (int j = 0; j < numRows; j++) {
+			int type = rand() % 3 + 1;
+			float x = rand() % (int)(distance / 2) + (distance / 2);
+			float y = rand() % (int)(distance / 2) + (distance / 2);
+			float z = rand() % (int)(distance / 2) + (distance / 2);
+			vec3 size = vec3(x, y, z);
+			vec3 position = vec3(i * distance, y / 2.0f, j * distance) + offset;
+			generateBuilding(type, position, size);
+		}
+	}
+}
 void initPlanetModel() {
 	planetModel = SceneManager::getInstance()->createEntity("PlanetModel");
 	planetModel->transform->setPosition(vec3(0, 0, -125), true);
@@ -736,6 +759,9 @@ void initObjects() {
 
 	Entity* paifang = generatePaifang(vec4(168, 48, 37, 255), vec4(100, 4, 5, 255), vec4(66, 102, 102, 255));
 	paifang->transform->setPosition(vec3(0, 0, -60), true);
+
+	initBuildings(15, 3, vec3(-200, 0, -400));
+	initBuildings(15, 3, vec3(400, 0, -400));
 
 	initPlanetModel();
 	initRollerCoaster();
