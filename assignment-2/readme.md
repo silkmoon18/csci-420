@@ -2,7 +2,7 @@ Author: Baihua Yang
 
 Description: A scene with a roller-coaster.
 
-![image-20230227090924244](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230227090924244.png)
+![image-20230228050035683](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230228050035683.png)
 
 Platform: Windows 11, Visual Studio 2022.
 c++ version: ISO C++17 Standard.
@@ -13,7 +13,7 @@ Features:
 1. Implemented Level 0 to Level 5 requirements.
 2. Double rail.
 3. Support closed rail path.
-4. Additional scene elements: a animated planet model, street lamps, road.
+4. Additional scene elements: an animated planet model, street lamps, road and a paifang.
 5. Skybox. (Rotates with time)
 6. Mimic real world roller-coaster Magic Mountain.
 7. Support generating a track from multiple splines. (Not used in the scene)

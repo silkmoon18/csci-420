@@ -37,11 +37,10 @@ using namespace glm;
 
 
 
-
+// pipelines
 BasicPipelineProgram* milestonePipeline;
 BasicPipelineProgram* texturePipeline;
 BasicPipelineProgram* skyboxPipeline;
-
 
 int mousePos[2]; // x,y coordinate of the mouse position
 
@@ -58,7 +57,6 @@ Entity* player;
 Entity* ground;
 Entity* sky;
 Entity* light;
-
 Entity* planetModel;
 Entity* modelBase;
 Entity* planet0;
@@ -85,18 +83,11 @@ char windowTitle[512] = "CSCI 420 homework II";
 string shaderDirectory = "/shaders";
 string textureDirectory = "/textures";
 
-
-int currentImageIndex = 0;
-int screenshotIndex = 0;
-
-
 // other params
 bool isTakingScreenshot = false;
 int delay = 8; // hard coded for recording on 120 fps monitor
 int currentFrame = 0;
-
-
-// ---assignment-2---
+int screenshotIndex = 0;
 
 // the spline array 
 vector<Spline> splines;
@@ -233,8 +224,6 @@ void ResetPlayerView() {
 		player->transform->getPosition(true) + coaster->getCurrentDirection(),
 		coaster->getCurrentNormal());
 }
-
-
 void rideCoaster(RollerCoaster* coaster) {
 	player->getComponent<Physics>()->setActive(false);
 	player->getComponent<PlayerController>()->setActive(false);
@@ -274,7 +263,6 @@ void TryActivateNearestRollerCoaster() {
 		printf("Roller coaster No.%i activated. \n", nearest + 1);
 	}
 }
-
 void updatePlanetModel() {
 	planet0->transform->rotateAround(-0.05f, vec3(0, 1, 0), false);
 	vec3 pivot = planet0->transform->getPosition(true);
@@ -525,19 +513,9 @@ void initRollerCoaster() {
 	coaster->getComponent<RollerCoaster>()->render(vec3(0, 1, 0),
 												   vec4(196, 69, 54, 255), vec4(237, 221, 212, 255),
 												   vec4(25, 114, 120, 255), vec4(40, 61, 59, 255));
-	coaster->transform->setPosition(vec3(0, 0, -100), true);
+	coaster->transform->setPosition(vec3(0, 0, -200), true);
 
 	rollerCoasters.push_back(coaster);
-
-	//Entity* coaster1 = SceneManager::getInstance()->createEntity("Oblivion");
-	//coaster1->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
-	//coaster1->addComponent(new RollerCoaster(vector<Spline>(1, splines[1]), true, 1));
-	//coaster1->getComponent<RollerCoaster>()->render(vec3(0, 1, 0),
-	//												vec4(196, 69, 54, 255), vec4(237, 221, 212, 255),
-	//												vec4(25, 114, 120, 255), vec4(40, 61, 59, 255));
-	//coaster1->transform->setPosition(vec3(0, 0, -50), true);
-
-	//rollerCoasters.push_back(coaster1);
 }
 Entity* generateStreetLamp() {
 	Entity* parent = SceneManager::getInstance()->createEntity("StreetLamp");
@@ -573,9 +551,102 @@ Entity* generateRoad() {
 	road->addComponent(renderer);
 	return road;
 }
+Entity* generatePaifang(vec4 pillarColor, vec4 boardColor, vec4 topColor) {
+	Entity* paifang = SceneManager::getInstance()->createEntity("Paifang");
+
+	Entity* pillar1 = SceneManager::getInstance()->createEntity("Pillar1");
+	pillar1->transform->setPosition(vec3(15, 15, 0), true);
+	pillar1->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 30), pillarColor));
+	pillar1->setParent(paifang);
+
+	Entity* pillar2 = SceneManager::getInstance()->createEntity("Pillar2");
+	pillar2->transform->setPosition(vec3(-15, 15, 0), true);
+	pillar2->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 30), pillarColor));
+	pillar2->setParent(paifang);
+
+	Entity* pillar3 = SceneManager::getInstance()->createEntity("Pillar3");
+	pillar3->transform->setPosition(vec3(-35, 10, 0), true);
+	pillar3->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 20), pillarColor));
+	pillar3->setParent(paifang);
+
+	Entity* pillar4 = SceneManager::getInstance()->createEntity("Pillar4");
+	pillar4->transform->setPosition(vec3(35, 10, 0), true);
+	pillar4->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 20), pillarColor));
+	pillar4->setParent(paifang);
+
+	Entity* board1 = SceneManager::getInstance()->createEntity("Board1");
+	board1->transform->setPosition(vec3(-15, 12.5, 0), true);
+	board1->addComponent(new Renderer(milestonePipeline, makeCube(30, 0.5, 5), boardColor));
+	board1->setParent(pillar1);
+
+	Entity* board2 = SceneManager::getInstance()->createEntity("Board2");
+	board2->transform->setPosition(vec3(10, 7.5, 0), true);
+	board2->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 5), boardColor));
+	board2->setParent(pillar3);
+
+	Entity* board3 = SceneManager::getInstance()->createEntity("Board3");
+	board3->transform->setPosition(vec3(-10, 7.5, 0), true);
+	board3->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 5), boardColor));
+	board3->setParent(pillar4);
+
+	Entity* board4 = SceneManager::getInstance()->createEntity("Board4");
+	board4->transform->setPosition(vec3(0, 5, 0), true);
+	board4->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 5), boardColor));
+	board4->setParent(board1);
+
+	Entity* top1 = SceneManager::getInstance()->createEntity("Top1");
+	top1->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top1->transform->setEulerAngles(vec3(-60, 0, 0), true);
+	top1->addComponent(new Renderer(milestonePipeline, makeCube(30, 0.5, 7.5), topColor));
+	top1->setParent(board1);
+
+	Entity* top2 = SceneManager::getInstance()->createEntity("Top2");
+	top2->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top2->transform->setEulerAngles(vec3(60, 0, 0), true);
+	top2->addComponent(new Renderer(milestonePipeline, makeCube(30, 0.5, 7.5), topColor));
+	top2->setParent(board1);
+
+	Entity* top3 = SceneManager::getInstance()->createEntity("Top3");
+	top3->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top3->transform->setEulerAngles(vec3(-60, 0, 0), true);
+	top3->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
+	top3->setParent(board2);
+
+	Entity* top4 = SceneManager::getInstance()->createEntity("Top4");
+	top4->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top4->transform->setEulerAngles(vec3(60, 0, 0), true);
+	top4->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
+	top4->setParent(board2);
+
+	Entity* top5 = SceneManager::getInstance()->createEntity("Top5");
+	top5->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top5->transform->setEulerAngles(vec3(-60, 0, 0), true);
+	top5->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
+	top5->setParent(board3);
+
+	Entity* top6 = SceneManager::getInstance()->createEntity("Top6");
+	top6->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top6->transform->setEulerAngles(vec3(60, 0, 0), true);
+	top6->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
+	top6->setParent(board3);
+
+	Entity* top7 = SceneManager::getInstance()->createEntity("Top7");
+	top7->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top7->transform->setEulerAngles(vec3(-60, 0, 0), true);
+	top7->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
+	top7->setParent(board4);
+
+	Entity* top8 = SceneManager::getInstance()->createEntity("Top8");
+	top8->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top8->transform->setEulerAngles(vec3(60, 0, 0), true);
+	top8->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
+	top8->setParent(board4);
+
+	return paifang;
+}
 void initPlanetModel() {
 	planetModel = SceneManager::getInstance()->createEntity("PlanetModel");
-	planetModel->transform->setPosition(vec3(0, 0, -75), true);
+	planetModel->transform->setPosition(vec3(0, 0, -125), true);
 
 	modelBase = SceneManager::getInstance()->createEntity("ModelBase");
 	modelBase->addComponent(new Renderer(milestonePipeline, makeTetrahedron(20, 6), vec4(3, 25, 30, 255)));
@@ -635,10 +706,6 @@ void initObjects() {
 	light->addComponent(directionalLight);
 	light->transform->setPosition(vec3(0, 3, 0), true);
 
-	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, textureDirectory + "/skybox");
-
-	SceneManager::getInstance()->isLightingEnabled = true;
-
 	Entity* lamp1 = generateStreetLamp();
 	lamp1->transform->rotateAround(90, worldUp, true);
 	lamp1->transform->setPosition(vec3(20, 0, 0), true);
@@ -667,9 +734,14 @@ void initObjects() {
 	Entity* road4 = generateRoad();
 	road4->transform->setPosition(vec3(-10, 0.05f, -35), true);
 
+	Entity* paifang = generatePaifang(vec4(168, 48, 37, 255), vec4(100, 4, 5, 255), vec4(66, 102, 102, 255));
+	paifang->transform->setPosition(vec3(0, 0, -60), true);
 
 	initPlanetModel();
 	initRollerCoaster();
+
+	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, textureDirectory + "/skybox");
+	SceneManager::getInstance()->isLightingEnabled = true;
 }
 
 int main(int argc, char* argv[]) {
