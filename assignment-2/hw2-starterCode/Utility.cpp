@@ -47,7 +47,9 @@ void log(quat q, bool endOfLine) {
 	string newLine = endOfLine ? "\n" : "";
 	printf("quat(%f, %f, %f, %f)%s", q.x, q.y, q.z, q.w, newLine.c_str());
 }
-int initTexture(string imageName, GLuint textureHandle) {
+
+
+Texture* init2dTexture(string imageName) {
 	imageName = getCurrentDirectory() + imageName;
 	const char* imageFilename = imageName.c_str();
 
@@ -58,14 +60,19 @@ int initTexture(string imageName, GLuint textureHandle) {
 
 	if (err != ImageIO::OK) {
 		printf("Loading texture from %s failed.\n", imageFilename);
-		return -1;
+		return nullptr;
 	}
 
 	// check that the number of bytes is a multiple of 4
 	if (img.getWidth() * img.getBytesPerPixel() % 4) {
 		printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
-		return -1;
+		return nullptr;
 	}
+
+	GLuint textureHandle;
+	glGenTextures(1, &textureHandle);
+	// bind the texture
+	glBindTexture(GL_TEXTURE_2D, textureHandle);
 
 	// allocate space for an array of pixels
 	int width = img.getWidth();
@@ -88,11 +95,8 @@ int initTexture(string imageName, GLuint textureHandle) {
 				pixelsRGBA[4 * (h * width + w) + c] = img.getPixel(w, h, c);
 		}
 
-	// bind the texture
-	glBindTexture(GL_TEXTURE_2D, textureHandle);
-
 	// initialize the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA);
 
 	// generate the mipmaps for this texture
 	glGenerateMipmap(GL_TEXTURE_2D);
@@ -113,18 +117,48 @@ int initTexture(string imageName, GLuint textureHandle) {
 	GLenum errCode = glGetError();
 	if (errCode != 0) {
 		printf("Texture initialization error. Error code: %d.\n", errCode);
-		return -1;
+		return nullptr;
 	}
 
-	// de-allocate the pixel array -- it is no longer needed
-	delete[] pixelsRGBA;
-
-	return 0;
+	return new Texture2D(width, height, pixelsRGBA, textureHandle);
 }
-int initTexture(string imageNames[6], GLuint textureHandle) {
+Texture* initCubeTexture(string textureDirectory) {
+	string imageNames[6];
+	textureDirectory = getCurrentDirectory() + textureDirectory;
+	for (const auto& entry : filesystem::directory_iterator(textureDirectory)) {
+		filesystem::path path = entry.path();
+
+		string extension = path.extension().string();
+		if (extension == ".jpg" || extension == ".jpeg") {
+			string filename = path.stem().string();
+			string filePath = textureDirectory + "/" + filename + ".jpg";
+			if (filename.compare("right") == 0) imageNames[0] = filePath;
+			else if (filename.compare("left") == 0) imageNames[1] = filePath;
+			else if (filename.compare("bottom") == 0) imageNames[2] = filePath;
+			else if (filename.compare("top") == 0) imageNames[3] = filePath;
+			else if (filename.compare("front") == 0) imageNames[4] = filePath;
+			else if (filename.compare("back") == 0) imageNames[5] = filePath;
+		}
+		else {
+			printf("Error: texture file %s is not jpg. \n", path.string().c_str());
+		}
+	}
+	int numOfImages = 0;
+	for (int i = 0; i < 6; i++) {
+		if (!imageNames[i].empty()) numOfImages++;
+	}
+	if (numOfImages < 6) {
+		printf("!!!Error: 6 images are needed for cubemap. Currently %i. \n", numOfImages);
+		return nullptr;
+	}
+
+
+	GLuint textureHandle;
+	glGenTextures(1, &textureHandle);
 	// bind the texture
 	glBindTexture(GL_TEXTURE_CUBE_MAP, textureHandle);
 
+	vector<Texture2D*> faces;
 	// read the texture image
 	ImageIO images[6];
 	ImageIO::fileFormatType imgFormat;
@@ -137,13 +171,13 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 
 		if (err != ImageIO::OK) {
 			printf("Loading texture from %s failed.\n", imageFilename);
-			return -1;
+			return nullptr;
 		}
 
 		// check that the number of bytes is a multiple of 4
 		if (img.getWidth() * img.getBytesPerPixel() % 4) {
 			printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
-			return -1;
+			return nullptr;
 		}
 
 		// allocate space for an array of pixels
@@ -175,13 +209,11 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 			0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA
 		);
 
-		// de-allocate the pixel array -- it is no longer needed
-		delete[] pixelsRGBA;
+		faces.push_back(new Texture2D(width, height, pixelsRGBA, -1));
 	}
 
-
 	// generate the mipmaps for this texture
-	glGenerateMipmap(GL_TEXTURE_2D);
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
 	// set the texture parameters
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -200,10 +232,10 @@ int initTexture(string imageNames[6], GLuint textureHandle) {
 	GLenum errCode = glGetError();
 	if (errCode != 0) {
 		printf("Texture initialization error. Error code: %d.\n", errCode);
-		return -1;
+		return nullptr;
 	}
 
-	return 0;
+	return new Cubemap(faces, textureHandle);
 }
 string getCurrentDirectory() {
 	return filesystem::current_path().string();
@@ -501,10 +533,9 @@ Entity* SceneManager::createEntity(string name) {
 	}
 	Entity* entity = new Entity(name);
 	entities.push_back(entity);
-	printf("Entity \"%s\" created. Number of entities: %i\n", name.c_str(), entities.size());
 	return entity;
 }
-Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textureDirectory) {
+Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, Texture* texture) {
 	skybox = new Entity("Skybox");
 	skybox->transform->setPosition(vec3(0, 0, 0), true);
 	Shape* shape = new Shape(makeCube());
@@ -514,7 +545,7 @@ Entity* SceneManager::createSkybox(BasicPipelineProgram* pipeline, string textur
 	vao->setColors(vector<vec4>(shape->positions.size(), vec4(255)));
 	Renderer* skyRenderer = new Renderer(vao, shape->drawMode);
 	skyRenderer->useLight = false;
-	skyRenderer->setCubeTexture(textureDirectory);
+	skyRenderer->setTexture(texture);
 	skyRenderer->isSkyBox = true;
 	skybox->addComponent(skyRenderer);
 	return skybox;
@@ -793,58 +824,8 @@ Renderer::Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 colo
 	drawMode = shape.drawMode;
 	renderers.push_back(this);
 }
-void Renderer::set2DTexture(string imageName) {
-	textureType = GL_TEXTURE_2D;
-	textureTypeId = 0;
-
-	vao->bindPipeline();
-	glGenTextures(1, &textureHandle);
-	int code = initTexture(imageName, textureHandle);
-	if (code != 0) {
-		printf("!!!Error loading the texture image.\n");
-	}
-}
-void Renderer::setCubeTexture(string textureDirectory) {
-	string imageNames[6];
-	textureDirectory = getCurrentDirectory() + textureDirectory;
-	for (const auto& entry : filesystem::directory_iterator(textureDirectory)) {
-		filesystem::path path = entry.path();
-
-		string extension = path.extension().string();
-		if (extension == ".jpg" || extension == ".jpeg") {
-			string filename = path.stem().string();
-			string filePath = textureDirectory + "/" + filename + ".jpg";
-			if (filename.compare("right") == 0) imageNames[0] = filePath;
-			else if (filename.compare("left") == 0) imageNames[1] = filePath;
-			else if (filename.compare("bottom") == 0) imageNames[2] = filePath;
-			else if (filename.compare("top") == 0) imageNames[3] = filePath;
-			else if (filename.compare("front") == 0) imageNames[4] = filePath;
-			else if (filename.compare("back") == 0) imageNames[5] = filePath;
-		}
-		else {
-			printf("Error: texture file %s is not jpg. \n", path.string().c_str());
-		}
-	}
-	int numOfImages = 0;
-	for (int i = 0; i < 6; i++) {
-		if (!imageNames[i].empty()) numOfImages++;
-	}
-	if (numOfImages < 6) {
-		printf("!!!Error: 6 images are needed for cubemap. Currently %i. \n", numOfImages);
-		return;
-	}
-
-	textureType = GL_TEXTURE_CUBE_MAP;
-	textureTypeId = 1;
-
-	vao->bindPipeline();
-	glGenTextures(1, &textureHandle);
-
-	printf("Loading textures from %s. \n", textureDirectory.c_str());
-	int code = initTexture(imageNames, textureHandle);
-	if (code != 0) {
-		printf("!!!Error loading the texture image.\n");
-	}
+void Renderer::setTexture(Texture* texture) {
+	this->texture = texture;
 }
 void Renderer::render() {
 	if (!vao) {
@@ -867,15 +848,18 @@ void Renderer::render() {
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
 	glUniform1f(loc, shininess);
 	// pass texture data
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureTypeId");
-	glUniform1i(loc, textureTypeId);
+
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImage2D");
 	glUniform1i(loc, 0);
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImageCube");
 	glUniform1i(loc, 1);
 
-	glActiveTexture(GL_TEXTURE0 + textureTypeId);
-	glBindTexture(textureType, textureHandle);
+	if (texture) {
+		glActiveTexture(GL_TEXTURE0 + texture->textureTypeId);
+		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureTypeId");
+		glUniform1i(loc, texture->textureTypeId);
+		texture->load();
+	}
 
 	// get matrices
 	float m[16], v[16], p[16], n[16];
@@ -1118,7 +1102,6 @@ void VertexArrayObject::setNormals(vector<vec3> normals) {
 void VertexArrayObject::setTexCoords(vector<vec2> texCoords) {
 	numTexCoords = texCoords.size();
 	if (numTexCoords == 0) {
-		printf("***Warning: the number of texture coordinates is 0. \n");
 		return;
 	}
 	glBindVertexArray(vertexArray);
@@ -1146,27 +1129,6 @@ void VertexArrayObject::draw(float* m, float* v, float* p, float* n, GLenum draw
 }
 #pragma endregion
 
-void RollerCoaster::subdivide(float u0, float u1, float maxLength, mat3x4 control) {
-	float umid = (u0 + u1) / 2;
-
-	vec4 uVector0(u0 * u0 * u0, u0 * u0, u0, 1);
-	vec3 point0 = uVector0 * BASIS * control;
-	vec4 uVector1(u1 * u1 * u1, u1 * u1, u1, 1);
-	vec3 point1 = uVector1 * BASIS * control;
-	if (distance(point0, point1) > maxLength) {
-		subdivide(u0, umid, maxLength, control);
-		subdivide(umid, u1, maxLength, control);
-	}
-	else {
-		vertexPositions.push_back(point0);
-		vertexPositions.push_back(point1);
-
-		vec4 uPrime0(3 * u0 * u0, 2 * u0, 1, 0);
-		vec4 uPrime1(3 * u1 * u1, 2 * u1, 1, 0);
-		vertexTangents.push_back(normalize(uPrime0 * BASIS * control));
-		vertexTangents.push_back(normalize(uPrime1 * BASIS * control));
-	}
-}
 #pragma region RollerCoaster
 RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scale, float maxLineLength) {
 	this->closedPath = closedPath;
@@ -1241,6 +1203,27 @@ vec3 RollerCoaster::getCurrentPosition() {
 	position += 0.7f * vertexNormals[currentVertexIndex];
 	position += entity->transform->getPosition(true);
 	return position;
+}
+void RollerCoaster::subdivide(float u0, float u1, float maxLength, mat3x4 control) {
+	float umid = (u0 + u1) / 2;
+
+	vec4 uVector0(u0 * u0 * u0, u0 * u0, u0, 1);
+	vec3 point0 = uVector0 * BASIS * control;
+	vec4 uVector1(u1 * u1 * u1, u1 * u1, u1, 1);
+	vec3 point1 = uVector1 * BASIS * control;
+	if (distance(point0, point1) > maxLength) {
+		subdivide(u0, umid, maxLength, control);
+		subdivide(umid, u1, maxLength, control);
+	}
+	else {
+		vertexPositions.push_back(point0);
+		vertexPositions.push_back(point1);
+
+		vec4 uPrime0(3 * u0 * u0, 2 * u0, 1, 0);
+		vec4 uPrime1(3 * u1 * u1, 2 * u1, 1, 0);
+		vertexTangents.push_back(normalize(uPrime0 * BASIS * control));
+		vertexTangents.push_back(normalize(uPrime1 * BASIS * control));
+	}
 }
 vec3 RollerCoaster::getCurrentDirection() {
 	return vertexTangents[currentVertexIndex];
@@ -1435,6 +1418,3 @@ void RollerCoaster::onUpdate() {
 	moveSeat();
 }
 #pragma endregion
-
-
-

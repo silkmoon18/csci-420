@@ -40,6 +40,9 @@ class VertexArrayObject;
 class RollerCoaster;
 
 struct Shape;
+class Texture;
+class Texture2D;
+class Cubemap;
 
 
 const float EPSILON = 0.000001f; // epsilon used for comparing vec3
@@ -63,13 +66,13 @@ vec3 extractPosition(mat4 m);
 quat extractRotation(mat4 m); 
 // Extract scale from mat4
 vec3 extractScale(mat4 m);
-// Copied and modified from assignment-2 start code
-// Initialize a 2d texture
-int initTexture(const char* imageFilename, GLuint textureHandle);
-// Initialize a cube texture
-int initTexture(string imageNames[6], GLuint textureHandle);
 // Get current directory
 string getCurrentDirectory();
+// Copied and modified from assignment-2 start code
+// Initialize a 2d texture
+Texture* init2dTexture(string imageName);
+// Initialize a cube texture
+Texture* initCubeTexture(string textureDirectory);
 
 // Generate data of shapes
 Shape makePlane(float width = 1.0f, float length = 1.0f);
@@ -102,6 +105,51 @@ struct Shape {
 		vector<vec3> normals,
 		vector<vec2> texCoords,
 		GLenum drawMode = GL_POINTS);
+}; 
+class Texture {
+public:
+	GLenum type;
+	GLuint handle;
+	int textureTypeId = 0; // 0: 2d, 1: cube
+
+	virtual void load() = 0;
+}; 
+class Texture2D : public Texture {
+public:
+	int width;
+	int height;
+	unsigned char* data;
+	Texture2D(int width, int height, unsigned char* data, GLuint handle) {
+		textureTypeId = 0;
+		type = GL_TEXTURE_2D;
+		this->width = width;
+		this->height = height;
+		this->data = data;
+		this->handle = handle;
+	}
+	void load() override {
+		glBindTexture(type, handle);
+		//glTexSubImage2D(type, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	}
+};
+class Cubemap : public Texture {
+public:
+	vector<Texture2D*> faces;
+	Cubemap(vector<Texture2D*> faces, GLuint handle) {
+		textureTypeId = 1;
+		type = GL_TEXTURE_CUBE_MAP;
+		this->faces = faces;
+		this->handle = handle;
+	}	
+	void load() override {
+		glBindTexture(type, handle);
+		//for (int i = 0; i < 6; i++) {
+		//	glTexSubImage2D(
+		//		GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+		//		0, GL_RGBA, faces[i]->width, faces[i]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, faces[i]->data
+		//	);
+		//}
+	}
 };
 
 
@@ -149,7 +197,7 @@ public:
 	// Create a new entity
 	Entity* createEntity(string name = "");
 	// Create the skybox
-	Entity* createSkybox(BasicPipelineProgram* pipeline, string textureDirectory);
+	Entity* createSkybox(BasicPipelineProgram* pipeline, Texture* texture);
 	// Create a pipeline
 	BasicPipelineProgram* createPipelineProgram(string shaderPath);
 	// Update all entities. Called once per frame.
@@ -302,7 +350,6 @@ public:
 	VertexArrayObject* vao = nullptr; // used for rendering
 	GLenum drawMode = GL_POINTS; // draw mode
 
-	GLenum textureType = GL_TEXTURE_2D; // texture type
 	bool useLight = true; // is this rendered with lights
 	vec4 ambient = vec4(1, 1, 1, 1); // ambient coefficient
 	vec4 diffuse = vec4(1, 1, 1, 1); // diffuse coefficient
@@ -313,16 +360,13 @@ public:
 	Renderer(BasicPipelineProgram* pipelineProgram, Shape shape, vec4 color = vec4(255));
 
 	// Set 2d texture
-	void set2DTexture(string imageName);
-	// Set cube texture
-	void setCubeTexture(string textureDirectory);
+	void setTexture(Texture* texture);
 	// Render
 	void render();
 
 protected:
 	static inline vector<Renderer*> renderers; // renderers
-	GLuint textureHandle; // texture handle
-	int textureTypeId = 0; // 0: 2d, 1: cube
+	Texture* texture = nullptr;
 
 	void onUpdate() override;
 };
@@ -439,7 +483,7 @@ public:
 	void setNormals(vector<vec3> normals);
 	void setTexCoords(vector<vec2> texCoords);
 	// Use model view matrix, projection matrix and draw mode to draw
-	void draw(float m[16], float v[16], float p[16], float n[16], GLenum drawMode);
+	void draw(float* m, float* v, float* p, float* n, GLenum drawMode);
 	// Send data to shaders
 	template<class T> void sendData(vector<T> data, int size, string name);
 
