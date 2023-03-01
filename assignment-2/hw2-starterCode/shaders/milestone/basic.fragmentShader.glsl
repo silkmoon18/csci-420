@@ -28,34 +28,41 @@ out vec4 c;
 
 void main()
 {
-  if (isLightingEnabled == 1) {
-    vec4 ambient = vec4(0, 0, 0, 1);
-    vec4 diffuse = vec4(0, 0, 0, 1);; 
-    vec4 specular = vec4(0, 0, 0, 1);
-    for (int i = 0; i < numOfLights; i++) {
-        vec3 lightVector;
-        if (lightModes[i] == 0) {
-            lightVector = normalize(-lightDirections[i]);
-        }
-        else if (lightModes[i] == 1) {
-            lightVector = normalize(lightPositions[i] - fragmentPosition);
-        }
-        ambient += ambientCoef * lightAmbients[i]; 
 
-        float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
-        diffuse += diffuseCoef * lightDiffuses[i] * ndotl;
+    if (isLightingEnabled == 1) {
+        vec4 ambient = vec4(0, 0, 0, 1);
+        vec4 diffuse = vec4(0, 0, 0, 1);; 
+        vec4 specular = vec4(0, 0, 0, 1);
+        for (int i = 0; i < numOfLights; i++) {
+        
+            float q = distance(lightPositions[i], fragmentPosition);
+            float att = 1.0 / (1 + q + q * q);
+
+            vec3 lightVector;
+            if (lightModes[i] == 0) {
+                lightVector = normalize(-lightDirections[i]);
+            }
+            else if (lightModes[i] == 1) {
+                lightVector = normalize(lightPositions[i] - fragmentPosition);
+            }
+            ambient += ambientCoef * lightAmbients[i] * att; 
+
+            float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
+            diffuse += diffuseCoef * lightDiffuses[i] * ndotl * att;
   
-        vec3 R = normalize(reflect(-lightVector, vertexNormal));
-        vec3 eyeVector = normalize(eyePosition - fragmentPosition);
-        float rdotv = max(dot(R, eyeVector), 0.0);
+            vec3 R = normalize(reflect(-lightVector, vertexNormal));
+            vec3 eyeVector = normalize(eyePosition - fragmentPosition);
+            float rdotv = max(dot(R, eyeVector), 0.0);
        
-        if (materialShininess > 0) {
-          specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess);
-        }      
+            if (materialShininess > 0) {
+                specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess) * att;
+            }      
+
+
+        }
+        // compute the final pixel color
+        c = (ambient + diffuse) * col + specular;
     }
-      // compute the final pixel color
-    c = (ambient + diffuse) * col + specular;
-  }
   else {
     c = col;
   }

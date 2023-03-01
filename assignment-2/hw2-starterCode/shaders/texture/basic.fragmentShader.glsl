@@ -4,7 +4,7 @@
 // Texture fragment shader
 //
 
-const int MAX_LIGHT_AMOUNT = 10;
+const int MAX_LIGHT_AMOUNT = 100;
 
 uniform int numOfLights;
 uniform int lightModes[MAX_LIGHT_AMOUNT];
@@ -46,6 +46,10 @@ void main()
         vec4 diffuse = vec4(0, 0, 0, 1);; 
         vec4 specular = vec4(0, 0, 0, 1);
         for (int i = 0; i < numOfLights; i++) {
+        
+            float q = distance(lightPositions[i], fragmentPosition);
+            float att = 1.0 / (1 + 0.001 * q * q);
+
             vec3 lightVector;
             if (lightModes[i] == 0) {
                 lightVector = normalize(-lightDirections[i]);
@@ -53,18 +57,20 @@ void main()
             else if (lightModes[i] == 1) {
                 lightVector = normalize(lightPositions[i] - fragmentPosition);
             }
-            ambient += ambientCoef * lightAmbients[i]; 
+            ambient += ambientCoef * lightAmbients[i] * att; 
 
             float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
-            diffuse += diffuseCoef * lightDiffuses[i] * ndotl;
+            diffuse += diffuseCoef * lightDiffuses[i] * ndotl * att;
   
             vec3 R = normalize(reflect(-lightVector, vertexNormal));
             vec3 eyeVector = normalize(eyePosition - fragmentPosition);
             float rdotv = max(dot(R, eyeVector), 0.0);
        
             if (materialShininess > 0) {
-                specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess);
+                specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess) * att;
             }      
+
+
         }
         // compute the final pixel color
         c = (ambient + diffuse) * color + specular;

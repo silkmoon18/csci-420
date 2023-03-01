@@ -567,7 +567,7 @@ Entity* generateStreetLamp() {
 	lamp->getComponent<Renderer>()->useLight = false;
 	lamp->transform->setPosition(vec3(0, 7.5, -5), true);
 	lamp->addComponent(new Light());
-	lamp->getComponent<Light>()->diffuse = vec4(0.1, 0.1, 0.1, 1);
+	//lamp->getComponent<Light>()->diffuse = vec4(0.1, 0.1, 0.1, 1);
 	lamp->setParent(pole);
 
 	return parent;
@@ -694,6 +694,12 @@ Entity* makeRoad(int numRows, int numColumns) {
 			Entity* block = generateRoad(width, length);
 			block->transform->setPosition(vec3(i * width, 0.1f, j * length), true);
 			block->setParent(road);
+
+			Entity* lamp = generateStreetLamp();
+			lamp->transform->rotateAround(90, worldUp, true);
+			lamp->transform->setPosition(vec3(0, 0, 0), true);
+			lamp->setParent(block);
+			lamp->transform->setScale(vec3(1), true);
 		}
 	}
 
@@ -775,32 +781,32 @@ void initObjects() {
 	ground->transform->setPosition(vec3(0, 0, 0), true);
 
 	// init directional light
-	light = SceneManager::getInstance()->createEntity("Light");
-	Light* directionalLight = new Light();
-	directionalLight->setDirectional();
-	directionalLight->ambient = vec4(0.4, 0.4, 0.4, 1);
-	light->addComponent(directionalLight);
-	light->transform->setPosition(vec3(0, 3, 0), true);
+	//light = SceneManager::getInstance()->createEntity("Light");
+	//Light* directionalLight = new Light();
+	//directionalLight->setDirectional();
+	//directionalLight->ambient = vec4(0.4, 0.4, 0.4, 1);
+	//light->addComponent(directionalLight);
+	//light->transform->setPosition(vec3(0, 3, 0), true);
 
 	// init street lamps
-	Entity* lamp1 = generateStreetLamp();
-	lamp1->transform->rotateAround(90, worldUp, true);
-	lamp1->transform->setPosition(vec3(20, 0, 0), true);
-	Entity* lamp2 = generateStreetLamp();
-	lamp2->transform->rotateAround(-90, worldUp, true);
-	lamp2->transform->setPosition(vec3(-20, 0, 0), true);
-	Entity* lamp3 = generateStreetLamp();
-	lamp3->transform->rotateAround(90, worldUp, true);
-	lamp3->transform->setPosition(vec3(20, 0, -20), true);
-	Entity* lamp4 = generateStreetLamp();
-	lamp4->transform->rotateAround(-90, worldUp, true);
-	lamp4->transform->setPosition(vec3(-20, 0, -20), true);
-	Entity* lamp5 = generateStreetLamp();
-	lamp5->transform->rotateAround(90, worldUp, true);
-	lamp5->transform->setPosition(vec3(20, 0, -40), true);
-	Entity* lamp6 = generateStreetLamp();
-	lamp6->transform->rotateAround(-90, worldUp, true);
-	lamp6->transform->setPosition(vec3(-20, 0, -40), true);
+	//Entity* lamp1 = generateStreetLamp();
+	//lamp1->transform->rotateAround(90, worldUp, true);
+	//lamp1->transform->setPosition(vec3(20, 0, 0), true);
+	//Entity* lamp2 = generateStreetLamp();
+	//lamp2->transform->rotateAround(-90, worldUp, true);
+	//lamp2->transform->setPosition(vec3(-20, 0, 0), true);
+	//Entity* lamp3 = generateStreetLamp();
+	//lamp3->transform->rotateAround(90, worldUp, true);
+	//lamp3->transform->setPosition(vec3(20, 0, -20), true);
+	//Entity* lamp4 = generateStreetLamp();
+	//lamp4->transform->rotateAround(-90, worldUp, true);
+	//lamp4->transform->setPosition(vec3(-20, 0, -20), true);
+	//Entity* lamp5 = generateStreetLamp();
+	//lamp5->transform->rotateAround(90, worldUp, true);
+	//lamp5->transform->setPosition(vec3(20, 0, -40), true);
+	//Entity* lamp6 = generateStreetLamp();
+	//lamp6->transform->rotateAround(-90, worldUp, true);
+	//lamp6->transform->setPosition(vec3(-20, 0, -40), true);
 
 	Entity* road = makeRoad(10, 2);
 	road->transform->setPosition(vec3(-10, 0, -20), true);
