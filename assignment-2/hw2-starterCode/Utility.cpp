@@ -47,196 +47,6 @@ void log(quat q, bool endOfLine) {
 	string newLine = endOfLine ? "\n" : "";
 	printf("quat(%f, %f, %f, %f)%s", q.x, q.y, q.z, q.w, newLine.c_str());
 }
-
-
-Texture* init2dTexture(string imageName) {
-	imageName = getCurrentDirectory() + imageName;
-	const char* imageFilename = imageName.c_str();
-
-	// read the texture image
-	ImageIO img;
-	ImageIO::fileFormatType imgFormat;
-	ImageIO::errorType err = img.load(imageFilename, &imgFormat);
-
-	if (err != ImageIO::OK) {
-		printf("Loading texture from %s failed.\n", imageFilename);
-		return nullptr;
-	}
-
-	// check that the number of bytes is a multiple of 4
-	if (img.getWidth() * img.getBytesPerPixel() % 4) {
-		printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
-		return nullptr;
-	}
-
-	GLuint textureHandle;
-	glGenTextures(1, &textureHandle);
-	// bind the texture
-	glBindTexture(GL_TEXTURE_2D, textureHandle);
-
-	// allocate space for an array of pixels
-	int width = img.getWidth();
-	int height = img.getHeight();
-	unsigned char* pixelsRGBA = new unsigned char[4 * width * height]; // we will use 4 bytes per pixel, i.e., RGBA
-
-	// fill the pixelsRGBA array with the image pixels
-	memset(pixelsRGBA, 0, 4 * width * height); // set all bytes to 0
-	for (int h = 0; h < height; h++)
-		for (int w = 0; w < width; w++) {
-			// assign some default byte values (for the case where img.getBytesPerPixel() < 4)
-			pixelsRGBA[4 * (h * width + w) + 0] = 0; // red
-			pixelsRGBA[4 * (h * width + w) + 1] = 0; // green
-			pixelsRGBA[4 * (h * width + w) + 2] = 0; // blue
-			pixelsRGBA[4 * (h * width + w) + 3] = 255; // alpha channel; fully opaque
-
-			// set the RGBA channels, based on the loaded image
-			int numChannels = img.getBytesPerPixel();
-			for (int c = 0; c < numChannels; c++) // only set as many channels as are available in the loaded image; the rest get the default value
-				pixelsRGBA[4 * (h * width + w) + c] = img.getPixel(w, h, c);
-		}
-
-	// initialize the texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA);
-
-	// generate the mipmaps for this texture
-	glGenerateMipmap(GL_TEXTURE_2D);
-
-	// set the texture parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// query support for anisotropic texture filtering
-	GLfloat fLargest;
-	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
-	printf("Max available anisotropic samples: %f\n", fLargest);
-	// set anisotropic texture filtering
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
-
-	// query for any errors
-	GLenum errCode = glGetError();
-	if (errCode != 0) {
-		printf("Texture initialization error. Error code: %d.\n", errCode);
-		return nullptr;
-	}
-
-	return new Texture2D(width, height, pixelsRGBA, textureHandle);
-}
-Texture* initCubeTexture(string textureDirectory) {
-	string imageNames[6];
-	textureDirectory = getCurrentDirectory() + textureDirectory;
-	for (const auto& entry : filesystem::directory_iterator(textureDirectory)) {
-		filesystem::path path = entry.path();
-
-		string extension = path.extension().string();
-		if (extension == ".jpg" || extension == ".jpeg") {
-			string filename = path.stem().string();
-			string filePath = textureDirectory + "/" + filename + ".jpg";
-			if (filename.compare("right") == 0) imageNames[0] = filePath;
-			else if (filename.compare("left") == 0) imageNames[1] = filePath;
-			else if (filename.compare("bottom") == 0) imageNames[2] = filePath;
-			else if (filename.compare("top") == 0) imageNames[3] = filePath;
-			else if (filename.compare("front") == 0) imageNames[4] = filePath;
-			else if (filename.compare("back") == 0) imageNames[5] = filePath;
-		}
-		else {
-			printf("Error: texture file %s is not jpg. \n", path.string().c_str());
-		}
-	}
-	int numOfImages = 0;
-	for (int i = 0; i < 6; i++) {
-		if (!imageNames[i].empty()) numOfImages++;
-	}
-	if (numOfImages < 6) {
-		printf("!!!Error: 6 images are needed for cubemap. Currently %i. \n", numOfImages);
-		return nullptr;
-	}
-
-
-	GLuint textureHandle;
-	glGenTextures(1, &textureHandle);
-	// bind the texture
-	glBindTexture(GL_TEXTURE_CUBE_MAP, textureHandle);
-
-	vector<Texture2D*> faces;
-	// read the texture image
-	ImageIO images[6];
-	ImageIO::fileFormatType imgFormat;
-	for (int i = 0; i < 6; i++) {
-		ImageIO img = images[i];
-		string imageName = imageNames[i];
-		const char* imageFilename = (imageName).c_str();
-
-		ImageIO::errorType err = img.load(imageFilename, &imgFormat);
-
-		if (err != ImageIO::OK) {
-			printf("Loading texture from %s failed.\n", imageFilename);
-			return nullptr;
-		}
-
-		// check that the number of bytes is a multiple of 4
-		if (img.getWidth() * img.getBytesPerPixel() % 4) {
-			printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
-			return nullptr;
-		}
-
-		// allocate space for an array of pixels
-		int width = img.getWidth();
-		int height = img.getHeight();
-		unsigned char* pixelsRGBA = new unsigned char[4 * width * height]; // we will use 4 bytes per pixel, i.e., RGBA
-
-		// fill the pixelsRGBA array with the image pixels
-		memset(pixelsRGBA, 0, 4 * width * height); // set all bytes to 0
-
-		for (int h = 0; h < height; h++) {
-			for (int w = 0; w < width; w++) {
-				// assign some default byte values (for the case where img.getBytesPerPixel() < 4)
-				pixelsRGBA[4 * (h * width + w) + 0] = 0; // red
-				pixelsRGBA[4 * (h * width + w) + 1] = 0; // green
-				pixelsRGBA[4 * (h * width + w) + 2] = 0; // blue
-				pixelsRGBA[4 * (h * width + w) + 3] = 255; // alpha channel; fully opaque
-
-				// set the RGBA channels, based on the loaded image
-				int numChannels = img.getBytesPerPixel();
-				for (int c = 0; c < numChannels; c++) // only set as many channels as are available in the loaded image; the rest get the default value
-					pixelsRGBA[4 * (h * width + w) + c] = img.getPixel(w, h, c);
-			}
-		}
-
-		// initialize the texture
-		glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-			0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA
-		);
-
-		faces.push_back(new Texture2D(width, height, pixelsRGBA, -1));
-	}
-
-	// generate the mipmaps for this texture
-	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-
-	// set the texture parameters
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	// query support for anisotropic texture filtering
-	GLfloat fLargest;
-	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
-	printf("Max available anisotropic samples: %f\n", fLargest);
-	// set anisotropic texture filtering
-	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
-
-	// query for any errors
-	GLenum errCode = glGetError();
-	if (errCode != 0) {
-		printf("Texture initialization error. Error code: %d.\n", errCode);
-		return nullptr;
-	}
-
-	return new Cubemap(faces, textureHandle);
-}
 string getCurrentDirectory() {
 	return filesystem::current_path().string();
 }
@@ -808,6 +618,196 @@ void Component::update() {
 }
 #pragma endregion
 
+#pragma region Texture
+GLuint Texture::getHandle() {
+	return handle;
+}
+void Texture::load(BasicPipelineProgram* pipeline) {
+	glActiveTexture(GL_TEXTURE0 + textureTypeId);
+	GLuint loc = glGetUniformLocation(pipeline->GetProgramHandle(), "textureTypeId");
+	glUniform1i(loc, textureTypeId);
+	glBindTexture(type, handle);
+}
+Texture2D::Texture2D(string imageName) : Texture(GL_TEXTURE_2D, 0) {
+	imageName = getCurrentDirectory() + imageName;
+	const char* imageFilename = imageName.c_str();
+	// read the texture image
+	ImageIO img;
+	ImageIO::fileFormatType imgFormat;
+	ImageIO::errorType err = img.load(imageFilename, &imgFormat);
+	if (err != ImageIO::OK) {
+		printf("!!!Error: Loading texture from %s failed.\n", imageFilename);
+		return;
+	}
+	// check that the number of bytes is a multiple of 4
+	if (img.getWidth() * img.getBytesPerPixel() % 4) {
+		printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+		return;
+	}
+
+	// generate and bind the texture
+	glGenTextures(1, &handle);
+	glBindTexture(GL_TEXTURE_2D, handle);
+
+	// allocate space for an array of pixels
+	int width = img.getWidth();
+	int height = img.getHeight();
+	unsigned char* pixelsRGBA = new unsigned char[4 * width * height]; // we will use 4 bytes per pixel, i.e., RGBA
+
+	// fill the pixelsRGBA array with the image pixels
+	memset(pixelsRGBA, 0, 4 * width * height); // set all bytes to 0
+	for (int h = 0; h < height; h++)
+		for (int w = 0; w < width; w++) {
+			// assign some default byte values (for the case where img.getBytesPerPixel() < 4)
+			pixelsRGBA[4 * (h * width + w) + 0] = 0; // red
+			pixelsRGBA[4 * (h * width + w) + 1] = 0; // green
+			pixelsRGBA[4 * (h * width + w) + 2] = 0; // blue
+			pixelsRGBA[4 * (h * width + w) + 3] = 255; // alpha channel; fully opaque
+
+			// set the RGBA channels, based on the loaded image
+			int numChannels = img.getBytesPerPixel();
+			for (int c = 0; c < numChannels; c++) // only set as many channels as are available in the loaded image; the rest get the default value
+				pixelsRGBA[4 * (h * width + w) + c] = img.getPixel(w, h, c);
+		}
+
+	// initialize the texture
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA);
+
+	// generate the mipmaps for this texture
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	// set the texture parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// query support for anisotropic texture filtering
+	GLfloat fLargest;
+	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
+	//printf("Max available anisotropic samples: %f\n", fLargest);
+	// set anisotropic texture filtering
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
+
+	// query for any errors
+	GLenum errCode = glGetError();
+	if (errCode != 0) {
+		printf("!!!Error: texture initialization error. %d.\n", errCode);
+		return;
+	}
+}
+Cubemap::Cubemap(string imageDirectory) : Texture(GL_TEXTURE_CUBE_MAP, 1) {
+	// find images from directory
+	string imageNames[6];
+	imageDirectory = getCurrentDirectory() + imageDirectory;
+	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
+		filesystem::path path = entry.path();
+
+		string extension = path.extension().string();
+		if (extension == ".jpg" || extension == ".jpeg") {
+			string filename = path.stem().string();
+			string filePath = imageDirectory + "/" + filename + ".jpg";
+			if (filename.compare("right") == 0) imageNames[0] = filePath;
+			else if (filename.compare("left") == 0) imageNames[1] = filePath;
+			else if (filename.compare("bottom") == 0) imageNames[2] = filePath;
+			else if (filename.compare("top") == 0) imageNames[3] = filePath;
+			else if (filename.compare("front") == 0) imageNames[4] = filePath;
+			else if (filename.compare("back") == 0) imageNames[5] = filePath;
+		}
+		else {
+			printf("!!!Error: texture file %s is not jpg. \n", path.string().c_str());
+			return;
+		}
+	}
+	// check if there are 6 images
+	int numOfImages = 0;
+	for (int i = 0; i < 6; i++) {
+		if (!imageNames[i].empty()) numOfImages++;
+	}
+	if (numOfImages < 6) {
+		printf("!!!Error: 6 images are needed for cubemap. Currently %i. \n", numOfImages);
+		return;
+	}
+
+	// generate and bind the texture
+	glGenTextures(1, &handle);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, handle);
+
+	// read the texture image
+	ImageIO images[6];
+	ImageIO::fileFormatType imgFormat;
+	for (int i = 0; i < 6; i++) {
+		ImageIO img = images[i];
+		string imageName = imageNames[i];
+		const char* imageFilename = (imageName).c_str();
+
+		ImageIO::errorType err = img.load(imageFilename, &imgFormat);
+
+		if (err != ImageIO::OK) {
+			printf("!!!Error: loading texture from %s failed.\n", imageFilename);
+			return;
+		}
+
+		// check that the number of bytes is a multiple of 4
+		if (img.getWidth() * img.getBytesPerPixel() % 4) {
+			printf("!!!Error (%s): The width*numChannels in the loaded image must be a multiple of 4.\n", imageFilename);
+			return;
+		}
+
+		// allocate space for an array of pixels
+		int width = img.getWidth();
+		int height = img.getHeight();
+		unsigned char* pixelsRGBA = new unsigned char[4 * width * height]; // we will use 4 bytes per pixel, i.e., RGBA
+
+		// fill the pixelsRGBA array with the image pixels
+		memset(pixelsRGBA, 0, 4 * width * height); // set all bytes to 0
+
+		for (int h = 0; h < height; h++) {
+			for (int w = 0; w < width; w++) {
+				// assign some default byte values (for the case where img.getBytesPerPixel() < 4)
+				pixelsRGBA[4 * (h * width + w) + 0] = 0; // red
+				pixelsRGBA[4 * (h * width + w) + 1] = 0; // green
+				pixelsRGBA[4 * (h * width + w) + 2] = 0; // blue
+				pixelsRGBA[4 * (h * width + w) + 3] = 255; // alpha channel; fully opaque
+
+				// set the RGBA channels, based on the loaded image
+				int numChannels = img.getBytesPerPixel();
+				for (int c = 0; c < numChannels; c++) // only set as many channels as are available in the loaded image; the rest get the default value
+					pixelsRGBA[4 * (h * width + w) + c] = img.getPixel(w, h, c);
+			}
+		}
+
+		// initialize the texture
+		glTexImage2D(
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+			0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsRGBA
+		);
+	}
+
+	// generate the mipmaps for this texture
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+	// set the texture parameters
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	// query support for anisotropic texture filtering
+	GLfloat fLargest;
+	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
+	//printf("Max available anisotropic samples: %f\n", fLargest);
+	// set anisotropic texture filtering
+	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, 0.5f * fLargest);
+
+	// query for any errors
+	GLenum errCode = glGetError();
+	if (errCode != 0) {
+		printf("!!!Error: texture initialization error. Error code: %d.\n", errCode);
+		return;
+	}
+}
+#pragma endregion
+
 #pragma region Renderer
 vector<Renderer*> Renderer::getRenderers() {
 	return renderers;
@@ -847,19 +847,14 @@ void Renderer::render() {
 	glUniform4f(loc, specular[0], specular[1], specular[2], specular[3]);
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
 	glUniform1f(loc, shininess);
-	// pass texture data
 
+	// pass texture data
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImage2D");
 	glUniform1i(loc, 0);
 	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureImageCube");
 	glUniform1i(loc, 1);
 
-	if (texture) {
-		glActiveTexture(GL_TEXTURE0 + texture->textureTypeId);
-		loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "textureTypeId");
-		glUniform1i(loc, texture->textureTypeId);
-		texture->load();
-	}
+	if (texture) texture->load(pipelineProgram);
 
 	// get matrices
 	float m[16], v[16], p[16], n[16];
@@ -1299,8 +1294,6 @@ void RollerCoaster::render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec
 	back->addComponent(new Renderer(renderer->vao->pipelineProgram, makeCube(1, 0.1f, 1), backColor));
 	back->transform->setPosition(vec3(0, 0, 0.45), false);
 	back->setParent(seat);
-
-	printf("Rendered roller-coaster \"%s\".\n", entity->name.c_str());
 }
 void RollerCoaster::makeTrack(float width, float height, float offset, vec4 color) {
 	vector<vec3> positions;

@@ -36,13 +36,15 @@ class Physics;
 class Camera;
 class Light;
 class PlayerController;
-class VertexArrayObject;
 class RollerCoaster;
 
-struct Shape;
+class VertexArrayObject;
+
 class Texture;
 class Texture2D;
 class Cubemap;
+
+struct Shape;
 
 
 const float EPSILON = 0.000001f; // epsilon used for comparing vec3
@@ -68,11 +70,6 @@ quat extractRotation(mat4 m);
 vec3 extractScale(mat4 m);
 // Get current directory
 string getCurrentDirectory();
-// Copied and modified from assignment-2 start code
-// Initialize a 2d texture
-Texture* init2dTexture(string imageName);
-// Initialize a cube texture
-Texture* initCubeTexture(string textureDirectory);
 
 // Generate data of shapes
 Shape makePlane(float width = 1.0f, float length = 1.0f);
@@ -106,51 +103,6 @@ struct Shape {
 		vector<vec2> texCoords,
 		GLenum drawMode = GL_POINTS);
 }; 
-class Texture {
-public:
-	GLenum type;
-	GLuint handle;
-	int textureTypeId = 0; // 0: 2d, 1: cube
-
-	virtual void load() = 0;
-}; 
-class Texture2D : public Texture {
-public:
-	int width;
-	int height;
-	unsigned char* data;
-	Texture2D(int width, int height, unsigned char* data, GLuint handle) {
-		textureTypeId = 0;
-		type = GL_TEXTURE_2D;
-		this->width = width;
-		this->height = height;
-		this->data = data;
-		this->handle = handle;
-	}
-	void load() override {
-		glBindTexture(type, handle);
-		//glTexSubImage2D(type, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	}
-};
-class Cubemap : public Texture {
-public:
-	vector<Texture2D*> faces;
-	Cubemap(vector<Texture2D*> faces, GLuint handle) {
-		textureTypeId = 1;
-		type = GL_TEXTURE_CUBE_MAP;
-		this->faces = faces;
-		this->handle = handle;
-	}	
-	void load() override {
-		glBindTexture(type, handle);
-		//for (int i = 0; i < 6; i++) {
-		//	glTexSubImage2D(
-		//		GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-		//		0, GL_RGBA, faces[i]->width, faces[i]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, faces[i]->data
-		//	);
-		//}
-	}
-};
 
 
 // Base class for singletons
@@ -338,6 +290,28 @@ private:
 	void onUpdate() override;
 };
 
+class Texture {
+public:
+	// Get texture handle
+	GLuint getHandle();
+	// Load this texture for use
+	virtual void load(BasicPipelineProgram* pipeline);
+protected:
+	GLuint handle; // texture handle
+	GLenum type; // texture type
+	int textureTypeId = 0; // 0: 2d, 1: cube
+
+	Texture(GLuint t, int id) : type(t), textureTypeId(id) {}
+};
+class Texture2D : public Texture {
+public:
+	Texture2D(string imageName);
+};
+class Cubemap : public Texture {
+public:
+	Cubemap(string imageDirectory);
+};
+
 // Entity renderer
 class Renderer : public Component {
 public:
@@ -396,8 +370,8 @@ public:
 
 	float fieldOfView = 60.0f; // in degrees
 	float aspect = 1920 / 1080.0f; // width / height
-	float zNear = 0.01f;
-	float zFar = 1000.0f;
+	float zNear = 0.1f;
+	float zFar = 3000.0f;
 
 	static inline Camera* currentCamera = nullptr; // current camera being used
 
@@ -453,7 +427,7 @@ class PlayerController : public Component {
 public:
 	friend Entity;
 
-	float speed = 10.0f;
+	float speed = 20.0f;
 
 	void move(vec4 input, float verticalMove);
 	// Move horizontally

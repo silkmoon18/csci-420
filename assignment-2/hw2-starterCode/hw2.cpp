@@ -483,28 +483,6 @@ void reshapeFunc(int w, int h) {
 										  Camera::currentCamera->zFar);
 }
 
-Texture* getTextureHandle(string textureName) {
-	auto result = nameToTextureHandle.find(textureName);
-	if (result != nameToTextureHandle.end()) {
-		return result->second;
-	}
-	else {
-		printf("!!!Error: cannot find handle for texture named %s.\n", textureName.c_str());
-		return nullptr;
-	}
-}
-void initTextures() {
-	nameToTextureHandle.emplace("ground", init2dTexture(textureDirectory + "/ground.jpg"));
-	nameToTextureHandle.emplace("skybox", initCubeTexture(textureDirectory + "/skybox"));
-	nameToTextureHandle.emplace("road", initCubeTexture(textureDirectory + "/road"));
-	nameToTextureHandle.emplace("planet0", initCubeTexture(textureDirectory + "/planet0"));
-	nameToTextureHandle.emplace("planet1", initCubeTexture(textureDirectory + "/planet1"));
-	nameToTextureHandle.emplace("planet2", initCubeTexture(textureDirectory + "/planet2"));
-	nameToTextureHandle.emplace("planet3", initCubeTexture(textureDirectory + "/planet3"));
-	nameToTextureHandle.emplace("building1", initCubeTexture(textureDirectory + "/building1"));
-	nameToTextureHandle.emplace("building2", initCubeTexture(textureDirectory + "/building2"));
-	nameToTextureHandle.emplace("building3", initCubeTexture(textureDirectory + "/building3"));
-}
 void initScene() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_DEPTH_TEST);
@@ -529,6 +507,31 @@ void initScene() {
 
 	cout << "\nGL error: " << glGetError() << endl;
 }
+// Get texture from name
+Texture* getTexture(string textureName) {
+	auto result = nameToTextureHandle.find(textureName);
+	if (result != nameToTextureHandle.end()) {
+		return result->second;
+	}
+	else {
+		printf("!!!Error: cannot find handle for texture named %s.\n", textureName.c_str());
+		return nullptr;
+	}
+}
+// Initialize textures from images
+void initTextures() {
+	nameToTextureHandle.emplace("ground", new Texture2D(textureDirectory + "/ground.jpg"));
+	nameToTextureHandle.emplace("skybox", new Cubemap(textureDirectory + "/skybox"));
+	nameToTextureHandle.emplace("road", new Cubemap(textureDirectory + "/road"));
+	nameToTextureHandle.emplace("planet0", new Cubemap(textureDirectory + "/planet0"));
+	nameToTextureHandle.emplace("planet1", new Cubemap(textureDirectory + "/planet1"));
+	nameToTextureHandle.emplace("planet2", new Cubemap(textureDirectory + "/planet2"));
+	nameToTextureHandle.emplace("planet3", new Cubemap(textureDirectory + "/planet3"));
+	nameToTextureHandle.emplace("building1", new Cubemap(textureDirectory + "/building1"));
+	nameToTextureHandle.emplace("building2", new Cubemap(textureDirectory + "/building2"));
+	nameToTextureHandle.emplace("building3", new Cubemap(textureDirectory + "/building3"));
+}
+// Initialize roller coasters
 void initRollerCoaster() {
 	Entity* coaster = SceneManager::getInstance()->createEntity("MagicMountain");
 	coaster->addComponent(new Renderer(new VertexArrayObject(milestonePipeline), GL_TRIANGLES));
@@ -540,6 +543,7 @@ void initRollerCoaster() {
 
 	rollerCoasters.push_back(coaster);
 }
+// Generate a street lamp
 Entity* generateStreetLamp() {
 	Entity* parent = SceneManager::getInstance()->createEntity("StreetLamp");
 
@@ -566,14 +570,16 @@ Entity* generateStreetLamp() {
 
 	return parent;
 }
+// Generate a road block
 Entity* generateRoad() {
 	Entity* road = SceneManager::getInstance()->createEntity("Road");
 	road->transform->setScale(vec3(20, 0.2f, 30), true);
 	Renderer* renderer = new Renderer(texturePipeline, makeCube());
-	renderer->setTexture(getTextureHandle("road"));
+	renderer->setTexture(getTexture("road"));
 	road->addComponent(renderer);
 	return road;
 }
+// Generate a paifang
 Entity* generatePaifang(vec4 pillarColor, vec4 boardColor, vec4 topColor) {
 	Entity* paifang = SceneManager::getInstance()->createEntity("Paifang");
 
@@ -667,15 +673,17 @@ Entity* generatePaifang(vec4 pillarColor, vec4 boardColor, vec4 topColor) {
 
 	return paifang;
 }
+// Generate a building
 Entity* generateBuilding(int type, vec3 position, vec3 size) {
 	type = std::clamp(type, 1, 3);
 	Entity* building = SceneManager::getInstance()->createEntity("Building");
 	building->transform->setPosition(position, true);
 	building->transform->setScale(size, true);
 	building->addComponent(new Renderer(texturePipeline, makeCube()));
-	building->getComponent<Renderer>()->setTexture(getTextureHandle("building" + to_string(type)));
+	building->getComponent<Renderer>()->setTexture(getTexture("building" + to_string(type)));
 	return building;
 }
+// Initialize buildings
 void initBuildings(int numRows, int numColumns, vec3 offset) {
 	float distance = 50;
 	for (int i = 0; i < numColumns; i++) {
@@ -690,6 +698,7 @@ void initBuildings(int numRows, int numColumns, vec3 offset) {
 		}
 	}
 }
+// Initialize the planet model
 void initPlanetModel() {
 	planetModel = SceneManager::getInstance()->createEntity("PlanetModel");
 	planetModel->transform->setPosition(vec3(0, 0, -125), true);
@@ -702,28 +711,30 @@ void initPlanetModel() {
 	planet0 = SceneManager::getInstance()->createEntity("Planet0");
 	planet0->transform->setPosition(vec3(0, 35, 0), false);
 	planet0->addComponent(new Renderer(texturePipeline, makeSphere(10)));
-	planet0->getComponent<Renderer>()->setTexture(getTextureHandle("planet0"));
+	planet0->getComponent<Renderer>()->setTexture(getTexture("planet0"));
 	planet0->setParent(modelBase);
 
 	planet1 = SceneManager::getInstance()->createEntity("Planet1");
 	planet1->transform->setPosition(vec3(15, 0, 0), false);
 	planet1->addComponent(new Renderer(texturePipeline, makeSphere(3)));
-	planet1->getComponent<Renderer>()->setTexture(getTextureHandle("planet1"));
+	planet1->getComponent<Renderer>()->setTexture(getTexture("planet1"));
 	planet1->setParent(planet0);
 
 	planet2 = SceneManager::getInstance()->createEntity("Planet2");
 	planet2->transform->setPosition(vec3(20, 0, 0), false);
 	planet2->addComponent(new Renderer(texturePipeline, makeSphere(4)));
-	planet2->getComponent<Renderer>()->setTexture(getTextureHandle("planet2"));
+	planet2->getComponent<Renderer>()->setTexture(getTexture("planet2"));
 	planet2->setParent(planet0);
 
 	planet3 = SceneManager::getInstance()->createEntity("Planet3");
 	planet3->transform->setPosition(vec3(30, 0, 0), false);
 	planet3->addComponent(new Renderer(texturePipeline, makeSphere(1.5)));
-	planet3->getComponent<Renderer>()->setTexture(getTextureHandle("planet3"));
+	planet3->getComponent<Renderer>()->setTexture(getTexture("planet3"));
 	planet3->setParent(planet0);
 }
+// Initialize all objects
 void initObjects() {
+	// init world camera
 	worldCamera = SceneManager::getInstance()->createEntity("WorldCamera");
 	worldCamera->transform->setPosition(vec3(20, 20, 20), true);
 	worldCamera->addComponent(new Camera());
@@ -731,6 +742,7 @@ void initObjects() {
 	worldCamera->transform->faceTo(vec3(0));
 	worldCameraAngles = worldCamera->transform->getEulerAngles(true);
 
+	// init player
 	player = SceneManager::getInstance()->createEntity("Player");
 	player->transform->setPosition(vec3(0, 0, 5), true);
 	player->addComponent(new Camera());
@@ -739,12 +751,14 @@ void initObjects() {
 	player->addComponent(new Physics(true, 1.75f));
 	playerAngles = player->transform->getEulerAngles(true);
 
+	// init ground
 	ground = SceneManager::getInstance()->createEntity("ground");
 	Renderer* groundRenderer = new Renderer(texturePipeline, makePlane(2000, 2000));
-	groundRenderer->setTexture(getTextureHandle("ground"));
+	groundRenderer->setTexture(getTexture("ground"));
 	ground->addComponent(groundRenderer);
 	ground->transform->setPosition(vec3(0, 0, 0), true);
 
+	// init directional light
 	light = SceneManager::getInstance()->createEntity("Light");
 	Light* directionalLight = new Light();
 	directionalLight->setDirectional();
@@ -752,6 +766,7 @@ void initObjects() {
 	light->addComponent(directionalLight);
 	light->transform->setPosition(vec3(0, 3, 0), true);
 
+	// init street lamps
 	Entity* lamp1 = generateStreetLamp();
 	lamp1->transform->rotateAround(90, worldUp, true);
 	lamp1->transform->setPosition(vec3(20, 0, 0), true);
@@ -771,25 +786,29 @@ void initObjects() {
 	lamp6->transform->rotateAround(-90, worldUp, true);
 	lamp6->transform->setPosition(vec3(-20, 0, -40), true);
 
+	// init road
 	Entity* road1 = generateRoad();
-	road1->transform->setPosition(vec3(10, 0.05f, -5), true);
+	road1->transform->setPosition(vec3(10, 0.1f, -5), true);
 	Entity* road2 = generateRoad();
-	road2->transform->setPosition(vec3(-10, 0.05f, -5), true);
+	road2->transform->setPosition(vec3(-10, 0.1f, -5), true);
 	Entity* road3 = generateRoad();
-	road3->transform->setPosition(vec3(10, 0.05f, -35), true);
+	road3->transform->setPosition(vec3(10, 0.1f, -35), true);
 	Entity* road4 = generateRoad();
-	road4->transform->setPosition(vec3(-10, 0.05f, -35), true);
+	road4->transform->setPosition(vec3(-10, 0.1f, -35), true);
 
+	// init paifang
 	Entity* paifang = generatePaifang(vec4(168, 48, 37, 255), vec4(100, 4, 5, 255), vec4(66, 102, 102, 255));
 	paifang->transform->setPosition(vec3(0, 0, -60), true);
 
 	initBuildings(15, 3, vec3(-200, 0, -400));
 	initBuildings(15, 3, vec3(400, 0, -400));
+	initBuildings(10, 3, vec3(200, 0, -200));
+	initBuildings(10, 2, vec3(100, 0, -100));
 
 	initPlanetModel();
 	initRollerCoaster();
 
-	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, getTextureHandle("skybox"));
+	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, getTexture("skybox"));
 	SceneManager::getInstance()->isLightingEnabled = true;
 }
 

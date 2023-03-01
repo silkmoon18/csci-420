@@ -2,7 +2,7 @@ Author: Baihua Yang
 
 Description: A scene with a roller-coaster.
 
-![image-20230228050035683](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230228050035683.png)
+![image-20230301070513670](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230301070513670.png)
 
 Platform: Windows 11, Visual Studio 2022.
 c++ version: ISO C++17 Standard.
@@ -13,8 +13,8 @@ Features:
 1. Implemented Level 0 to Level 5 requirements.
 2. Double rail.
 3. Support closed rail path.
-4. Additional scene elements: an animated planet model, street lamps, road and a paifang.
-5. Skybox. (Rotates with time)
+4. Additional scene elements: an animated texture-mapped planet model, street lamps, texture-mapped road, texture-mapped buildings and a paifang.
+5. Animated skybox. (Rotates with time)
 6. Mimic real world roller-coaster Magic Mountain.
 7. Support generating a track from multiple splines. (Not used in the scene)
 8. Generate spline using recursive subdivision. (Line length = 0.1 by default)
@@ -24,7 +24,7 @@ Features:
 12. .sp contains only point positions, no need to include the number of points. track.txt contains only .sp file paths, no need to include the number of .sp files.
 13. A rough framework "Utility.h". Details in "Utility.cpp". 
 
-![image-20230227091431313](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230227091431313.png)
+<img src="C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230301071806509.png" alt="image-20230301071806509" style="zoom: 80%;" />
 
 
 
