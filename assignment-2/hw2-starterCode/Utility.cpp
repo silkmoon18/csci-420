@@ -291,51 +291,6 @@ void Timer::setCurrentTime(int currentTime) {
 
 
 #pragma region SceneManager
-void SceneManager::setLightings() {
-	lightModes.clear();
-	lightDirections.clear();
-	lightPositions.clear();
-	lightAmbients.clear();
-	lightDiffuses.clear();
-	lightSpeculars.clear();
-	for (unsigned int i = 0; i < lights.size(); i++) {
-		Light* light = lights[i];
-
-		lightModes.push_back(light->getMode());
-		lightDirections.push_back(light->direction);
-		lightPositions.push_back(light->getEntity()->transform->getPosition(true));
-		lightAmbients.push_back(light->ambient);
-		lightDiffuses.push_back(light->diffuse);
-		lightSpeculars.push_back(light->specular);
-	}
-	// set lightings
-	for (unsigned int i = 0; i < pipelinePrograms.size(); i++) {
-		BasicPipelineProgram* pipeline = pipelinePrograms[i];
-		pipeline->Bind();
-
-		GLuint handle = pipeline->GetProgramHandle();
-
-		if (!isLightingEnabled) continue;
-
-		GLuint loc = glGetUniformLocation(handle, "numOfLights");
-		glUniform1i(loc, lights.size());
-		loc = glGetUniformLocation(handle, "lightModes");
-		glUniform1iv(loc, lightModes.size(), reinterpret_cast<GLint*>(&lightModes[0]));
-		loc = glGetUniformLocation(handle, "lightDirections");
-		glUniform3fv(loc, lightDirections.size(), reinterpret_cast<GLfloat*>(&lightDirections[0]));
-		loc = glGetUniformLocation(handle, "lightPositions");
-		glUniform3fv(loc, lightPositions.size(), reinterpret_cast<GLfloat*>(&lightPositions[0]));
-		loc = glGetUniformLocation(handle, "lightAmbients");
-		glUniform4fv(loc, lightAmbients.size(), reinterpret_cast<GLfloat*>(&lightAmbients[0]));
-		loc = glGetUniformLocation(handle, "lightDiffuses");
-		glUniform4fv(loc, lightDiffuses.size(), reinterpret_cast<GLfloat*>(&lightDiffuses[0]));
-		loc = glGetUniformLocation(handle, "lightSpeculars");
-		glUniform4fv(loc, lightSpeculars.size(), reinterpret_cast<GLfloat*>(&lightSpeculars[0]));
-		loc = glGetUniformLocation(handle, "eyePosition");
-		vec3 pos = Camera::currentCamera->getEntity()->transform->getPosition(true);
-		glUniform3f(loc, pos[0], pos[1], pos[2]);
-	}
-}
 Entity* SceneManager::createEntity(string name) {
 	if (name.empty()) {
 		// set default name
@@ -369,7 +324,20 @@ BasicPipelineProgram* SceneManager::createPipelineProgram(string shaderPath) {
 	return pipeline;
 }
 void SceneManager::update() {
-	setLightings();
+	// set lightings
+	for (unsigned int i = 0; i < pipelinePrograms.size(); i++) {
+		if (!isLightingEnabled) break;
+
+		BasicPipelineProgram* pipeline = pipelinePrograms[i];
+		pipeline->Bind();
+
+		GLuint handle = pipeline->GetProgramHandle();
+		Light::sendData(handle);
+
+		GLuint loc = glGetUniformLocation(handle, "eyePosition");
+		vec3 pos = Camera::currentCamera->getEntity()->transform->getPosition(true);
+		glUniform3f(loc, pos[0], pos[1], pos[2]);
+	}
 
 	// draw skybox first
 	if (skybox) {
@@ -839,13 +807,14 @@ void Renderer::render() {
 	// pass material data
 	GLuint loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "isLightingEnabled");
 	glUniform1i(loc, int(useLight && SceneManager::getInstance()->isLightingEnabled));
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "ambientCoef");
+
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "material.ambient");
 	glUniform4f(loc, ambient[0], ambient[1], ambient[2], ambient[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "diffuseCoef");
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "material.diffuse");
 	glUniform4f(loc, diffuse[0], diffuse[1], diffuse[2], diffuse[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "specularCoef");
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "material.specular");
 	glUniform4f(loc, specular[0], specular[1], specular[2], specular[3]);
-	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "materialShininess");
+	loc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "material.shininess");
 	glUniform1f(loc, shininess);
 
 	// pass texture data
@@ -941,22 +910,67 @@ void Camera::onUpdate() {
 #pragma endregion
 
 #pragma region Light
-Light::Light() {
-	SceneManager::getInstance()->lights.push_back(this);
-	//ambient = vec4(0, 0, 0, 1);
+void Light::sendData(GLuint pipelineHandle) {
+	GLuint loc;
+	if (directionalLight) {
+		vec3 direction = directionalLight->direction;
+		vec4 ambient = directionalLight->ambient;
+		vec4 diffuse = directionalLight->diffuse;
+		vec4 specular = directionalLight->specular;
+
+		loc = glGetUniformLocation(pipelineHandle, "directionalLight.direction");
+		glUniform3f(loc, direction.x, direction.y, direction.z);
+		loc = glGetUniformLocation(pipelineHandle, "directionalLight.ambient");
+		glUniform4f(loc, ambient.x, ambient.y, ambient.z, ambient.w);
+		loc = glGetUniformLocation(pipelineHandle, "directionalLight.diffuse");
+		glUniform4f(loc, diffuse.x, diffuse.y, diffuse.z, diffuse.w);
+		loc = glGetUniformLocation(pipelineHandle, "directionalLight.specular");
+		glUniform4f(loc, specular.x, specular.y, specular.z, specular.w);
+	}
+
+	loc = glGetUniformLocation(pipelineHandle, "numOfPointLights");
+	glUniform1i(loc, pointLights.size());
+	for (unsigned int i = 0; i < pointLights.size(); i++) {
+		PointLight* pointLight = pointLights[i];
+		string target = "pointLights[" + to_string(i) + "]";
+
+		vec3 position = pointLight->getEntity()->transform->getPosition(true);
+		vec4 ambient = pointLight->ambient;
+		vec4 diffuse = pointLight->diffuse;
+		vec4 specular = pointLight->specular;
+		vec3 attenuation = pointLight->attenuation;
+
+		loc = glGetUniformLocation(pipelineHandle, (target + ".position").c_str());
+		glUniform3f(loc, position.x, position.y, position.z);
+		loc = glGetUniformLocation(pipelineHandle, (target + ".ambient").c_str());
+		glUniform4f(loc, ambient.x, ambient.y, ambient.z, ambient.w);
+		loc = glGetUniformLocation(pipelineHandle, (target + ".diffuse").c_str());
+		glUniform4f(loc, diffuse.x, diffuse.y, diffuse.z, diffuse.w);
+		loc = glGetUniformLocation(pipelineHandle, (target + ".specular").c_str());
+		glUniform4f(loc, specular.x, specular.y, specular.z, specular.w);
+		loc = glGetUniformLocation(pipelineHandle, (target + ".attenuation").c_str());
+		glUniform3f(loc, attenuation.x, attenuation.y, attenuation.z);
+	}
 }
-Light::Mode Light::getMode() {
-	return mode;
+Light* Light::getDirectionalLight() {
+	return directionalLight;
+}
+vector<PointLight*> Light::getPointLights() {
+	return pointLights;
 }
 void Light::onUpdate() {
 
 }
-void Light::setDirectional(vec3 direction) {
-	this->direction = normalize(direction);
-	mode = Directional;
+DirectionalLight::DirectionalLight(vec3 direction) {
+	this->direction = direction;
+	if (directionalLight) {
+		printf("***Warning: already has a directional light on \"%s\"", directionalLight->entity->name.c_str());
+	}
+	directionalLight = this;
 }
-void Light::setPoint() {
-	mode = Point;
+PointLight::PointLight(vec3 attenuation) {
+	this->attenuation = attenuation;
+	pointLights.push_back(this);
 }
 #pragma endregion
 

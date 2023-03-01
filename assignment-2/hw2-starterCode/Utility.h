@@ -35,6 +35,8 @@ class Renderer;
 class Physics;
 class Camera;
 class Light;
+class DirectionalLight;
+class PointLight;
 class PlayerController;
 class RollerCoaster;
 
@@ -82,6 +84,8 @@ Shape makeTetrahedron(float width = 1.0f, float height = 1.0f);
 template<class T> string getType(); 
 // Get type of an object
 template<class T> string getType(T obj); 
+// Check if obj is derived from Base class
+//template <class Base, class Target> bool isType(const Target* obj);
 
 // Debug log vec3
 void log(vec3 v, bool endOfLine = true); 
@@ -159,17 +163,6 @@ private:
 	vector<BasicPipelineProgram*> pipelinePrograms; // pipeline programs
 	vector<Entity*> entities; // entities
 	Entity* skybox = nullptr; // skybox
-	// data of lights in the scene
-	vector<Light*> lights;
-	vector<int> lightModes; 
-	vector<vec3> lightDirections;
-	vector<vec3> lightPositions;
-	vector<vec4> lightAmbients;
-	vector<vec4> lightDiffuses;
-	vector<vec4> lightSpeculars;
-
-	// Pass lighting data to shaders
-	void setLightings();
 };
 
 // Basic entity
@@ -400,26 +393,32 @@ protected:
 // Light
 class Light : public Component {
 public:
-	enum Mode {Directional, Point};
-
-	vec3 direction; // direction for directional light
 	vec4 ambient = vec4(0, 0, 0, 1); // ambient color
 	vec4 diffuse = vec4(0.9, 0.9, 0.9, 1); // diffuse color
 	vec4 specular = vec4(1, 1, 1, 1); // specular color
 
-	Light();
-
-	// Get light mode
-	Mode getMode();
-	// Set to directional light
-	void setDirectional(vec3 direction = vec3(1, -1, -1));
-	// Set to point light
-	void setPoint();
+	Light* getDirectionalLight();
+	vector<PointLight*> getPointLights();
+	static void sendData(GLuint pipelineHandle);
+	Light() {};
 
 protected:
-	Mode mode = Point;
+	static inline DirectionalLight* directionalLight = nullptr; // directional light
+	static inline vector<PointLight*> pointLights; // point lights
 
 	void onUpdate() override;
+};
+class DirectionalLight : public Light {
+public:
+	vec3 direction; // direction for directional light
+
+	DirectionalLight(vec3 direction = vec3(1, -1, -1));
+};
+class PointLight : public Light {
+public:
+	vec3 attenuation; // attenuation coefficients a, b, c
+
+	PointLight(vec3 attenuation = vec3(1, 0, 0.001f));
 };
 
 // First-person player controller
@@ -546,6 +545,10 @@ template<class T>
 string getType(T obj) {
 	return typeid(obj).name();
 }
+template <class Base, class Target>
+bool isType(const Target* obj) {
+	return is_base_of<Base, Target>::value;
+}
 
 template<class T>
 bool Entity::addComponent(T* component) {
@@ -575,6 +578,13 @@ T* Entity::getComponent() {
 }
 template<class T>
 bool Entity::containsComponent() {
+	//for (auto const& c : typeToComponent) {
+	//	cout << isType<T>(c.second) << endl;
+	//	if (isType<T>(c.second)) {
+	//		return true;
+	//	}
+	//}
+	//return false;
 	string type = toClassKey(getType<T>());
 	if (typeToComponent.find(type) == typeToComponent.end()) {
 		return false;

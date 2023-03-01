@@ -566,8 +566,8 @@ Entity* generateStreetLamp() {
 	lamp->addComponent(new Renderer(milestonePipeline, makeSphere()));
 	lamp->getComponent<Renderer>()->useLight = false;
 	lamp->transform->setPosition(vec3(0, 7.5, -5), true);
-	lamp->addComponent(new Light());
-	//lamp->getComponent<Light>()->diffuse = vec4(0.1, 0.1, 0.1, 1);
+	lamp->addComponent(new PointLight());
+	//lamp->getComponent<PointLight>()->diffuse = vec4(0.1, 0.1, 0.1, 1);
 	lamp->setParent(pole);
 
 	return parent;
