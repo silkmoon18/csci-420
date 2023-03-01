@@ -86,8 +86,8 @@ map<string, Texture*> nameToTextureHandle;
 
 // other params
 bool isTakingScreenshot = false;
-int delay = 8; // hard coded for recording on 120 fps monitor
-int currentFrame = 0;
+float screenshotFps = 15.0f;
+float screenshotTime = 0.0f;
 int screenshotIndex = 0;
 
 // the spline array 
@@ -148,12 +148,13 @@ void saveScreenshot() {
 		return;
 	}
 
-	int digit = to_string(screenshotIndex).length();
+	string index = to_string(screenshotIndex + 1);
+	int digit = index.length();
 	string filename = "./screenshots/";
 	for (int i = digit; i < 3; i++) {
 		filename += "0";
 	}
-	filename += to_string(screenshotIndex + 1) + ".jpg";
+	filename += index + ".jpg";
 
 	unsigned char* screenshotData = new unsigned char[windowWidth * windowHeight * 3];
 	glReadPixels(0, 0, windowWidth, windowHeight, GL_RGB, GL_UNSIGNED_BYTE, screenshotData);
@@ -279,14 +280,15 @@ void idleFunc() {
 	// calculate delta time
 	Timer::getInstance()->setCurrentTime(glutGet(GLUT_ELAPSED_TIME));
 
+	screenshotTime -= Timer::getInstance()->getDeltaTime();
 	// save 15 screenshots per second
-	if (isTakingScreenshot && currentFrame % 8 == 0) {
+	if (isTakingScreenshot && screenshotTime <= 0.0f) {
 		saveScreenshot();
+		screenshotTime = 1.0f / screenshotFps;
 	}
 
 	// make the screen update 
 	glutPostRedisplay();
-	currentFrame++;
 }
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -571,9 +573,9 @@ Entity* generateStreetLamp() {
 	return parent;
 }
 // Generate a road block
-Entity* generateRoad() {
+Entity* generateRoad(float width, float length) {
 	Entity* road = SceneManager::getInstance()->createEntity("Road");
-	road->transform->setScale(vec3(20, 0.2f, 30), true);
+	road->transform->setScale(vec3(width, 0.2f, length), true);
 	Renderer* renderer = new Renderer(texturePipeline, makeCube());
 	renderer->setTexture(getTexture("road"));
 	road->addComponent(renderer);
@@ -585,22 +587,22 @@ Entity* generatePaifang(vec4 pillarColor, vec4 boardColor, vec4 topColor) {
 
 	Entity* pillar1 = SceneManager::getInstance()->createEntity("Pillar1");
 	pillar1->transform->setPosition(vec3(15, 15, 0), true);
-	pillar1->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 30), pillarColor));
+	pillar1->addComponent(new Renderer(milestonePipeline, makeCylinder(1, 30), pillarColor));
 	pillar1->setParent(paifang);
 
 	Entity* pillar2 = SceneManager::getInstance()->createEntity("Pillar2");
 	pillar2->transform->setPosition(vec3(-15, 15, 0), true);
-	pillar2->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 30), pillarColor));
+	pillar2->addComponent(new Renderer(milestonePipeline, makeCylinder(1, 30), pillarColor));
 	pillar2->setParent(paifang);
 
 	Entity* pillar3 = SceneManager::getInstance()->createEntity("Pillar3");
 	pillar3->transform->setPosition(vec3(-35, 10, 0), true);
-	pillar3->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 20), pillarColor));
+	pillar3->addComponent(new Renderer(milestonePipeline, makeCylinder(1, 20), pillarColor));
 	pillar3->setParent(paifang);
 
 	Entity* pillar4 = SceneManager::getInstance()->createEntity("Pillar4");
 	pillar4->transform->setPosition(vec3(35, 10, 0), true);
-	pillar4->addComponent(new Renderer(milestonePipeline, makeCylinder(0.5f, 20), pillarColor));
+	pillar4->addComponent(new Renderer(milestonePipeline, makeCylinder(1, 20), pillarColor));
 	pillar4->setParent(paifang);
 
 	Entity* board1 = SceneManager::getInstance()->createEntity("Board1");
@@ -624,49 +626,49 @@ Entity* generatePaifang(vec4 pillarColor, vec4 boardColor, vec4 topColor) {
 	board4->setParent(board1);
 
 	Entity* top1 = SceneManager::getInstance()->createEntity("Top1");
-	top1->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top1->transform->setPosition(vec3(0, 1, 3.5), true);
 	top1->transform->setEulerAngles(vec3(-60, 0, 0), true);
 	top1->addComponent(new Renderer(milestonePipeline, makeCube(30, 0.5, 7.5), topColor));
 	top1->setParent(board1);
 
 	Entity* top2 = SceneManager::getInstance()->createEntity("Top2");
-	top2->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top2->transform->setPosition(vec3(0, 1, -3.5), true);
 	top2->transform->setEulerAngles(vec3(60, 0, 0), true);
 	top2->addComponent(new Renderer(milestonePipeline, makeCube(30, 0.5, 7.5), topColor));
 	top2->setParent(board1);
 
 	Entity* top3 = SceneManager::getInstance()->createEntity("Top3");
-	top3->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top3->transform->setPosition(vec3(0, 1, 3.5), true);
 	top3->transform->setEulerAngles(vec3(-60, 0, 0), true);
 	top3->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
 	top3->setParent(board2);
 
 	Entity* top4 = SceneManager::getInstance()->createEntity("Top4");
-	top4->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top4->transform->setPosition(vec3(0, 1, -3.5), true);
 	top4->transform->setEulerAngles(vec3(60, 0, 0), true);
 	top4->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
 	top4->setParent(board2);
 
 	Entity* top5 = SceneManager::getInstance()->createEntity("Top5");
-	top5->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top5->transform->setPosition(vec3(0, 1, 3.5), true);
 	top5->transform->setEulerAngles(vec3(-60, 0, 0), true);
 	top5->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
 	top5->setParent(board3);
 
 	Entity* top6 = SceneManager::getInstance()->createEntity("Top6");
-	top6->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top6->transform->setPosition(vec3(0, 1, -3.5), true);
 	top6->transform->setEulerAngles(vec3(60, 0, 0), true);
 	top6->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
 	top6->setParent(board3);
 
 	Entity* top7 = SceneManager::getInstance()->createEntity("Top7");
-	top7->transform->setPosition(vec3(0, 0.5, 3.5), true);
+	top7->transform->setPosition(vec3(0, 1, 3.5), true);
 	top7->transform->setEulerAngles(vec3(-60, 0, 0), true);
 	top7->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
 	top7->setParent(board4);
 
 	Entity* top8 = SceneManager::getInstance()->createEntity("Top8");
-	top8->transform->setPosition(vec3(0, 0.5, -3.5), true);
+	top8->transform->setPosition(vec3(0, 1, -3.5), true);
 	top8->transform->setEulerAngles(vec3(60, 0, 0), true);
 	top8->addComponent(new Renderer(milestonePipeline, makeCube(20, 0.5, 7.5), topColor));
 	top8->setParent(board4);
@@ -682,6 +684,20 @@ Entity* generateBuilding(int type, vec3 position, vec3 size) {
 	building->addComponent(new Renderer(texturePipeline, makeCube()));
 	building->getComponent<Renderer>()->setTexture(getTexture("building" + to_string(type)));
 	return building;
+}
+Entity* makeRoad(int numRows, int numColumns) {
+	Entity* road = SceneManager::getInstance()->createEntity("Road");
+	float width = 20.0f;
+	float length = 30.0f;
+	for (int i = 0; i < numColumns; i++) {
+		for (int j = 0; j < numRows; j++) {
+			Entity* block = generateRoad(width, length);
+			block->transform->setPosition(vec3(i * width, 0.1f, j * length), true);
+			block->setParent(road);
+		}
+	}
+
+	return road;
 }
 // Initialize buildings
 void initBuildings(int numRows, int numColumns, vec3 offset) {
@@ -786,15 +802,8 @@ void initObjects() {
 	lamp6->transform->rotateAround(-90, worldUp, true);
 	lamp6->transform->setPosition(vec3(-20, 0, -40), true);
 
-	// init road
-	Entity* road1 = generateRoad();
-	road1->transform->setPosition(vec3(10, 0.1f, -5), true);
-	Entity* road2 = generateRoad();
-	road2->transform->setPosition(vec3(-10, 0.1f, -5), true);
-	Entity* road3 = generateRoad();
-	road3->transform->setPosition(vec3(10, 0.1f, -35), true);
-	Entity* road4 = generateRoad();
-	road4->transform->setPosition(vec3(-10, 0.1f, -35), true);
+	Entity* road = makeRoad(10, 2);
+	road->transform->setPosition(vec3(-10, 0, -20), true);
 
 	// init paifang
 	Entity* paifang = generatePaifang(vec4(168, 48, 37, 255), vec4(100, 4, 5, 255), vec4(66, 102, 102, 255));

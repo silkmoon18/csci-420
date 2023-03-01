@@ -2,7 +2,7 @@ Author: Baihua Yang
 
 Description: A scene with a roller-coaster.
 
-![image-20230301070513670](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230301070513670.png)
+![image-20230301074500714](C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230301074500714.png)
 
 Platform: Windows 11, Visual Studio 2022.
 c++ version: ISO C++17 Standard.
