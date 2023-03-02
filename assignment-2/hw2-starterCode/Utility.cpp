@@ -1247,7 +1247,8 @@ void RollerCoaster::start(bool isRepeating) {
 void RollerCoaster::pause() {
 	setActive(false);
 }
-void RollerCoaster::reset() {
+void RollerCoaster::reset(bool resetSpeed) {
+	if (resetSpeed) speed = startSpeed;
 	setActive(false);
 	currentVertexIndex = 0;
 	moveSeat();
@@ -1414,9 +1415,10 @@ void RollerCoaster::onUpdate() {
 			if (!isRepeating) {
 				step = 0;
 				pause();
+				reset(true);
 			}
 			else {
-				reset();
+				reset(false);
 				start();
 			}
 		}

@@ -170,13 +170,13 @@ void saveScreenshot() {
 	delete[] screenshotData;
 }
 
-void HandleMouseInput(int mousePosDelta[2]) {
-	if (lockView) return;
-
+void HandleViewInput(int mousePosDelta[2]) {
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
 	vec3* angles;
 	if (isControllingPlayer) {
+		if (lockView) return;
+
 		target = player;
 		angles = &playerAngles;
 
@@ -209,7 +209,7 @@ void HandleMoveInput() {
 		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
-void HandleJump() {
+void HandleJumpInput() {
 	if (isControllingPlayer) {
 		Physics* physics = player->getComponent<Physics>();
 		if (physics->isOnGround) {
@@ -240,7 +240,7 @@ void unrideCoaster() {
 	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
 	player->transform->setPosition(coaster->getStartPosition(), true);
 	player->transform->faceTo(player->transform->getPosition(true) + worldForward, worldUp);
-	coaster->reset();
+	coaster->reset(true);
 	currentCoasterIndex = -1;
 	lockView = false;
 }
@@ -310,7 +310,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			exit(0); // exit the program
 			break;
 		case ' ':
-			if (isControllingPlayer) HandleJump();
+			if (isControllingPlayer) HandleJumpInput();
 			else verticalMove = 1;
 			break;
 		case 'w':
@@ -400,22 +400,6 @@ void mouseButtonFunc(int button, int state, int x, int y) {
 			break;
 	}
 
-	// keep track of whether CTRL and SHIFT keys are pressed
-	//switch (glutGetModifiers()) {
-	//	case GLUT_ACTIVE_CTRL:
-	//		controlState = TRANSLATE;
-	//		break;
-
-	//	case GLUT_ACTIVE_SHIFT:
-	//		controlState = SCALE;
-	//		break;
-
-	//		// if CTRL and SHIFT are not pressed, we are in rotate mode
-	//	default:
-	//		controlState = ROTATE;
-	//		break;
-	//}
-
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
@@ -423,48 +407,7 @@ void mouseButtonFunc(int button, int state, int x, int y) {
 void mouseMotionDragFunc(int x, int y) {
 	// mouse has moved and one of the mouse buttons is pressed (dragging)
 	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
-	HandleMouseInput(mousePosDelta);
-
-	//switch (controlState) {
-	//	// translate the landscape
-	//	case TRANSLATE:
-	//		if (leftMouseButton) {
-	//			// control x,y translation via the left mouse button
-	//			landTranslate[0] += mousePosDelta[0] * translateSpeed;
-	//			landTranslate[1] -= mousePosDelta[1] * translateSpeed;
-	//		}
-	//		if (middleMouseButton) {
-	//			// control z translation via the middle mouse button
-	//			landTranslate[2] += mousePosDelta[1] * translateSpeed;
-	//		}
-	//		break;
-
-	//		// rotate the landscape
-	//	case ROTATE:
-	//		if (leftMouseButton) {
-	//			// control x,y rotation via the left mouse button
-	//			landRotate[0] += mousePosDelta[1] * rotateSpeed;
-	//			landRotate[1] += mousePosDelta[0] * rotateSpeed;
-	//		}
-	//		if (middleMouseButton) {
-	//			// control z rotation via the middle mouse button
-	//			landRotate[2] += mousePosDelta[1] * rotateSpeed;
-	//		}
-	//		break;
-
-	//		// scale the landscape
-	//	case SCALE:
-	//		if (leftMouseButton) {
-	//			// control x,y scaling via the left mouse button
-	//			landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
-	//			landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-	//		}
-	//		if (middleMouseButton) {
-	//			// control z scaling via the middle mouse button
-	//			landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-	//		}
-	//		break;
-	//}
+	HandleViewInput(mousePosDelta);
 
 	// store the new mouse position
 	mousePos[0] = x;
@@ -685,25 +628,26 @@ Entity* generateBuilding(int type, vec3 position, vec3 size) {
 	building->getComponent<Renderer>()->setTexture(getTexture("building" + to_string(type)));
 	return building;
 }
-Entity* makeRoad(int numRows, int numColumns) {
-	Entity* road = SceneManager::getInstance()->createEntity("Road");
-	float width = 20.0f;
-	float length = 30.0f;
-	for (int i = 0; i < numColumns; i++) {
-		for (int j = 0; j < numRows; j++) {
-			Entity* block = generateRoad(width, length);
-			block->transform->setPosition(vec3(i * width, 0.1f, j * length), true);
-			block->setParent(road);
+// Make street
+Entity* makeStreet(int length) {
+	Entity* street = SceneManager::getInstance()->createEntity("Road");
+	float roadWidth = 20.0f;
+	float roadLength = 30.0f;
+	for (int i = 0; i < 2; i++) {
+		for (int j = 0; j < length; j++) {
+			Entity* road = generateRoad(roadWidth, roadLength);
+			road->transform->setPosition(vec3(i * roadWidth, 0.1f, j * roadLength), true);
+			road->setParent(street);
 
 			Entity* lamp = generateStreetLamp();
-			lamp->transform->rotateAround(90, worldUp, true);
-			lamp->transform->setPosition(vec3(0, 0, 0), true);
-			lamp->setParent(block);
+			lamp->transform->rotateAround(180 * i - 90, worldUp, true);
+			lamp->transform->setPosition(vec3(i - 0.5f, 0, 0), false);
+			lamp->setParent(road);
 			lamp->transform->setScale(vec3(1), true);
 		}
 	}
 
-	return road;
+	return street;
 }
 // Initialize buildings
 void initBuildings(int numRows, int numColumns, vec3 offset) {
@@ -781,40 +725,20 @@ void initObjects() {
 	ground->transform->setPosition(vec3(0, 0, 0), true);
 
 	// init directional light
-	//light = SceneManager::getInstance()->createEntity("Light");
-	//Light* directionalLight = new Light();
-	//directionalLight->setDirectional();
-	//directionalLight->ambient = vec4(0.4, 0.4, 0.4, 1);
-	//light->addComponent(directionalLight);
-	//light->transform->setPosition(vec3(0, 3, 0), true);
+	light = SceneManager::getInstance()->createEntity("Light");
+	Light* directionalLight = new DirectionalLight();
+	directionalLight->ambient = vec4(0.4, 0.4, 0.4, 1);
+	light->addComponent(directionalLight);
 
-	// init street lamps
-	//Entity* lamp1 = generateStreetLamp();
-	//lamp1->transform->rotateAround(90, worldUp, true);
-	//lamp1->transform->setPosition(vec3(20, 0, 0), true);
-	//Entity* lamp2 = generateStreetLamp();
-	//lamp2->transform->rotateAround(-90, worldUp, true);
-	//lamp2->transform->setPosition(vec3(-20, 0, 0), true);
-	//Entity* lamp3 = generateStreetLamp();
-	//lamp3->transform->rotateAround(90, worldUp, true);
-	//lamp3->transform->setPosition(vec3(20, 0, -20), true);
-	//Entity* lamp4 = generateStreetLamp();
-	//lamp4->transform->rotateAround(-90, worldUp, true);
-	//lamp4->transform->setPosition(vec3(-20, 0, -20), true);
-	//Entity* lamp5 = generateStreetLamp();
-	//lamp5->transform->rotateAround(90, worldUp, true);
-	//lamp5->transform->setPosition(vec3(20, 0, -40), true);
-	//Entity* lamp6 = generateStreetLamp();
-	//lamp6->transform->rotateAround(-90, worldUp, true);
-	//lamp6->transform->setPosition(vec3(-20, 0, -40), true);
-
-	Entity* road = makeRoad(10, 2);
-	road->transform->setPosition(vec3(-10, 0, -20), true);
+	// generate street
+	Entity* street = makeStreet(10);
+	street->transform->setPosition(vec3(-10, 0, -20), true);
 
 	// init paifang
 	Entity* paifang = generatePaifang(vec4(168, 48, 37, 255), vec4(100, 4, 5, 255), vec4(66, 102, 102, 255));
 	paifang->transform->setPosition(vec3(0, 0, -60), true);
 
+	initBuildings(5, 20, vec3(-400, 0, -600));
 	initBuildings(15, 3, vec3(-200, 0, -400));
 	initBuildings(15, 3, vec3(400, 0, -400));
 	initBuildings(10, 3, vec3(200, 0, -200));

@@ -74,19 +74,19 @@ vec4 calculatePointLight(PointLight light) {
     float q = distance(light.position, fragmentPosition);
     float att = 1.0 / (light.attenuation.x + light.attenuation.y * q + light.attenuation.z * q * q);
     
-    ambient = material.ambient * light.ambient * att; 
+    ambient = material.ambient * light.ambient; 
 
     float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
-    diffuse = material.diffuse * light.diffuse * ndotl * att;
+    diffuse = material.diffuse * light.diffuse * ndotl;
   
     vec3 R = normalize(reflect(-lightVector, vertexNormal));
     vec3 eyeVector = normalize(eyePosition - fragmentPosition);
     float rdotv = max(dot(R, eyeVector), 0.0);
        
     if (material.shininess > 0) {
-        specular = material.specular * light.specular * pow(rdotv, material.shininess) * att;
+        specular = material.specular * light.specular * pow(rdotv, material.shininess);
     }
-    return ambient + diffuse + specular;
+    return (ambient + diffuse + specular) * att;
 }
 
 void main()
@@ -105,7 +105,6 @@ void main()
         for (int i = 0; i < numOfPointLights; i++) {
             lighting += calculatePointLight(pointLights[i]);
         }
-        // compute the final pixel color
         c = color * lighting;
     }
     else {

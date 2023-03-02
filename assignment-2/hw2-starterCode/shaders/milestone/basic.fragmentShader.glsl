@@ -3,20 +3,33 @@
 //
 // Milestone vertex shader
 //
+struct DirectionalLight {
+    vec3 direction;
+    vec4 ambient;
+    vec4 diffuse;
+    vec4 specular;
+};  
+struct PointLight { 
+    vec3 position;
+    vec4 ambient;
+    vec4 diffuse;
+    vec4 specular;
+    vec3 attenuation;
+};
+struct Material {
+    vec4 ambient;
+    vec4 diffuse;
+    vec4 specular;
+    float shininess; 
+};
 
-const int MAX_LIGHT_AMOUNT = 10;
 
-uniform int numOfLights;
-uniform int lightModes[MAX_LIGHT_AMOUNT];
-uniform vec3 lightDirections[MAX_LIGHT_AMOUNT];
-uniform vec3 lightPositions[MAX_LIGHT_AMOUNT];
-uniform vec4 lightAmbients[MAX_LIGHT_AMOUNT];
-uniform vec4 lightDiffuses[MAX_LIGHT_AMOUNT];
-uniform vec4 lightSpeculars[MAX_LIGHT_AMOUNT];
-uniform vec4 ambientCoef;
-uniform vec4 diffuseCoef;
-uniform vec4 specularCoef;
-uniform float materialShininess; 
+const int MAX_LIGHT_AMOUNT = 100;
+
+uniform int numOfPointLights;
+uniform DirectionalLight directionalLight;
+uniform PointLight pointLights[MAX_LIGHT_AMOUNT];
+uniform Material material;
 uniform vec3 eyePosition;
 uniform int isLightingEnabled;
 
@@ -26,49 +39,65 @@ in vec3 fragmentPosition;
 
 out vec4 c;
 
+
+
+vec4 calculateDirectionalLight() {
+    vec4 ambient;
+    vec4 diffuse; 
+    vec4 specular;
+    vec3 lightVector = normalize(-directionalLight.direction);
+    
+    ambient = material.ambient * directionalLight.ambient; 
+
+    float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
+    diffuse = material.diffuse * directionalLight.diffuse * ndotl;
+  
+    vec3 R = normalize(reflect(-lightVector, vertexNormal));
+    vec3 eyeVector = normalize(eyePosition - fragmentPosition);
+    float rdotv = max(dot(R, eyeVector), 0.0);
+       
+    if (material.shininess > 0) {
+        specular = material.specular * directionalLight.specular * pow(rdotv, material.shininess);
+    }
+    return ambient + diffuse + specular;
+}
+
+vec4 calculatePointLight(PointLight light) {
+    vec4 ambient;
+    vec4 diffuse; 
+    vec4 specular;
+    vec3 lightVector = normalize(light.position - fragmentPosition);
+    float q = distance(light.position, fragmentPosition);
+    float att = 1.0 / (light.attenuation.x + light.attenuation.y * q + light.attenuation.z * q * q);
+    
+    ambient = material.ambient * light.ambient; 
+
+    float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
+    diffuse = material.diffuse * light.diffuse * ndotl;
+  
+    vec3 R = normalize(reflect(-lightVector, vertexNormal));
+    vec3 eyeVector = normalize(eyePosition - fragmentPosition);
+    float rdotv = max(dot(R, eyeVector), 0.0);
+       
+    if (material.shininess > 0) {
+        specular = material.specular * light.specular * pow(rdotv, material.shininess);
+    }
+    return (ambient + diffuse + specular) * att;
+}
+
 void main()
 {
-
     if (isLightingEnabled == 1) {
-        vec4 ambient = vec4(0, 0, 0, 1);
-        vec4 diffuse = vec4(0, 0, 0, 1);; 
-        vec4 specular = vec4(0, 0, 0, 1);
-        for (int i = 0; i < numOfLights; i++) {
-        
-            float q = distance(lightPositions[i], fragmentPosition);
-            float att = 1.0 / (1 + q + q * q);
+        vec4 lighting = calculateDirectionalLight();
 
-            vec3 lightVector;
-            if (lightModes[i] == 0) {
-                lightVector = normalize(-lightDirections[i]);
-            }
-            else if (lightModes[i] == 1) {
-                lightVector = normalize(lightPositions[i] - fragmentPosition);
-            }
-            ambient += ambientCoef * lightAmbients[i] * att; 
-
-            float ndotl = max(dot(lightVector, vertexNormal), 0.0); 
-            diffuse += diffuseCoef * lightDiffuses[i] * ndotl * att;
-  
-            vec3 R = normalize(reflect(-lightVector, vertexNormal));
-            vec3 eyeVector = normalize(eyePosition - fragmentPosition);
-            float rdotv = max(dot(R, eyeVector), 0.0);
-       
-            if (materialShininess > 0) {
-                specular += specularCoef * lightSpeculars[i] * pow(rdotv, materialShininess) * att;
-            }      
-
-
+        for (int i = 0; i < numOfPointLights; i++) {
+            lighting += calculatePointLight(pointLights[i]);
         }
-        // compute the final pixel color
-        c = (ambient + diffuse) * col + specular;
+        c = col * lighting;
     }
-  else {
-    c = col;
-  }
-
-
-  // debug
-//  c = col;
+    else {
+        c = col;
+    }
+    c.w = 1;
 }
 

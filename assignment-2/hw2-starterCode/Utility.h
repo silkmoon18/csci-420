@@ -397,14 +397,17 @@ public:
 	vec4 diffuse = vec4(0.9, 0.9, 0.9, 1); // diffuse color
 	vec4 specular = vec4(1, 1, 1, 1); // specular color
 
+	// Get directional light
 	Light* getDirectionalLight();
+	// Get point lights
 	vector<PointLight*> getPointLights();
+	// Send data to shader
 	static void sendData(GLuint pipelineHandle);
-	Light() {};
 
 protected:
-	static inline DirectionalLight* directionalLight = nullptr; // directional light
-	static inline vector<PointLight*> pointLights; // point lights
+	Light() {};
+	static inline DirectionalLight* directionalLight = nullptr; // only one directional light
+	static inline vector<PointLight*> pointLights; // multiple point lights
 
 	void onUpdate() override;
 };
@@ -418,7 +421,7 @@ class PointLight : public Light {
 public:
 	vec3 attenuation; // attenuation coefficients a, b, c
 
-	PointLight(vec3 attenuation = vec3(1, 0, 0.001f));
+	PointLight(vec3 attenuation = vec3(1, 0.1f, 0.005f));
 };
 
 // First-person player controller
@@ -487,8 +490,9 @@ public:
 			S, -S, 0, 0
 		);
 	Spline spline;
-	float speed = 10.0f;
+	float startSpeed = 10.0f;
 	float minSpeed = 5.0f;
+	float speed = startSpeed;
 	Entity* seat = nullptr; // to be moved by coaster
 
 	RollerCoaster(vector<Spline> splines, bool closedPath, float scale = 10.0f, float maxLineLength = 0.1f);
@@ -506,7 +510,7 @@ public:
 	// Pause the coaster
 	void pause();
 	// Reset the coaster
-	void reset();
+	void reset(bool resetSpeed);
 	// Generate the coaster from given spline data
 	void render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec4 saddleColor, vec4 backColor);
 
