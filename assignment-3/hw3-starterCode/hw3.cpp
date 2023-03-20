@@ -44,16 +44,23 @@ char* filename = NULL;
 int mode = MODE_DISPLAY;
 
 //you may want to make these smaller for debugging purposes
-//#define WIDTH 640
-//#define HEIGHT 480
 #define WIDTH 7
 #define HEIGHT 3
+#define WIDTH 640
+#define HEIGHT 480
 double aspectRatio = WIDTH / (double)HEIGHT;
 
 //the field of view of the camera
 #define fov 60.0
 
 unsigned char buffer[HEIGHT][WIDTH][3];
+
+
+
+int compare(double d1, double d2);
+void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
+void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
+void plot_pixel(int x, int y, vec3 color);
 
 struct Vertex {
 	double position[3];
@@ -84,7 +91,53 @@ class Ray {
 public:
 	Ray(vec3 start, vec3 direction) {
 		this->start = start;
-		this->direction = direction;
+		this->direction = normalize(direction);
+	}
+
+	bool intersects(Sphere &sphere, vec3 &point) {
+		vec3 difference = start - vec3(sphere.position[0], sphere.position[1], sphere.position[2]);
+
+		double a = 1;
+		double b = 2 * dot(difference, direction);
+		double c = dot(difference, difference) - sphere.radius * sphere.radius;
+
+		double checker = b * b - 4 * c;
+		if (checker < 0) return false;
+
+		double t0 = 0.5 * (-b + sqrt(checker));
+		double t1 = 0.5 * (-b - sqrt(checker));
+
+		double t = std::min(t0, t1);
+		if (t < 0) return false;
+
+		point = start + direction * (float)t;
+		return true;
+	}
+
+	bool intersects(Triangle triangle, vec3& point) {
+		vec3 a(triangle.v[0].position[0], triangle.v[0].position[1], triangle.v[0].position[2]);
+		vec3 b(triangle.v[1].position[0], triangle.v[1].position[1], triangle.v[1].position[2]);
+		vec3 c(triangle.v[2].position[0], triangle.v[2].position[1], triangle.v[2].position[2]);
+
+		vec3 n = cross(b - a, c - a);
+		vec3 n_normalized = normalize(n);
+
+		double ndotd = dot(n_normalized, direction);
+		if (compare(ndotd, 0) == 0) return false;
+
+		double d = -dot(n_normalized, a);
+		double t = -(dot(n_normalized, start) + d) / ndotd;
+		//double  t = -(dot((start - a), n_normalized) / (dot(n_normalized, direction)));
+		if (t < 0) return false;
+
+		vec3 p = start + direction * (float)t;
+
+		if (dot(n_normalized, cross(b - a, p - a)) < 0 ||
+			dot(n_normalized, cross(c - b, p - b)) < 0 ||
+			dot(n_normalized, cross(a - c, p - c)) < 0) return false;
+
+		point = p;
+		return true;
 	}
 
 private:
@@ -101,14 +154,10 @@ int num_triangles = 0;
 int num_spheres = 0;
 int num_lights = 0;
 
-void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
-void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
-void plot_pixel(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 
 
 
 
-//MODIFY THIS FUNCTION
 void draw_scene() {
 	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
 	vec3 startPosition;
@@ -127,16 +176,34 @@ void draw_scene() {
 		glBegin(GL_POINTS);
 		for (unsigned int y = 0; y < HEIGHT; y++) {
 			pixelPosition.y += pixelSize;
-			Ray cameraRay(vec3(0), normalize(pixelPosition));
+			Ray cameraRay(vec3(0), pixelPosition);
 
+			// debug
+			vec3 color(0);
+			for (int i = 0; i < num_triangles; i++) {
+				if (cameraRay.intersects(triangles[i], vec3())) {
+					color = vec3(255);
+					break;
+				}
+			}
 
-
-			plot_pixel(x, y, x % 256, y % 256, (x + y) % 256);
+			plot_pixel(x, y, color);
 		}
 		glEnd();
 		glFlush();
 	}
 	printf("Done!\n"); fflush(stdout);
+}
+
+int compare(double d1, double d2) {
+	int result = 1;
+
+	double diff = d1 - d2;
+	if (diff < 0) result = -1;
+
+	if (abs(diff) <= numeric_limits<double>::epsilon()) result = 0;
+
+	return result;
 }
 
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
@@ -148,7 +215,10 @@ void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned ch
 	buffer[y][x][1] = g;
 	buffer[y][x][2] = b;
 }
-void plot_pixel(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
+void plot_pixel(int x, int y, vec3 color) {
+	unsigned char r = color.x;
+	unsigned char g = color.y;
+	unsigned char b = color.z;
 	plot_pixel_display(x, y, r, g, b);
 	if (mode == MODE_JPEG)
 		plot_pixel_jpeg(x, y, r, g, b);
