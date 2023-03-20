@@ -113,7 +113,16 @@ public:
 		point = start + direction * (float)t;
 		return true;
 	}
+	double area(vec3 a, vec3 b, vec3 c) {
 
+		double abx = b.x - a.x;
+		double aby = c.y - a.y;
+
+		double acx = c.x - a.x;
+		double acy = b.y - a.y;
+
+		return ((abx * aby) - (acx * acy)) / 2;
+	}
 	bool intersects(Triangle triangle, vec3& point) {
 		vec3 a(triangle.v[0].position[0], triangle.v[0].position[1], triangle.v[0].position[2]);
 		vec3 b(triangle.v[1].position[0], triangle.v[1].position[1], triangle.v[1].position[2]);
@@ -136,9 +145,16 @@ public:
 			dot(n_normalized, cross(c - b, p - b)) < 0 ||
 			dot(n_normalized, cross(a - c, p - c)) < 0) return false;
 
+		//double area0 = area(a, b, c);
+		//double area1 = area(p, b, c) / area0;
+		//double area2 = area(a, p, c) / area0;
+		//double area3 = 1 - area1 - area2;
+		//if (area1 * area2 < 0 || area2 * area3 < 0) return false;
+
 		point = p;
 		return true;
 	}
+
 
 private:
 	vec3 start;
