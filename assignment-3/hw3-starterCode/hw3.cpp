@@ -25,6 +25,11 @@
 #endif
 
 #include <imageIO.h>
+#include <glm/glm.hpp>
+#include <iostream>
+using namespace std;
+
+using namespace glm;
 
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
@@ -39,8 +44,11 @@ char* filename = NULL;
 int mode = MODE_DISPLAY;
 
 //you may want to make these smaller for debugging purposes
-#define WIDTH 640
-#define HEIGHT 480
+//#define WIDTH 640
+//#define HEIGHT 480
+#define WIDTH 7
+#define HEIGHT 3
+double aspectRatio = WIDTH / (double)HEIGHT;
 
 //the field of view of the camera
 #define fov 60.0
@@ -72,6 +80,18 @@ struct Light {
 	double color[3];
 };
 
+class Ray {
+public:
+	Ray(vec3 start, vec3 direction) {
+		this->start = start;
+		this->direction = direction;
+	}
+
+private:
+	vec3 start;
+	vec3 direction;
+};
+
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
@@ -85,13 +105,32 @@ void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 
+
+
+
 //MODIFY THIS FUNCTION
 void draw_scene() {
-	//a simple test output
+	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
+	vec3 startPosition;
+	startPosition.z = -1;
+	startPosition.y = -tan(radians(fov / 2));
+	startPosition.x = aspectRatio * startPosition.y;
+	double pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
+	startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
+
+	vec3 pixelPosition = startPosition;
 	for (unsigned int x = 0; x < WIDTH; x++) {
+		pixelPosition.x += pixelSize;
+		pixelPosition.y = startPosition.y;
+
 		glPointSize(2.0);
 		glBegin(GL_POINTS);
 		for (unsigned int y = 0; y < HEIGHT; y++) {
+			pixelPosition.y += pixelSize;
+			Ray cameraRay(vec3(0), normalize(pixelPosition));
+
+
+
 			plot_pixel(x, y, x % 256, y % 256, (x + y) % 256);
 		}
 		glEnd();
@@ -104,19 +143,16 @@ void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned
 	glColor3f(((float)r) / 255.0f, ((float)g) / 255.0f, ((float)b) / 255.0f);
 	glVertex2i(x, y);
 }
-
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
 	buffer[y][x][0] = r;
 	buffer[y][x][1] = g;
 	buffer[y][x][2] = b;
 }
-
 void plot_pixel(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
 	plot_pixel_display(x, y, r, g, b);
 	if (mode == MODE_JPEG)
 		plot_pixel_jpeg(x, y, r, g, b);
 }
-
 void save_jpg() {
 	printf("Saving JPEG file: %s\n", filename);
 
@@ -126,7 +162,6 @@ void save_jpg() {
 	else
 		printf("File saved Successfully\n");
 }
-
 void parse_check(const char* expected, char* found) {
 	if (strcasecmp(expected, found)) {
 		printf("Expected '%s ' found '%s '\n", expected, found);
@@ -134,7 +169,6 @@ void parse_check(const char* expected, char* found) {
 		exit(0);
 	}
 }
-
 void parse_doubles(FILE* file, const char* check, double p[3]) {
 	char str[100];
 	fscanf(file, "%s", str);
@@ -142,7 +176,6 @@ void parse_doubles(FILE* file, const char* check, double p[3]) {
 	fscanf(file, "%lf %lf %lf", &p[0], &p[1], &p[2]);
 	printf("%s %lf %lf %lf\n", check, p[0], p[1], p[2]);
 }
-
 void parse_rad(FILE* file, double* r) {
 	char str[100];
 	fscanf(file, "%s", str);
@@ -150,7 +183,6 @@ void parse_rad(FILE* file, double* r) {
 	fscanf(file, "%lf", r);
 	printf("rad: %f\n", *r);
 }
-
 void parse_shi(FILE* file, double* shi) {
 	char s[100];
 	fscanf(file, "%s", s);
@@ -228,7 +260,13 @@ int loadScene(char* argv) {
 void display() {
 }
 
+void debug() {
+
+}
+
 void init() {
+	debug();
+
 	glMatrixMode(GL_PROJECTION);
 	glOrtho(0, WIDTH, 0, HEIGHT, 1, -1);
 	glMatrixMode(GL_MODELVIEW);
