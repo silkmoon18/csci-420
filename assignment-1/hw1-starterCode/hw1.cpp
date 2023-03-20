@@ -33,18 +33,20 @@ char shaderBasePath[1024] = "../openGLHelper-starterCode";
 using namespace std;
 using namespace glm;
 
-
-
-
-BasicPipelineProgram* pipelineProgram;
+BasicPipelineProgram *pipelineProgram;
 
 int mousePos[2]; // x,y coordinate of the mouse position
 
-int leftMouseButton = 0; // 1 if pressed, 0 if not 
+int leftMouseButton = 0;   // 1 if pressed, 0 if not
 int middleMouseButton = 0; // 1 if pressed, 0 if not
-int rightMouseButton = 0; // 1 if pressed, 0 if not
+int rightMouseButton = 0;  // 1 if pressed, 0 if not
 
-typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
+typedef enum
+{
+	ROTATE,
+	TRANSLATE,
+	SCALE
+} CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
 // state of the world
@@ -52,9 +54,9 @@ vec3 landRotate = vec3(0);
 vec3 landTranslate = vec3(0);
 vec3 landScale = vec3(1);
 
-// lighting 
+// lighting
 vec4 lightPosition = vec4(0, 0, 0, 1);
-vec4 lightAmbient = vec4( 1, 1, 1, 1);
+vec4 lightAmbient = vec4(1, 1, 1, 1);
 vec4 lightDiffuse = vec4(.8, .8, .8, 1);
 vec4 lightSpecular = vec4(1, 1, 1, 1);
 vec4 ambientCoef = vec4(0.5, 0.5, 0.5, 1);
@@ -87,87 +89,102 @@ bool wireframeEnabled = false;
 bool isTakingScreenshot = false;
 
 // 0: points, 1: lines, 2: triangles, 3: smoothened, 4: wireframe for 2
-Entity* holder;
-vector<Entity*> fields;
-Entity* camera;
+Entity *holder;
+vector<Entity *> fields;
+Entity *camera;
 int currentFieldIndex = 0;
 
-
 // write a screenshot to the specified filename
-void saveScreenshot() {
-	if (screenshotIndex > 999) {
+void saveScreenshot()
+{
+	if (screenshotIndex > 999)
+	{
 		cout << "Num of screenshots has reached limit 999. " << endl;
 		return;
 	}
 
 	int digit = to_string(screenshotIndex).length();
 	string filename = "./screenshots/";
-	for (int i = digit; i < 3; i++) {
+	for (int i = digit; i < 3; i++)
+	{
 		filename += "0";
 	}
 	filename += to_string(screenshotIndex + 1) + ".jpg";
 
-	unsigned char* screenshotData = new unsigned char[windowWidth * windowHeight * 3];
+	unsigned char *screenshotData = new unsigned char[windowWidth * windowHeight * 3];
 	glReadPixels(0, 0, windowWidth, windowHeight, GL_RGB, GL_UNSIGNED_BYTE, screenshotData);
 
 	ImageIO screenshotImg(windowWidth, windowHeight, 3, screenshotData);
 
-	if (screenshotImg.save(filename.c_str(), ImageIO::FORMAT_JPEG) == ImageIO::OK) {
+	if (screenshotImg.save(filename.c_str(), ImageIO::FORMAT_JPEG) == ImageIO::OK)
+	{
 		cout << "File " << filename << " saved successfully." << endl;
 		screenshotIndex++;
 	}
-	else cout << "Failed to save file " << filename << '.' << endl;
+	else
+		cout << "Failed to save file " << filename << '.' << endl;
 
 	delete[] screenshotData;
 }
 
-ImageIO* tryReadImage(string imagePath) {
-	ImageIO* image = new ImageIO();
-	if (image->loadJPEG(imagePath.c_str()) != ImageIO::OK) {
+ImageIO *tryReadImage(string imagePath)
+{
+	ImageIO *image = new ImageIO();
+	if (image->loadJPEG(imagePath.c_str()) != ImageIO::OK)
+	{
 		return NULL;
 	}
 	return image;
 }
 
 // find images in directory
-bool FindImages() {
+bool FindImages()
+{
 	printf("\n");
-	if (imageDirectory.empty()) {
+	if (imageDirectory.empty())
+	{
 		printf("Error: image directory is not specified. \n");
 		return false;
 	}
-	if (!filesystem::exists(imageDirectory)) {
+	if (!filesystem::exists(imageDirectory))
+	{
 		printf("Error: directory %s does not exist. \n", imageDirectory.c_str());
 		return false;
 	}
 
 	printf("Finding images...\n");
-	for (const auto& entry : filesystem::directory_iterator(imageDirectory)) {
+	for (const auto &entry : filesystem::directory_iterator(imageDirectory))
+	{
 		filesystem::path path = entry.path();
 
 		string extension = path.extension().string();
-		if (extension == ".jpg" || extension == ".jpeg") {
+		if (extension == ".jpg" || extension == ".jpeg")
+		{
 			printf("Image found: %s\n", path.string().c_str());
 			imagePaths.push_back(path.string());
 		}
-		else {
+		else
+		{
 			printf("Error: file %s is not jpg. \n", path.string().c_str());
 		}
 	}
 
 	int size = imagePaths.size();
-	if (size == 0) {
+	if (size == 0)
+	{
 		printf("Error: no images found. \n");
 		return false;
 	}
-	else {
+	else
+	{
 		printf("Found %i images in %s\n", size, imageDirectory.c_str());
 	}
 	printf("\n");
 	return true;
 }
 
-void setUniforms() {
+void setUniforms()
+{
 	// set height scalar
 	GLint heightScaleLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "heightScale");
 	glUniform1f(heightScaleLoc, heightScalar);
@@ -193,13 +210,14 @@ void setUniforms() {
 	glUniform4f(loc, lightSpecular[0], lightSpecular[1], lightSpecular[2], lightSpecular[3]);
 }
 
-
 // generate heightfield
-void generateField() {
+void generateField()
+{
 	// load the image from a jpeg disk file to main memory
 	string path = imagePaths[currentImageIndex];
-	ImageIO* image = tryReadImage(path);
-	if (!image) {
+	ImageIO *image = tryReadImage(path);
+	if (!image)
+	{
 		printf("Error: cannot read image %s. \n", path.c_str());
 		return;
 	}
@@ -227,20 +245,23 @@ void generateField() {
 
 	bool isRGB = !(image->getBytesPerPixel() == 1);
 
-	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i, rgb: %s. \n\n", 
+	printf("\nImage info: \n\twidth: %i, height: %i, number of pixels: %i, rgb: %s. \n\n",
 		   width, height, width * height, isRGB ? "true" : "false");
 
 	// init
-	for (int i = 0; i < width; i++) {
+	for (int i = 0; i < width; i++)
+	{
 		heights.push_back(vector<float>());
 
-		for (int j = 0; j < height; j++) {
+		for (int j = 0; j < height; j++)
+		{
 			int index = i * height + j;
 			float x, y, z, lum;
 
 			// vertex color
 			vec4 color;
-			if (isRGB) {
+			if (isRGB)
+			{
 				float r = image->getPixel(i, j, 0);
 				float g = image->getPixel(i, j, 1);
 				float b = image->getPixel(i, j, 2);
@@ -248,7 +269,8 @@ void generateField() {
 				color = vec4(r, g, b, 255);
 				color.w = 1;
 			}
-			else {
+			else
+			{
 				lum = image->getPixel(i, j, 0);
 				color = vec4(255, 255, 255, 255);
 				color.w = 1;
@@ -263,7 +285,8 @@ void generateField() {
 
 			// add height
 			heights[i].push_back(y);
-			if (y > maxHeight) {
+			if (y > maxHeight)
+			{
 				maxHeight = y;
 			}
 
@@ -271,26 +294,30 @@ void generateField() {
 			pointIndices.push_back(index);
 
 			// add line indices
-			if (i > 0) {
+			if (i > 0)
+			{
 				// add left line indices
 				lineIndices.push_back(index - height);
 				lineIndices.push_back(index);
 			}
-			if (j > 0) {
+			if (j > 0)
+			{
 				// add bottom line indices
 				lineIndices.push_back(index - 1);
 				lineIndices.push_back(index);
 			}
 
 			// add triangle indices
-			if (i > 0 && j > 0) {
+			if (i > 0 && j > 0)
+			{
 				triangleIndices.push_back(index - height - 1);
 				triangleIndices.push_back(index - 1);
 				triangleIndices.push_back(index - height);
 				triangleIndices.push_back(index);
 
 				// restart after each column
-				if (j == height - 1) {
+				if (j == height - 1)
+				{
 					triangleIndices.push_back(restartIndex);
 				}
 			}
@@ -317,33 +344,36 @@ void generateField() {
 	// heights of points of top, bottom, left, right
 	vector<vec4> neighborHeights;
 
-	for (int i = 0; i < width; i++) {
-		for (int j = 0; j < height; j++) {
+	for (int i = 0; i < width; i++)
+	{
+		for (int j = 0; j < height; j++)
+		{
 			vec4 neighborHeight;
 
 			// get neighbors' heights.
-			// top 
+			// top
 			neighborHeight.x = j == height - 1 ? heights[i][j - 1] : heights[i][j + 1];
 
-			// bottom 
+			// bottom
 			neighborHeight.y = j == 0 ? heights[i][j + 1] : heights[i][j - 1];
 
-			// left 
+			// left
 			neighborHeight.z = i == 0 ? heights[i + 1][j] : heights[i - 1][j];
 
-			// right 
+			// right
 			neighborHeight.w = i == width - 1 ? heights[i - 1][j] : heights[i + 1][j];
 
 			neighborHeights.push_back(neighborHeight);
 		}
 	}
 
-	VertexArrayObject* vao = new VertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices);
+	VertexArrayObject *vao = new VertexArrayObject(pipelineProgram, vertexPositions, vertexColors, triangleIndices);
 	vao->sendData(neighborHeights, 4, "neighborHeights");
 	fields[3]->getComponent<Renderer>()->setVAO(vao);
 
 	vector<vec4> wireframeColors(vertexColors.size());
-	for (vec4 color : wireframeColors) {
+	for (vec4 color : wireframeColors)
+	{
 		color = vec4(1);
 	}
 	vao = new VertexArrayObject(pipelineProgram, vertexPositions, wireframeColors, lineIndices);
@@ -351,34 +381,38 @@ void generateField() {
 	fields[4]->getComponent<Renderer>()->setVAO(vao);
 }
 
-
 int delay = 8; // hard coded for recording on 120 fps monitor
 int currentFrame = 0;
-void idleFunc() {
+void idleFunc()
+{
 	// calculate delta time
 	Timer::getInstance()->setCurrentTime(glutGet(GLUT_ELAPSED_TIME));
 
 	// save 15 screenshots per second
-	if (isTakingScreenshot && currentFrame % 8 == 0) {
+	if (isTakingScreenshot && currentFrame % 8 == 0)
+	{
 		saveScreenshot();
 	}
 
-	// make the screen update 
+	// make the screen update
 	glutPostRedisplay();
 	currentFrame++;
 }
 
-void displayFunc() {
+void displayFunc()
+{
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// set uniforms
 	setUniforms();
 
 	// set current active, others inactive
-	for (int i = 0; i < fields.size(); i++) {
+	for (int i = 0; i < fields.size(); i++)
+	{
 		fields[i]->setActive(i == currentFieldIndex);
 	}
-	if ((currentFieldIndex == 2 || currentFieldIndex == 3) && wireframeEnabled) {
+	if ((currentFieldIndex == 2 || currentFieldIndex == 3) && wireframeEnabled)
+	{
 		fields[4]->setActive(true);
 	}
 
@@ -393,123 +427,129 @@ void displayFunc() {
 	glutSwapBuffers();
 }
 
-void keyboardFunc(unsigned char key, int x, int y) {
+void keyboardFunc(unsigned char key, int x, int y)
+{
 	GLint polygonModeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "polygonMode");
 	GLint lightModeLoc = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "lightMode");
 
-	switch (key) {
-		case 27: // ESC key
-			exit(0); // exit the program
-			break;
+	switch (key)
+	{
+	case 27:	 // ESC key
+		exit(0); // exit the program
+		break;
 
-		case ' ':
-			cout << "You pressed the spacebar." << endl;
-			break;
+	case ' ':
+		cout << "You pressed the spacebar." << endl;
+		break;
 
-		// toggle screenshots recording
-		case 'x':
-			isTakingScreenshot = !isTakingScreenshot;
-			break;
+	// toggle screenshots recording
+	case 'x':
+		isTakingScreenshot = !isTakingScreenshot;
+		break;
 
-		// point mode
-		case '1':
-			currentFieldIndex = 0;
-			glUniform1i(polygonModeLoc, 0);
-			break;
+	// point mode
+	case '1':
+		currentFieldIndex = 0;
+		glUniform1i(polygonModeLoc, 0);
+		break;
 
-		// line mode
-		case '2':
-			currentFieldIndex = 1;
-			glUniform1i(polygonModeLoc, 0);
-			break;
+	// line mode
+	case '2':
+		currentFieldIndex = 1;
+		glUniform1i(polygonModeLoc, 0);
+		break;
 
-		// triangle mode
-		case '3':
-			currentFieldIndex = 2;
-			glUniform1i(polygonModeLoc, 0);
-			break;
+	// triangle mode
+	case '3':
+		currentFieldIndex = 2;
+		glUniform1i(polygonModeLoc, 0);
+		break;
 
-		// smoothened mode
-		case '4':
-			currentFieldIndex = 3;
-			glUniform1i(polygonModeLoc, 1);
-			break;
-	
-		// previous image
-		case 'o':
-			currentImageIndex--;
-			if (currentImageIndex < 0) {
-				currentImageIndex = imagePaths.size() - 1;
-			}
-			generateField();
-			break;
+	// smoothened mode
+	case '4':
+		currentFieldIndex = 3;
+		glUniform1i(polygonModeLoc, 1);
+		break;
 
-		// next image
-		case 'p':
-			currentImageIndex++;
-			if (currentImageIndex == imagePaths.size()) {
-				currentImageIndex = 0;
-			}
-			generateField();
-			break;
+	// previous image
+	case 'o':
+		currentImageIndex--;
+		if (currentImageIndex < 0)
+		{
+			currentImageIndex = imagePaths.size() - 1;
+		}
+		generateField();
+		break;
 
-		// toggle wireframe display
-		case 'l':
-			wireframeEnabled = !wireframeEnabled;
-			break;
+	// next image
+	case 'p':
+		currentImageIndex++;
+		if (currentImageIndex == imagePaths.size())
+		{
+			currentImageIndex = 0;
+		}
+		generateField();
+		break;
 
-		// default lighting
-		case 'v':
-			glUniform1i(lightModeLoc, 0);
-			break;
-		// ambient lighting
-		case 'b':
-			glUniform1i(lightModeLoc, 1);
-			break;
-		// diffuse lighting
-		case 'n':
-			glUniform1i(lightModeLoc, 2);
-			break;
-		// specular lighting
-		case 'm':
-			glUniform1i(lightModeLoc, 3);
-			break;
+	// toggle wireframe display
+	case 'l':
+		wireframeEnabled = !wireframeEnabled;
+		break;
 
+	// default lighting
+	case 'v':
+		glUniform1i(lightModeLoc, 0);
+		break;
+	// ambient lighting
+	case 'b':
+		glUniform1i(lightModeLoc, 1);
+		break;
+	// diffuse lighting
+	case 'n':
+		glUniform1i(lightModeLoc, 2);
+		break;
+	// specular lighting
+	case 'm':
+		glUniform1i(lightModeLoc, 3);
+		break;
 	}
 }
 
-void mouseButtonFunc(int button, int state, int x, int y) {
+void mouseButtonFunc(int button, int state, int x, int y)
+{
 	// a mouse button has has been pressed or depressed
 
 	// keep track of the mouse button state, in leftMouseButton, middleMouseButton, rightMouseButton variables
-	switch (button) {
-		case GLUT_LEFT_BUTTON:
-			leftMouseButton = (state == GLUT_DOWN);
-			break;
+	switch (button)
+	{
+	case GLUT_LEFT_BUTTON:
+		leftMouseButton = (state == GLUT_DOWN);
+		break;
 
-		case GLUT_MIDDLE_BUTTON:
-			middleMouseButton = (state == GLUT_DOWN);
-			break;
+	case GLUT_MIDDLE_BUTTON:
+		middleMouseButton = (state == GLUT_DOWN);
+		break;
 
-		case GLUT_RIGHT_BUTTON:
-			rightMouseButton = (state == GLUT_DOWN);
-			break;
+	case GLUT_RIGHT_BUTTON:
+		rightMouseButton = (state == GLUT_DOWN);
+		break;
 	}
 
 	// keep track of whether CTRL and SHIFT keys are pressed
-	switch (glutGetModifiers()) {
-		case GLUT_ACTIVE_CTRL:
-			controlState = TRANSLATE;
-			break;
+	switch (glutGetModifiers())
+	{
+	case GLUT_ACTIVE_CTRL:
+		controlState = TRANSLATE;
+		break;
 
-		case GLUT_ACTIVE_SHIFT:
-			controlState = SCALE;
-			break;
+	case GLUT_ACTIVE_SHIFT:
+		controlState = SCALE;
+		break;
 
-			// if CTRL and SHIFT are not pressed, we are in rotate mode
-		default:
-			controlState = ROTATE;
-			break;
+		// if CTRL and SHIFT are not pressed, we are in rotate mode
+	default:
+		controlState = ROTATE;
+		break;
 	}
 
 	// store the new mouse position
@@ -517,51 +557,59 @@ void mouseButtonFunc(int button, int state, int x, int y) {
 	mousePos[1] = y;
 }
 
-void mouseMotionDragFunc(int x, int y) {
+void mouseMotionDragFunc(int x, int y)
+{
 	// mouse has moved and one of the mouse buttons is pressed (dragging)
 
 	// the change in mouse position since the last invocation of this function
-	int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
+	int mousePosDelta[2] = {x - mousePos[0], y - mousePos[1]};
 
-	switch (controlState) {
-		// translate the landscape
-		case TRANSLATE:
-			if (leftMouseButton) {
-				// control x,y translation via the left mouse button
-				landTranslate[0] += mousePosDelta[0] * translateSpeed;
-				landTranslate[1] -= mousePosDelta[1] * translateSpeed;
-			}
-			if (middleMouseButton) {
-				// control z translation via the middle mouse button
-				landTranslate[2] += mousePosDelta[1] * translateSpeed;
-			}
-			break;
+	switch (controlState)
+	{
+	// translate the landscape
+	case TRANSLATE:
+		if (leftMouseButton)
+		{
+			// control x,y translation via the left mouse button
+			landTranslate[0] += mousePosDelta[0] * translateSpeed;
+			landTranslate[1] -= mousePosDelta[1] * translateSpeed;
+		}
+		if (middleMouseButton)
+		{
+			// control z translation via the middle mouse button
+			landTranslate[2] += mousePosDelta[1] * translateSpeed;
+		}
+		break;
 
-			// rotate the landscape
-		case ROTATE:
-			if (leftMouseButton) {
-				// control x,y rotation via the left mouse button
-				landRotate[0] += mousePosDelta[1] * rotateSpeed;
-				landRotate[1] += mousePosDelta[0] * rotateSpeed;
-			}
-			if (middleMouseButton) {
-				// control z rotation via the middle mouse button
-				landRotate[2] += mousePosDelta[1] * rotateSpeed;
-			}
-			break;
+		// rotate the landscape
+	case ROTATE:
+		if (leftMouseButton)
+		{
+			// control x,y rotation via the left mouse button
+			landRotate[0] += mousePosDelta[1] * rotateSpeed;
+			landRotate[1] += mousePosDelta[0] * rotateSpeed;
+		}
+		if (middleMouseButton)
+		{
+			// control z rotation via the middle mouse button
+			landRotate[2] += mousePosDelta[1] * rotateSpeed;
+		}
+		break;
 
-			// scale the landscape
-		case SCALE:
-			if (leftMouseButton) {
-				// control x,y scaling via the left mouse button
-				landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
-				landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-			}
-			if (middleMouseButton) {
-				// control z scaling via the middle mouse button
-				landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
-			}
-			break;
+		// scale the landscape
+	case SCALE:
+		if (leftMouseButton)
+		{
+			// control x,y scaling via the left mouse button
+			landScale[0] *= 1.0f + mousePosDelta[0] * scaleSpeed;
+			landScale[1] *= 1.0f - mousePosDelta[1] * scaleSpeed;
+		}
+		if (middleMouseButton)
+		{
+			// control z scaling via the middle mouse button
+			landScale[2] *= 1.0f - mousePosDelta[1] * scaleSpeed;
+		}
+		break;
 	}
 
 	// store the new mouse position
@@ -569,14 +617,16 @@ void mouseMotionDragFunc(int x, int y) {
 	mousePos[1] = y;
 }
 
-void mouseMotionFunc(int x, int y) {
+void mouseMotionFunc(int x, int y)
+{
 	// mouse has moved
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
 }
 
-void reshapeFunc(int w, int h) {
+void reshapeFunc(int w, int h)
+{
 	glViewport(0, 0, w, h);
 
 	Camera::currentCamera->setPerspective(Camera::currentCamera->fieldOfView,
@@ -585,7 +635,8 @@ void reshapeFunc(int w, int h) {
 										  Camera::currentCamera->zFar);
 }
 
-void initScene() {
+void initScene()
+{
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_DEPTH_TEST);
 
@@ -600,36 +651,37 @@ void initScene() {
 	// pipeline
 	pipelineProgram = new BasicPipelineProgram;
 	int ret = pipelineProgram->Init(shaderBasePath);
-	if (ret != 0) abort();
+	if (ret != 0)
+		abort();
 
 	// init entities
 	holder = EntityManager::getInstance()->createEntity("Holder");
 
-	Entity* points = EntityManager::getInstance()->createEntity("Points");
+	Entity *points = EntityManager::getInstance()->createEntity("Points");
 	points->addComponent(new Renderer(GL_POINTS));
 	points->setParent(holder);
 	fields.push_back(points);
 
-	Entity* lines = EntityManager::getInstance()->createEntity("Lines");
+	Entity *lines = EntityManager::getInstance()->createEntity("Lines");
 	lines->addComponent(new Renderer(GL_LINE_STRIP));
 	lines->setParent(holder);
 	fields.push_back(lines);
 
-	Entity* triangles = EntityManager::getInstance()->createEntity("Triangles");
+	Entity *triangles = EntityManager::getInstance()->createEntity("Triangles");
 	triangles->addComponent(new Renderer(GL_TRIANGLE_STRIP));
 	triangles->setParent(holder);
 	fields.push_back(triangles);
 
-	Entity* smoothened = EntityManager::getInstance()->createEntity("Smoothened");
+	Entity *smoothened = EntityManager::getInstance()->createEntity("Smoothened");
 	smoothened->addComponent(new Renderer(GL_TRIANGLE_STRIP));
 	smoothened->setParent(holder);
 	fields.push_back(smoothened);
 
-	Entity* wireframe = EntityManager::getInstance()->createEntity("Wireframe");
+	Entity *wireframe = EntityManager::getInstance()->createEntity("Wireframe");
 	wireframe->addComponent(new Renderer(GL_LINE_STRIP));
 	wireframe->setParent(holder);
 	fields.push_back(wireframe);
-	
+
 	// init camera
 	camera = EntityManager::getInstance()->createEntity("Camera");
 	camera->addComponent(new Camera());
@@ -640,15 +692,18 @@ void initScene() {
 	cout << "\nGL error: " << glGetError() << endl;
 }
 
-
-int main(int argc, char* argv[]) {
-	if (argc > 1) {
+int main(int argc, char *argv[])
+{
+	if (argc > 1)
+	{
 		imageDirectory = argv[1];
 	}
 
 	bool isValid = FindImages();
-	while (!isValid) {
-		cout << "Please specify a directory that contains at least one jpg image: \n" << endl;
+	while (!isValid)
+	{
+		cout << "Please specify a directory that contains at least one jpg image: \n"
+			 << endl;
 		cin >> imageDirectory;
 		isValid = FindImages();
 	}
@@ -680,7 +735,7 @@ int main(int argc, char* argv[]) {
 	// perform animation inside idleFunc
 	glutIdleFunc(idleFunc);
 
-	// tells glut to use a particular display function to redraw 
+	// tells glut to use a particular display function to redraw
 	glutDisplayFunc(displayFunc);
 
 	// callback for pressing the keys on the keyboard
@@ -699,11 +754,12 @@ int main(int argc, char* argv[]) {
 
 	// init glew
 #ifdef __APPLE__
-  // nothing is needed on Apple
+	// nothing is needed on Apple
 #else
-  // Windows, Linux
+	// Windows, Linux
 	GLint result = glewInit();
-	if (result != GLEW_OK) {
+	if (result != GLEW_OK)
+	{
 		cout << "error: " << glewGetErrorString(result) << endl;
 		exit(EXIT_FAILURE);
 	}
@@ -715,5 +771,3 @@ int main(int argc, char* argv[]) {
 	// sink forever into the glut loop
 	glutMainLoop();
 }
-
-

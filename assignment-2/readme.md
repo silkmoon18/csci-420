@@ -69,7 +69,7 @@ Additional Features: (Please document any additional features you may have imple
 1. Multiple light sources. (1 directional light and multiple point lights)
 2. Controllable player and a world camera.
 3. .sp contains only point positions, no need to include the number of points. track.txt contains only .sp file paths, no need to include the number of .sp files.
-4. A rough framework "Utility.h". Details in "Utility.cpp". 
+4. Most details can be found in Utility.h and Utility.cpp. 
 
 <img src="C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230302012314513.png" alt="image-20230302012314513" style="zoom:67%;" />
 
