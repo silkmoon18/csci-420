@@ -27,6 +27,7 @@
 #include <imageIO.h>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <vector>
 using namespace std;
 
 using namespace glm;
@@ -56,30 +57,55 @@ double aspectRatio = WIDTH / (double)HEIGHT;
 unsigned char buffer[HEIGHT][WIDTH][3];
 
 
+struct Material;
+struct Vertex;
+class Object;
+class Triangle;
+class Sphere;
+struct Light;
+class Ray;
 
+vec3 calculateLighting(vec3 position, Light light, Material material, vec3 normal);
+
+vec3 toVec3(double array[3]);
 int compare(double d1, double d2);
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel(int x, int y, vec3 color);
 
+struct Material {
+	double color_diffuse[3];
+	double color_specular[3];
+	double shininess;
+};
+
 struct Vertex {
 	double position[3];
-	double color_diffuse[3];
-	double color_specular[3];
 	double normal[3];
-	double shininess;
+	Material material;
 };
 
-struct Triangle {
+class Object {
+public:
+	virtual vec3 calculateLighting(vec3 position) = 0;
+	virtual float intersects(Ray* ray) = 0;
+};
+class Triangle : public Object {
+public:
 	Vertex v[3];
+
+	vec3 calculateLighting(vec3 position);
+	float intersects(Ray* ray);
 };
 
-struct Sphere {
+class Sphere : public Object {
+public:
 	double position[3];
-	double color_diffuse[3];
-	double color_specular[3];
-	double shininess;
 	double radius;
+	Material material;
+
+	vec3 calculateLighting(vec3 position);
+	float intersects(Ray* ray);
 };
 
 struct Light {
@@ -89,78 +115,17 @@ struct Light {
 
 class Ray {
 public:
-	Ray(vec3 start, vec3 direction) {
-		this->start = start;
-		this->direction = normalize(direction);
-	}
-
-	bool intersects(Sphere &sphere, vec3 &point) {
-		vec3 difference = start - vec3(sphere.position[0], sphere.position[1], sphere.position[2]);
-
-		double a = 1;
-		double b = 2 * dot(difference, direction);
-		double c = dot(difference, difference) - sphere.radius * sphere.radius;
-
-		double checker = b * b - 4 * c;
-		if (checker < 0) return false;
-
-		double t0 = 0.5 * (-b + sqrt(checker));
-		double t1 = 0.5 * (-b - sqrt(checker));
-
-		double t = std::min(t0, t1);
-		if (t < 0) return false;
-
-		point = start + direction * (float)t;
-		return true;
-	}
-	double area(vec3 a, vec3 b, vec3 c) {
-
-		double abx = b.x - a.x;
-		double aby = c.y - a.y;
-
-		double acx = c.x - a.x;
-		double acy = b.y - a.y;
-
-		return ((abx * aby) - (acx * acy)) / 2;
-	}
-	bool intersects(Triangle triangle, vec3& point) {
-		vec3 a(triangle.v[0].position[0], triangle.v[0].position[1], triangle.v[0].position[2]);
-		vec3 b(triangle.v[1].position[0], triangle.v[1].position[1], triangle.v[1].position[2]);
-		vec3 c(triangle.v[2].position[0], triangle.v[2].position[1], triangle.v[2].position[2]);
-
-		vec3 n = cross(b - a, c - a);
-		vec3 n_normalized = normalize(n);
-
-		double ndotd = dot(n_normalized, direction);
-		if (compare(ndotd, 0) == 0) return false;
-
-		double d = -dot(n_normalized, a);
-		double t = -(dot(n_normalized, start) + d) / ndotd;
-		//double  t = -(dot((start - a), n_normalized) / (dot(n_normalized, direction)));
-		if (t < 0) return false;
-
-		vec3 p = start + direction * (float)t;
-
-		if (dot(n_normalized, cross(b - a, p - a)) < 0 ||
-			dot(n_normalized, cross(c - b, p - b)) < 0 ||
-			dot(n_normalized, cross(a - c, p - c)) < 0) return false;
-
-		//double area0 = area(a, b, c);
-		//double area1 = area(p, b, c) / area0;
-		//double area2 = area(a, p, c) / area0;
-		//double area3 = 1 - area1 - area2;
-		//if (area1 * area2 < 0 || area2 * area3 < 0) return false;
-
-		point = p;
-		return true;
-	}
-
-
-private:
 	vec3 start;
 	vec3 direction;
+
+	Ray(vec3 start, vec3 target);
+
+	vec3 getPosition(float t);
+	Object* getFirstIntersectedObject();
+	bool checkIfBlocked();
 };
 
+vector<Object*> objects;
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
@@ -196,12 +161,10 @@ void draw_scene() {
 
 			// debug
 			vec3 color(0);
-			for (int i = 0; i < num_triangles; i++) {
-				if (cameraRay.intersects(triangles[i], vec3())) {
-					color = vec3(255);
-					break;
-				}
+			if (cameraRay.checkIfBlocked()) {
+				color = vec3(255);
 			}
+
 
 			plot_pixel(x, y, color);
 		}
@@ -211,6 +174,109 @@ void draw_scene() {
 	printf("Done!\n"); fflush(stdout);
 }
 
+
+#pragma region Triangles
+vec3 Triangle::calculateLighting(vec3 position) {
+	return vec3();
+}
+float Triangle::intersects(Ray* ray) {
+	vec3 a = toVec3(v[0].position);
+	vec3 b = toVec3(v[1].position);
+	vec3 c = toVec3(v[2].position);
+
+	vec3 n = cross(b - a, c - a);
+	vec3 n_normalized = normalize(n);
+
+	double ndotd = dot(n_normalized, ray->direction);
+	if (compare(ndotd, 0) == 0) return -1;
+
+	double d = -dot(n_normalized, a);
+	double t = -(dot(n_normalized, ray->start) + d) / ndotd;
+	//double  t = -(dot((start - a), n_normalized) / (dot(n_normalized, direction)));
+	if (t < 0) return -1;
+
+	vec3 p = ray->start + ray->direction * (float)t;
+	if (dot(n_normalized, cross(b - a, p - a)) < 0 ||
+		dot(n_normalized, cross(c - b, p - b)) < 0 ||
+		dot(n_normalized, cross(a - c, p - c)) < 0) return -1;
+
+	return t;
+}
+#pragma endregion
+
+
+#pragma region Sphere
+vec3 Sphere::calculateLighting(vec3 position) {
+	return vec3();
+}
+float Sphere::intersects(Ray* ray) {
+	vec3 difference = ray->start - toVec3(position);
+
+	double a = 1;
+	double b = 2 * dot(difference, ray->direction);
+	double c = dot(difference, difference) - radius * radius;
+
+	double checker = b * b - 4 * c;
+	if (checker < 0) return -1;
+
+	double t0 = 0.5 * (-b + sqrt(checker));
+	double t1 = 0.5 * (-b - sqrt(checker));
+
+	return std::min(t0, t1);
+}
+#pragma endregion
+
+
+#pragma region Ray
+Ray::Ray(vec3 start, vec3 target) {
+	this->start = start;
+	direction = normalize(target - start);
+}
+vec3 Ray::getPosition(float t) {
+	return start + direction * t;
+}
+Object* Ray::getFirstIntersectedObject() {
+	Object* object = nullptr;
+	float min_t = numeric_limits<float>::max();
+	for (int i = 0; i < objects.size(); i++) {
+		float t = objects[i]->intersects(this);
+		if (t > 0 && t < min_t) {
+			min_t = t;
+			object = objects[i];
+		}
+	}
+	return object;
+}
+bool Ray::checkIfBlocked() {
+	for (int i = 0; i < objects.size(); i++) {
+		if (objects[i]->intersects(this) > 0) {
+			return true;
+		}
+	}
+	return false;
+}
+#pragma endregion
+
+
+vec3 calculateLighting(vec3 position, Light light, Material material, vec3 normal) {
+	vec3 lightVector = normalize(toVec3(light.position) - position);
+	vec3 diffuseColor = toVec3(material.color_diffuse);
+	vec3 specularColor = toVec3(material.color_specular);
+
+	float ndotl = std::max(dot(lightVector, normal), 0.0f);
+	vec3 diffuse = diffuseColor * ndotl;
+
+	vec3 R = normalize(reflect(-lightVector, normal));
+	vec3 eyeVector = normalize(-position);
+	float rdotv = std::max(dot(R, eyeVector), 0.0f);
+	vec3 specular = specularColor * (float)pow(rdotv, material.shininess);
+
+	return toVec3(light.color) * diffuse + specular;
+}
+
+vec3 toVec3(double array[3]) {
+	return vec3(array[0], array[1], array[2]);
+}
 int compare(double d1, double d2) {
 	int result = 1;
 
@@ -281,8 +347,8 @@ int loadScene(char* argv) {
 	FILE* file = fopen(argv, "r");
 	int number_of_objects;
 	char type[50];
-	Triangle t;
-	Sphere s;
+	Triangle* t;
+	Sphere* s;
 	Light l;
 	fscanf(file, "%i", &number_of_objects);
 
@@ -295,34 +361,39 @@ int loadScene(char* argv) {
 		printf("%s\n", type);
 		if (strcasecmp(type, "triangle") == 0) {
 			printf("found triangle\n");
+
+			t = new Triangle();
 			for (int j = 0; j < 3; j++) {
-				parse_doubles(file, "pos:", t.v[j].position);
-				parse_doubles(file, "nor:", t.v[j].normal);
-				parse_doubles(file, "dif:", t.v[j].color_diffuse);
-				parse_doubles(file, "spe:", t.v[j].color_specular);
-				parse_shi(file, &t.v[j].shininess);
+				parse_doubles(file, "pos:", t->v[j].position);
+				parse_doubles(file, "nor:", t->v[j].normal);
+				parse_doubles(file, "dif:", t->v[j].material.color_diffuse);
+				parse_doubles(file, "spe:", t->v[j].material.color_specular);
+				parse_shi(file, &t->v[j].material.shininess);
 			}
 
 			if (num_triangles == MAX_TRIANGLES) {
 				printf("too many triangles, you should increase MAX_TRIANGLES!\n");
 				exit(0);
 			}
-			triangles[num_triangles++] = t;
+			triangles[num_triangles++] = *t;
+			objects.push_back(t);
 		}
 		else if (strcasecmp(type, "sphere") == 0) {
 			printf("found sphere\n");
 
-			parse_doubles(file, "pos:", s.position);
-			parse_rad(file, &s.radius);
-			parse_doubles(file, "dif:", s.color_diffuse);
-			parse_doubles(file, "spe:", s.color_specular);
-			parse_shi(file, &s.shininess);
+			s = new Sphere();
+			parse_doubles(file, "pos:", s->position);
+			parse_rad(file, &s->radius);
+			parse_doubles(file, "dif:", s->material.color_diffuse);
+			parse_doubles(file, "spe:", s->material.color_specular);
+			parse_shi(file, &s->material.shininess);
 
 			if (num_spheres == MAX_SPHERES) {
 				printf("too many spheres, you should increase MAX_SPHERES!\n");
 				exit(0);
 			}
-			spheres[num_spheres++] = s;
+			spheres[num_spheres++] = *s;
+			objects.push_back(s);
 		}
 		else if (strcasecmp(type, "light") == 0) {
 			printf("found light\n");
@@ -340,6 +411,7 @@ int loadScene(char* argv) {
 			exit(0);
 		}
 	}
+
 	return 0;
 }
 
@@ -383,7 +455,9 @@ int main(int argc, char** argv) {
 		filename = argv[2];
 	}
 	else if (argc == 2)
+
 		mode = MODE_DISPLAY;
+	printf("Input file: %s\n", argv[1]);
 
 	glutInit(&argc, argv);
 	loadScene(argv[1]);
