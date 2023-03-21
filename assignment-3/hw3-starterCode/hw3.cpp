@@ -65,7 +65,8 @@ class Sphere;
 struct Light;
 class Ray;
 
-vec3 calculateLighting(vec3 position, Light light, Material material, vec3 normal);
+vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal);
+float calculateArea(vec3 a, vec3 b, vec3 c);
 
 vec3 toVec3(double array[3]);
 int compare(double d1, double d2);
@@ -96,6 +97,9 @@ public:
 
 	vec3 calculateLighting(vec3 position);
 	float intersects(Ray* ray);
+
+private:
+	vec3 getBarycentricCoords(vec3 p);
 };
 
 class Sphere : public Object {
@@ -121,7 +125,7 @@ public:
 	Ray(vec3 start, vec3 target);
 
 	vec3 getPosition(float t);
-	Object* getFirstIntersectedObject();
+	Object* getFirstIntersectedObject(vec3& position);
 	bool checkIfBlocked();
 };
 
@@ -161,11 +165,13 @@ void draw_scene() {
 
 			// debug
 			vec3 color(0);
-			if (cameraRay.checkIfBlocked()) {
-				color = vec3(255);
+			vec3 position;
+			Object* object = cameraRay.getFirstIntersectedObject(position);
+			if (object) {
+				color = object->calculateLighting(position);
 			}
 
-
+			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
 			plot_pixel(x, y, color);
 		}
 		glEnd();
@@ -177,7 +183,29 @@ void draw_scene() {
 
 #pragma region Triangles
 vec3 Triangle::calculateLighting(vec3 position) {
-	return vec3();
+	Material material;
+	vec3 bary = getBarycentricCoords(position);
+
+	vec3 normal = normalize(vec3(bary.x * v[0].normal[0] + bary.y * v[1].normal[0] + bary.z * v[2].normal[0],
+								 bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
+								 bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
+
+	material.color_diffuse[0] = bary.x * v[0].material.color_diffuse[0] + bary.y * v[1].material.color_diffuse[0] + bary.z * v[2].material.color_diffuse[0];
+	material.color_diffuse[1] = bary.x * v[0].material.color_diffuse[1] + bary.y * v[1].material.color_diffuse[1] + bary.z * v[2].material.color_diffuse[1];
+	material.color_diffuse[2] = bary.x * v[0].material.color_diffuse[2] + bary.y * v[1].material.color_diffuse[2] + bary.z * v[2].material.color_diffuse[2];
+
+	material.color_specular[0] = bary.x * v[0].material.color_specular[0] + bary.y * v[1].material.color_specular[0] + bary.z * v[2].material.color_specular[0];
+	material.color_specular[1] = bary.x * v[0].material.color_specular[1] + bary.y * v[1].material.color_specular[1] + bary.z * v[2].material.color_specular[1];
+	material.color_specular[2] = bary.x * v[0].material.color_specular[2] + bary.y * v[1].material.color_specular[2] + bary.z * v[2].material.color_specular[2];
+
+	material.shininess = bary.x * v[0].material.shininess + bary.y * v[1].material.shininess + bary.z * v[2].material.shininess;
+
+	vec3 color = toVec3(ambient_light);
+	for (int i = 0; i < num_lights; i++) {
+		color += calculatePhongShading(position, lights[i], material, normal);
+	}
+
+	return color;
 }
 float Triangle::intersects(Ray* ray) {
 	vec3 a = toVec3(v[0].position);
@@ -201,6 +229,17 @@ float Triangle::intersects(Ray* ray) {
 		dot(n_normalized, cross(a - c, p - c)) < 0) return -1;
 
 	return t;
+}
+vec3 Triangle::getBarycentricCoords(vec3 p) {
+	vec3 a = toVec3(v[0].position);
+	vec3 b = toVec3(v[1].position);
+	vec3 c = toVec3(v[2].position);
+	float area = calculateArea(a, b, c);
+
+	float alpha = calculateArea(p, b, c) / area;
+	float beta = calculateArea(a, p, c) / area;
+	float gamma = 1 - alpha - beta;
+	return vec3(alpha, beta, gamma);
 }
 #pragma endregion
 
@@ -235,7 +274,7 @@ Ray::Ray(vec3 start, vec3 target) {
 vec3 Ray::getPosition(float t) {
 	return start + direction * t;
 }
-Object* Ray::getFirstIntersectedObject() {
+Object* Ray::getFirstIntersectedObject(vec3& position) {
 	Object* object = nullptr;
 	float min_t = numeric_limits<float>::max();
 	for (int i = 0; i < objects.size(); i++) {
@@ -245,6 +284,7 @@ Object* Ray::getFirstIntersectedObject() {
 			object = objects[i];
 		}
 	}
+	position = getPosition(min_t);
 	return object;
 }
 bool Ray::checkIfBlocked() {
@@ -258,7 +298,8 @@ bool Ray::checkIfBlocked() {
 #pragma endregion
 
 
-vec3 calculateLighting(vec3 position, Light light, Material material, vec3 normal) {
+#pragma region Utility
+vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal) {
 	vec3 lightVector = normalize(toVec3(light.position) - position);
 	vec3 diffuseColor = toVec3(material.color_diffuse);
 	vec3 specularColor = toVec3(material.color_specular);
@@ -273,7 +314,9 @@ vec3 calculateLighting(vec3 position, Light light, Material material, vec3 norma
 
 	return toVec3(light.color) * diffuse + specular;
 }
-
+float calculateArea(vec3 a, vec3 b, vec3 c) {
+	return 0.5f * (((b.x - a.x) * (c.y - a.y)) - ((c.x - a.x) * (b.y - a.y)));
+}
 vec3 toVec3(double array[3]) {
 	return vec3(array[0], array[1], array[2]);
 }
@@ -414,6 +457,7 @@ int loadScene(char* argv) {
 
 	return 0;
 }
+#pragma endregion
 
 void display() {
 }
