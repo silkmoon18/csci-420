@@ -67,6 +67,7 @@ class Sphere;
 struct Light;
 class Ray;
 
+vec3 calculateSSAA(int gridSize, float cellSize, vec3 pixelPosition);
 vec3 calculateRayColor(Ray& ray, int numOfReflection);
 vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal);
 float calculateArea(vec3 a, vec3 b, vec3 c);
@@ -140,12 +141,16 @@ vector<Object*> objects;
 Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
-double ambient_light[3];
-vec3 backgroundColor = vec3(0);
 
 int num_triangles = 0;
 int num_spheres = 0;
 int num_lights = 0;
+
+double ambient_light[3];
+vec3 backgroundColor = vec3(0);
+
+bool useSSAA = false;
+int SSAA_level = 3;
 
 
 
@@ -157,7 +162,7 @@ void draw_scene() {
 	startPosition.z = -1;
 	startPosition.y = -tan(radians(fov / 2));
 	startPosition.x = aspectRatio * startPosition.y;
-	double pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
+	float pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
 	startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
 
 	vec3 pixelPosition = startPosition;
@@ -169,11 +174,17 @@ void draw_scene() {
 		glBegin(GL_POINTS);
 		for (unsigned int y = 0; y < HEIGHT; y++) {
 			pixelPosition.y += pixelSize;
-			Ray cameraRay(vec3(0), pixelPosition);
 
-			vec3 color = calculateRayColor(cameraRay, 0);
+			vec3 color;
+			if (useSSAA) {
+				color = calculateSSAA(SSAA_level, pixelSize, pixelPosition);
+			}
+			else {
+				Ray cameraRay(vec3(0), pixelPosition);
+				color = calculateRayColor(cameraRay, 0);
+			}
+
 			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-
 			plot_pixel(x, y, color);
 		}
 		glEnd();
@@ -182,6 +193,30 @@ void draw_scene() {
 	printf("Done!\n"); fflush(stdout);
 }
 
+vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
+	vec3 color(0);
+
+	float cellSize = pixelSize / SSAA_level;
+	vec3 startPosition = pixelPosition;
+	float offset = 0.5f * cellSize * (SSAA_level + 1);
+	startPosition -= vec3(offset, offset, 0);
+
+	vec3 cellPosition = startPosition;
+	for (unsigned int x = 0; x < SSAA_level; x++) {
+		cellPosition.x += cellSize;
+		cellPosition.y = startPosition.y;
+
+		for (unsigned int y = 0; y < SSAA_level; y++) {
+			cellPosition.y += cellSize;
+
+			Ray cameraRay(vec3(0), cellPosition);
+
+			color += calculateRayColor(cameraRay, 0);
+		}
+	}
+	color /= SSAA_level * SSAA_level;
+	return color;
+}
 
 #pragma region Triangles
 vec3 Triangle::getNormal(vec3 position) {
