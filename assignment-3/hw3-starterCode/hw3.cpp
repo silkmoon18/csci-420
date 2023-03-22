@@ -32,6 +32,7 @@ using namespace std;
 
 using namespace glm;
 
+#define EPSILON 0.0001f
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
 #define MAX_LIGHTS 100
@@ -127,6 +128,7 @@ public:
 	vec3 getPosition(float t);
 	Object* getFirstIntersectedObject(vec3& position);
 	bool checkIfBlocked();
+	bool checkIfBlocked(vec3 target);
 };
 
 vector<Object*> objects;
@@ -134,6 +136,7 @@ Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
 double ambient_light[3];
+vec3 backgroundColor = vec3(255.0f);
 
 int num_triangles = 0;
 int num_spheres = 0;
@@ -164,7 +167,7 @@ void draw_scene() {
 			Ray cameraRay(vec3(0), pixelPosition);
 
 			// debug
-			vec3 color(0);
+			vec3 color = backgroundColor;
 			vec3 position;
 			Object* object = cameraRay.getFirstIntersectedObject(position);
 			if (object) {
@@ -202,9 +205,14 @@ vec3 Triangle::calculateLighting(vec3 position) {
 
 	vec3 color = toVec3(ambient_light);
 	for (int i = 0; i < num_lights; i++) {
+		vec3 lightPosition = toVec3(lights[i].position);
+		Ray shadowRay(position, lightPosition);
+		if (shadowRay.checkIfBlocked(lightPosition)) {
+			shadowRay.checkIfBlocked(lightPosition);
+			continue;
+		}
 		color += calculatePhongShading(position, lights[i], material, normal);
 	}
-
 	return color;
 }
 float Triangle::intersects(Ray* ray) {
@@ -223,7 +231,7 @@ float Triangle::intersects(Ray* ray) {
 	//double  t = -(dot((start - a), n_normalized) / (dot(n_normalized, direction)));
 	if (t < 0) return -1;
 
-	vec3 p = ray->start + ray->direction * (float)t;
+	vec3 p = ray->getPosition(t);
 	if (dot(n_normalized, cross(b - a, p - a)) < 0 ||
 		dot(n_normalized, cross(c - b, p - b)) < 0 ||
 		dot(n_normalized, cross(a - c, p - c)) < 0) return -1;
@@ -234,7 +242,7 @@ vec3 Triangle::getBarycentricCoords(vec3 p) {
 	vec3 a = toVec3(v[0].position);
 	vec3 b = toVec3(v[1].position);
 	vec3 c = toVec3(v[2].position);
-	float area = calculateArea(a, b, c);
+	float area = std::max(EPSILON, calculateArea(a, b, c));
 
 	float alpha = calculateArea(p, b, c) / area;
 	float beta = calculateArea(a, p, c) / area;
@@ -246,7 +254,15 @@ vec3 Triangle::getBarycentricCoords(vec3 p) {
 
 #pragma region Sphere
 vec3 Sphere::calculateLighting(vec3 position) {
-	return vec3();
+	vec3 normal = normalize(position - toVec3(this->position));
+	vec3 color = toVec3(ambient_light);
+
+	for (int i = 0; i < num_lights; i++) {
+		Ray shadowRay(position, toVec3(lights[i].position));
+		if (shadowRay.checkIfBlocked()) continue;
+		color += calculatePhongShading(position, lights[i], material, normal);
+	}
+	return color;
 }
 float Sphere::intersects(Ray* ray) {
 	vec3 difference = ray->start - toVec3(position);
@@ -289,7 +305,17 @@ Object* Ray::getFirstIntersectedObject(vec3& position) {
 }
 bool Ray::checkIfBlocked() {
 	for (int i = 0; i < objects.size(); i++) {
-		if (objects[i]->intersects(this) > 0) {
+		if (objects[i]->intersects(this) > EPSILON) {
+			return true;
+		}
+	}
+	return false;
+}
+bool Ray::checkIfBlocked(vec3 target) {
+	float target_t = length(target - start);
+	for (int i = 0; i < objects.size(); i++) {
+		float t = objects[i]->intersects(this);
+		if (t > EPSILON && t <= target_t) {
 			return true;
 		}
 	}
@@ -326,7 +352,7 @@ int compare(double d1, double d2) {
 	double diff = d1 - d2;
 	if (diff < 0) result = -1;
 
-	if (abs(diff) <= numeric_limits<double>::epsilon()) result = 0;
+	if (abs(diff) <= EPSILON) result = 0;
 
 	return result;
 }
