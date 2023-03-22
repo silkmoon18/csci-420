@@ -33,6 +33,7 @@ using namespace std;
 using namespace glm;
 
 #define EPSILON 0.0001f
+#define MAX_REFLECTION 4
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
 #define MAX_LIGHTS 100
@@ -66,6 +67,7 @@ class Sphere;
 struct Light;
 class Ray;
 
+vec3 calculateRayColor(Ray& ray, int numOfReflection);
 vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 
@@ -89,6 +91,7 @@ struct Vertex {
 
 class Object {
 public:
+	virtual vec3 getNormal(vec3 position) = 0;
 	virtual vec3 calculateLighting(vec3 position) = 0;
 	virtual float intersects(Ray* ray) = 0;
 };
@@ -96,8 +99,9 @@ class Triangle : public Object {
 public:
 	Vertex v[3];
 
-	vec3 calculateLighting(vec3 position);
-	float intersects(Ray* ray);
+	virtual vec3 getNormal(vec3 position) override;
+	vec3 calculateLighting(vec3 position) override;
+	float intersects(Ray* ray) override;
 
 private:
 	vec3 getBarycentricCoords(vec3 p);
@@ -109,8 +113,9 @@ public:
 	double radius;
 	Material material;
 
-	vec3 calculateLighting(vec3 position);
-	float intersects(Ray* ray);
+	virtual vec3 getNormal(vec3 position) override;
+	vec3 calculateLighting(vec3 position) override;
+	float intersects(Ray* ray) override;
 };
 
 struct Light {
@@ -136,7 +141,7 @@ Triangle triangles[MAX_TRIANGLES];
 Sphere spheres[MAX_SPHERES];
 Light lights[MAX_LIGHTS];
 double ambient_light[3];
-vec3 backgroundColor = vec3(255.0f);
+vec3 backgroundColor = vec3(0);
 
 int num_triangles = 0;
 int num_spheres = 0;
@@ -166,15 +171,9 @@ void draw_scene() {
 			pixelPosition.y += pixelSize;
 			Ray cameraRay(vec3(0), pixelPosition);
 
-			// debug
-			vec3 color = backgroundColor;
-			vec3 position;
-			Object* object = cameraRay.getFirstIntersectedObject(position);
-			if (object) {
-				color = object->calculateLighting(position);
-			}
-
+			vec3 color = calculateRayColor(cameraRay, 0);
 			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
+
 			plot_pixel(x, y, color);
 		}
 		glEnd();
@@ -185,10 +184,17 @@ void draw_scene() {
 
 
 #pragma region Triangles
+vec3 Triangle::getNormal(vec3 position) {
+	vec3 bary = getBarycentricCoords(position);
+	return normalize(vec3(bary.x * v[0].normal[0] + bary.y * v[1].normal[0] + bary.z * v[2].normal[0],
+								 bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
+								 bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
+}
 vec3 Triangle::calculateLighting(vec3 position) {
 	Material material;
-	vec3 bary = getBarycentricCoords(position);
 
+	// copied from Triangle::getNormal() for performance reason
+	vec3 bary = getBarycentricCoords(position);
 	vec3 normal = normalize(vec3(bary.x * v[0].normal[0] + bary.y * v[1].normal[0] + bary.z * v[2].normal[0],
 								 bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
 								 bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
@@ -229,7 +235,7 @@ float Triangle::intersects(Ray* ray) {
 	double d = -dot(n_normalized, a);
 	double t = -(dot(n_normalized, ray->start) + d) / ndotd;
 	//double  t = -(dot((start - a), n_normalized) / (dot(n_normalized, direction)));
-	if (t < 0) return -1;
+	if (compare(t, 0) <= 0) return -1;
 
 	vec3 p = ray->getPosition(t);
 	if (dot(n_normalized, cross(b - a, p - a)) < 0 ||
@@ -253,8 +259,11 @@ vec3 Triangle::getBarycentricCoords(vec3 p) {
 
 
 #pragma region Sphere
+vec3 Sphere::getNormal(vec3 position) {
+	return normalize(position - toVec3(this->position));;
+}
 vec3 Sphere::calculateLighting(vec3 position) {
-	vec3 normal = normalize(position - toVec3(this->position));
+	vec3 normal = getNormal(position);
 	vec3 color = toVec3(ambient_light);
 
 	for (int i = 0; i < num_lights; i++) {
@@ -276,8 +285,10 @@ float Sphere::intersects(Ray* ray) {
 
 	double t0 = 0.5 * (-b + sqrt(checker));
 	double t1 = 0.5 * (-b - sqrt(checker));
+	float t = std::min(t0, t1);
+	if (compare(t, 0) <= 0) return -1;
 
-	return std::min(t0, t1);
+	return t;
 }
 #pragma endregion
 
@@ -325,6 +336,24 @@ bool Ray::checkIfBlocked(vec3 target) {
 
 
 #pragma region Utility
+vec3 calculateRayColor(Ray& ray, int numOfReflection) {
+	vec3 color(0);
+	if (numOfReflection > MAX_REFLECTION) return color;
+
+	vec3 position;
+	Object* object = ray.getFirstIntersectedObject(position);
+	if (object) {
+		vec3 R = normalize(reflect(ray.direction, object->getNormal(position)));
+
+		color += object->calculateLighting(position);
+		color += calculateRayColor(Ray(position, position + R), numOfReflection + 1);
+	}
+	else if (numOfReflection == 0) color = backgroundColor;
+
+
+
+	return color;
+}
 vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal) {
 	vec3 lightVector = normalize(toVec3(light.position) - position);
 	vec3 diffuseColor = toVec3(material.color_diffuse);
