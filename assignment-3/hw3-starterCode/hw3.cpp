@@ -33,7 +33,7 @@ using namespace std;
 using namespace glm;
 
 #define EPSILON 0.0001f
-#define MAX_REFLECTION 4
+#define MAX_REFLECTION 3
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
 #define MAX_LIGHTS 100
@@ -222,8 +222,8 @@ vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
 vec3 Triangle::getNormal(vec3 position) {
 	vec3 bary = getBarycentricCoords(position);
 	return normalize(vec3(bary.x * v[0].normal[0] + bary.y * v[1].normal[0] + bary.z * v[2].normal[0],
-								 bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
-								 bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
+						  bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
+						  bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
 }
 vec3 Triangle::calculateLighting(vec3 position) {
 	Material material;
@@ -244,7 +244,7 @@ vec3 Triangle::calculateLighting(vec3 position) {
 
 	material.shininess = bary.x * v[0].material.shininess + bary.y * v[1].material.shininess + bary.z * v[2].material.shininess;
 
-	vec3 color = toVec3(ambient_light);
+	vec3 color(0);
 	for (int i = 0; i < num_lights; i++) {
 		vec3 lightPosition = toVec3(lights[i].position);
 		Ray shadowRay(position, lightPosition);
@@ -299,8 +299,8 @@ vec3 Sphere::getNormal(vec3 position) {
 }
 vec3 Sphere::calculateLighting(vec3 position) {
 	vec3 normal = getNormal(position);
-	vec3 color = toVec3(ambient_light);
 
+	vec3 color(0);
 	for (int i = 0; i < num_lights; i++) {
 		Ray shadowRay(position, toVec3(lights[i].position));
 		if (shadowRay.checkIfBlocked()) continue;
@@ -374,20 +374,20 @@ bool Ray::checkIfBlocked(vec3 target) {
 vec3 calculateRayColor(Ray& ray, int numOfReflection) {
 	vec3 color(0);
 	if (numOfReflection > MAX_REFLECTION) return color;
+	if (numOfReflection == 0) color = toVec3(ambient_light);
 
 	vec3 position;
 	Object* object = ray.getFirstIntersectedObject(position);
 	if (object) {
-
-		color += object->calculateLighting(position); 
+		color += object->calculateLighting(position);
 
 		vec3 R = normalize(reflect(ray.direction, object->getNormal(position)));
 		Ray reflectionRay(position, position + R);
 		color += calculateRayColor(reflectionRay, numOfReflection + 1);
 	}
-	else if (numOfReflection == 0) color = backgroundColor;
-
-
+	else if (numOfReflection == 0) {
+		color = backgroundColor;
+	}
 
 	return color;
 }
