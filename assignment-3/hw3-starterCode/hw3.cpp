@@ -153,10 +153,31 @@ bool useSSAA = false;
 int SSAA_level = 3;
 
 
+void ext(vec3 from, double array[3]) {
+	array[0] = from.x;
+	array[1] = from.y;
+	array[2] = from.z;
+}
+double RandomValue() {
+	return (float)rand() / RAND_MAX;
+}
 
-
-
+int SUB_LIGHTS = 30;
 void draw_scene() {
+	int origin_light_num = num_lights;
+
+	for (int i = 0; i < origin_light_num; i++) {
+		vec3 color = toVec3(lights[i].color) * (1.0f / SUB_LIGHTS);
+		vec3 center = toVec3(lights[i].position);
+
+		ext(color, lights[i].color);
+		for (int j = 0; j < (SUB_LIGHTS - 1); j++) {
+			ext(color, lights[num_lights].color);
+			ext(vec3(center.x + RandomValue(), center.y + RandomValue(), center.z + RandomValue()), lights[num_lights].position);
+			num_lights++;
+		}
+	}
+
 	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
 	vec3 startPosition;
 	startPosition.z = -1;
