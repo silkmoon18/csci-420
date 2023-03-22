@@ -378,10 +378,12 @@ vec3 calculateRayColor(Ray& ray, int numOfReflection) {
 	vec3 position;
 	Object* object = ray.getFirstIntersectedObject(position);
 	if (object) {
-		vec3 R = normalize(reflect(ray.direction, object->getNormal(position)));
 
-		color += object->calculateLighting(position);
-		color += calculateRayColor(Ray(position, position + R), numOfReflection + 1);
+		color += object->calculateLighting(position); 
+
+		vec3 R = normalize(reflect(ray.direction, object->getNormal(position)));
+		Ray reflectionRay(position, position + R);
+		color += calculateRayColor(reflectionRay, numOfReflection + 1);
 	}
 	else if (numOfReflection == 0) color = backgroundColor;
 
