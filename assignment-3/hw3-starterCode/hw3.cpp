@@ -147,15 +147,12 @@ vector<Sphere*> spheres;
 vector<Light*> lights;
 
 vec3 ambient_light;
-vec3 backgroundColor = vec3(0);
+vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
 
 bool useSSAA = false;
 int SSAA_level = 3;
 
 
-float getRandom(float min, float max) {
-	return rand() / float(RAND_MAX);
-}
 
 int numOfSublights = 12;
 vector<Light*> sampleLights() {
@@ -392,6 +389,7 @@ void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection) {
 	Object* object = ray.getFirstIntersectedObject(position);
 	if (object) {
 		Material material = object->getMaterial(position);
+		float ks = (material.color_specular.x + material.color_specular.y + material.color_specular.z) / 3;
 
 		vec3 localColor(0);
 		for (int i = 0; i < lights.size(); i++) {
@@ -405,9 +403,9 @@ void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection) {
 		Ray reflectionRay(position, position + R);
 		calculateRayColor(reflectionColor, reflectionRay, numOfReflection + 1);
 
-		finalColor = localColor + reflectionColor;
+		finalColor = (1 - ks) * localColor + ks * reflectionColor;
 	}
-	else if (numOfReflection == 0) {
+	else {
 		finalColor = backgroundColor;
 	}
 }
