@@ -68,8 +68,8 @@ struct Light;
 class Ray;
 
 vec3 calculateSSAA(int gridSize, float cellSize, vec3 pixelPosition);
-vec3 calculateRayColor(Ray& ray, int numOfReflection);
-vec3 calculatePhongShading(vec3 position, Light* light, Material material, vec3 normal);
+void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection);
+vec3 calculatePhongShading(vec3 position, Light* light, Material material);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 
 vec3 toVec3(double array[3]);
@@ -79,6 +79,7 @@ void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned ch
 void plot_pixel(int x, int y, vec3 color);
 
 struct Material {
+	vec3 normal;
 	vec3 color_diffuse;
 	vec3 color_specular;
 	float shininess;
@@ -86,22 +87,19 @@ struct Material {
 
 struct Vertex {
 	vec3 position;
-	vec3 normal;
 	Material material;
 };
 
 class Object {
 public:
-	virtual vec3 getNormal(vec3 position) = 0;
-	virtual vec3 calculateLighting(vec3 position) = 0;
+	virtual Material getMaterial(vec3 position) = 0;
 	virtual float intersects(Ray* ray) = 0;
 };
 class Triangle : public Object {
 public:
 	Vertex v[3];
 
-	virtual vec3 getNormal(vec3 position) override;
-	vec3 calculateLighting(vec3 position) override;
+	Material getMaterial(vec3 position) override;
 	float intersects(Ray* ray) override;
 
 private:
@@ -112,10 +110,9 @@ class Sphere : public Object {
 public:
 	vec3 position;
 	float radius;
-	Material material;
+	Material baseMaterial;
 
-	virtual vec3 getNormal(vec3 position) override;
-	vec3 calculateLighting(vec3 position) override;
+	Material getMaterial(vec3 position) override;
 	float intersects(Ray* ray) override;
 };
 
@@ -213,12 +210,12 @@ void draw_scene() {
 		for (unsigned int y = 0; y < HEIGHT; y++) {
 			pixelPosition.y += pixelSize;
 
-			vec3 color;
+			vec3 color = ambient_light;
 			if (useSSAA) {
 				color = calculateSSAA(SSAA_level, pixelSize, pixelPosition);
 			}
 			else {
-				color = calculateRayColor(Ray(vec3(0), pixelPosition), 0);
+				calculateRayColor(color, Ray(vec3(0), pixelPosition), 0);
 			}
 
 			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
@@ -231,7 +228,7 @@ void draw_scene() {
 }
 
 vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
-	vec3 color(0);
+	vec3 color = ambient_light;
 
 	float cellSize = pixelSize / SSAA_level;
 	vec3 startPosition = pixelPosition;
@@ -247,8 +244,9 @@ vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
 			cellPosition.y += cellSize;
 
 			Ray cameraRay(vec3(0), cellPosition);
-
-			color += calculateRayColor(cameraRay, 0);
+			vec3 subcolor;
+			calculateRayColor(subcolor, cameraRay, 0);
+			color += subcolor;
 		}
 	}
 	color /= SSAA_level * SSAA_level;
@@ -256,42 +254,30 @@ vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
 }
 
 #pragma region Triangles
-vec3 Triangle::getNormal(vec3 position) {
-	vec3 bary = getBarycentricCoords(position);
-	return normalize(vec3(bary.x * v[0].normal[0] + bary.y * v[1].normal[0] + bary.z * v[2].normal[0],
-						  bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
-						  bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
-}
-vec3 Triangle::calculateLighting(vec3 position) {
+Material Triangle::getMaterial(vec3 position) {
 	Material material;
 
-	// copied from Triangle::getNormal() for performance reason
+	Material m0 = v[0].material;
+	Material m1 = v[1].material;
+	Material m2 = v[2].material;
+
 	vec3 bary = getBarycentricCoords(position);
-	vec3 normal = normalize(vec3(bary.x * v[0].normal[0] + bary.y * v[1].normal[0] + bary.z * v[2].normal[0],
-								 bary.x * v[0].normal[1] + bary.y * v[1].normal[1] + bary.z * v[2].normal[1],
-								 bary.x * v[0].normal[2] + bary.y * v[1].normal[2] + bary.z * v[2].normal[2]));
 
-	material.color_diffuse[0] = bary.x * v[0].material.color_diffuse[0] + bary.y * v[1].material.color_diffuse[0] + bary.z * v[2].material.color_diffuse[0];
-	material.color_diffuse[1] = bary.x * v[0].material.color_diffuse[1] + bary.y * v[1].material.color_diffuse[1] + bary.z * v[2].material.color_diffuse[1];
-	material.color_diffuse[2] = bary.x * v[0].material.color_diffuse[2] + bary.y * v[1].material.color_diffuse[2] + bary.z * v[2].material.color_diffuse[2];
+	material.normal = normalize(vec3(bary.x * m0.normal.x + bary.y * m1.normal.x + bary.z * m2.normal.x,
+								 bary.x * m0.normal.y + bary.y * m1.normal.y + bary.z * m2.normal.y,
+								 bary.x * m0.normal.z + bary.y * m1.normal.z + bary.z * m2.normal.z));
 
-	material.color_specular[0] = bary.x * v[0].material.color_specular[0] + bary.y * v[1].material.color_specular[0] + bary.z * v[2].material.color_specular[0];
-	material.color_specular[1] = bary.x * v[0].material.color_specular[1] + bary.y * v[1].material.color_specular[1] + bary.z * v[2].material.color_specular[1];
-	material.color_specular[2] = bary.x * v[0].material.color_specular[2] + bary.y * v[1].material.color_specular[2] + bary.z * v[2].material.color_specular[2];
+	material.color_diffuse[0] = bary.x * m0.color_diffuse[0] + bary.y * m1.color_diffuse[0] + bary.z * m2.color_diffuse[0];
+	material.color_diffuse[1] = bary.x * m0.color_diffuse[1] + bary.y * m1.color_diffuse[1] + bary.z * m2.color_diffuse[1];
+	material.color_diffuse[2] = bary.x * m0.color_diffuse[2] + bary.y * m1.color_diffuse[2] + bary.z * m2.color_diffuse[2];
 
-	material.shininess = bary.x * v[0].material.shininess + bary.y * v[1].material.shininess + bary.z * v[2].material.shininess;
+	material.color_specular[0] = bary.x * m0.color_specular[0] + bary.y * m1.color_specular[0] + bary.z * m2.color_specular[0];
+	material.color_specular[1] = bary.x * m0.color_specular[1] + bary.y * m1.color_specular[1] + bary.z * m2.color_specular[1];
+	material.color_specular[2] = bary.x * m0.color_specular[2] + bary.y * m1.color_specular[2] + bary.z * m2.color_specular[2];
 
-	vec3 color(0);
-	for (int i = 0; i < lights.size(); i++) {
-		vec3 lightPosition = lights[i]->position;
-		Ray shadowRay(position, lightPosition);
-		if (shadowRay.checkIfBlocked(lightPosition)) {
-			shadowRay.checkIfBlocked(lightPosition);
-			continue;
-		}
-		color += calculatePhongShading(position, lights[i], material, normal);
-	}
-	return color;
+	material.shininess = bary.x * m0.shininess + bary.y * m1.shininess + bary.z * m2.shininess;
+
+	return material;
 }
 float Triangle::intersects(Ray* ray) {
 	vec3 a = v[0].position;
@@ -331,19 +317,10 @@ vec3 Triangle::getBarycentricCoords(vec3 p) {
 
 
 #pragma region Sphere
-vec3 Sphere::getNormal(vec3 position) {
-	return normalize(position - this->position);;
-}
-vec3 Sphere::calculateLighting(vec3 position) {
-	vec3 normal = getNormal(position);
-
-	vec3 color(0);
-	for (int i = 0; i < lights.size(); i++) {
-		Ray shadowRay(position, lights[i]->position);
-		if (shadowRay.checkIfBlocked()) continue;
-		color += calculatePhongShading(position, lights[i], material, normal);
-	}
-	return color;
+Material Sphere::getMaterial(vec3 position) {
+	Material material = baseMaterial;
+	material.normal = normalize(position - this->position);
+	return material;
 }
 float Sphere::intersects(Ray* ray) {
 	vec3 difference = ray->start - position;
@@ -408,35 +385,41 @@ bool Ray::checkIfBlocked(vec3 target) {
 
 
 #pragma region Utility
-vec3 calculateRayColor(Ray& ray, int numOfReflection) {
-	vec3 color(0);
-	if (numOfReflection > MAX_REFLECTION) return color;
-	if (numOfReflection == 0) color = ambient_light;
+void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection) {
+	if (numOfReflection > MAX_REFLECTION) return;
 
 	vec3 position;
 	Object* object = ray.getFirstIntersectedObject(position);
 	if (object) {
-		color += object->calculateLighting(position);
+		Material material = object->getMaterial(position);
 
-		vec3 R = normalize(reflect(ray.direction, object->getNormal(position)));
+		vec3 localColor(0);
+		for (int i = 0; i < lights.size(); i++) {
+			Ray shadowRay(position, lights[i]->position);
+			if (shadowRay.checkIfBlocked(lights[i]->position)) continue;
+			localColor += calculatePhongShading(position, lights[i], material);
+		}
+
+		vec3 reflectionColor(0);
+		vec3 R = normalize(reflect(ray.direction, material.normal));
 		Ray reflectionRay(position, position + R);
-		//color += calculateRayColor(reflectionRay, numOfReflection + 1);
+		calculateRayColor(reflectionColor, reflectionRay, numOfReflection + 1);
+
+		finalColor = localColor + reflectionColor;
 	}
 	else if (numOfReflection == 0) {
-		color = backgroundColor;
+		finalColor = backgroundColor;
 	}
-
-	return color;
 }
-vec3 calculatePhongShading(vec3 position, Light* light, Material material, vec3 normal) {
+vec3 calculatePhongShading(vec3 position, Light* light, Material material) {
 	vec3 lightVector = normalize(light->position - position);
 	vec3 diffuseColor = material.color_diffuse;
 	vec3 specularColor = material.color_specular;
 
-	float ndotl = std::max(dot(lightVector, normal), 0.0f);
+	float ndotl = std::max(dot(lightVector, material.normal), 0.0f);
 	vec3 diffuse = diffuseColor * ndotl;
 
-	vec3 R = normalize(reflect(-lightVector, normal));
+	vec3 R = normalize(reflect(-lightVector, material.normal));
 	vec3 eyeVector = normalize(-position);
 	float rdotv = std::max(dot(R, eyeVector), 0.0f);
 	vec3 specular = specularColor * (float)pow(rdotv, material.shininess);
@@ -528,7 +511,7 @@ int loadScene(char* argv) {
 			Triangle* t = new Triangle();
 			for (int j = 0; j < 3; j++) {
 				parse_doubles(file, "pos:", t->v[j].position);
-				parse_doubles(file, "nor:", t->v[j].normal);
+				parse_doubles(file, "nor:", t->v[j].material.normal);
 				parse_doubles(file, "dif:", t->v[j].material.color_diffuse);
 				parse_doubles(file, "spe:", t->v[j].material.color_specular);
 				parse_shi(file, &t->v[j].material.shininess);
@@ -547,9 +530,9 @@ int loadScene(char* argv) {
 			Sphere* s = new Sphere();
 			parse_doubles(file, "pos:", s->position);
 			parse_rad(file, &s->radius);
-			parse_doubles(file, "dif:", s->material.color_diffuse);
-			parse_doubles(file, "spe:", s->material.color_specular);
-			parse_shi(file, &s->material.shininess);
+			parse_doubles(file, "dif:", s->baseMaterial.color_diffuse);
+			parse_doubles(file, "spe:", s->baseMaterial.color_specular);
+			parse_shi(file, &s->baseMaterial.shininess);
 
 			if (spheres.size() == MAX_SPHERES) {
 				printf("too many spheres, you should increase MAX_SPHERES!\n");
@@ -577,7 +560,7 @@ int loadScene(char* argv) {
 		}
 	}
 
-	lights = sampleLights();
+	//lights = sampleLights();
 
 	return 0;
 }
