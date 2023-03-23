@@ -80,8 +80,8 @@ void plot_pixel(int x, int y, vec3 color);
 
 struct Material {
 	vec3 normal;
-	vec3 color_diffuse;
-	vec3 color_specular;
+	vec3 diffuse;
+	vec3 specular;
 	float shininess;
 };
 
@@ -148,9 +148,11 @@ vector<Light*> lights;
 
 vec3 ambient_light;
 vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
+//vec3 backgroundColor = vec3(0);
 
+bool useGlobalLighting = true;
 bool useSSAA = false;
-int SSAA_level = 3;
+int numOfSubpixelsPerSide = 3;
 
 
 
@@ -189,6 +191,10 @@ vector<Light*> sampleLights() {
 	return lightSamples;
 }
 void draw_scene() {
+	//debug 
+	useSSAA = false;
+	useGlobalLighting = true;
+
 	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
 	vec3 startPosition;
 	startPosition.z = -1;
@@ -209,7 +215,7 @@ void draw_scene() {
 
 			vec3 color = ambient_light;
 			if (useSSAA) {
-				color = calculateSSAA(SSAA_level, pixelSize, pixelPosition);
+				color = calculateSSAA(numOfSubpixelsPerSide, pixelSize, pixelPosition);
 			}
 			else {
 				calculateRayColor(color, Ray(vec3(0), pixelPosition), 0);
@@ -224,21 +230,50 @@ void draw_scene() {
 	printf("Done!\n"); fflush(stdout);
 }
 
-vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
+float getRandom(float min, float max) {
+	float f = (float)rand() / RAND_MAX;
+	return min + f * (max - min);
+}
+vec3 calculateSSAA(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
+	// super sampling
+	//vec3 color = ambient_light;
+
+	//float cellSize = pixelSize / numOfSubpixelsPerSide;
+	//vec3 startPosition = pixelPosition;
+	//float offset = 0.5f * cellSize * (numOfSubpixelsPerSide + 1);
+	//startPosition -= vec3(offset, offset, 0);
+
+	//vec3 cellPosition = startPosition;
+	//for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+	//	cellPosition.x += cellSize;
+	//	cellPosition.y = startPosition.y;
+
+	//	for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+	//		cellPosition.y += cellSize;
+
+	//		Ray cameraRay(vec3(0), cellPosition);
+	//		vec3 subcolor;
+	//		calculateRayColor(subcolor, cameraRay, 0);
+	//		color += subcolor;
+	//	}
+	//}
+	//color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+	//return color;
+
+	// stratified sampling
 	vec3 color = ambient_light;
 
-	float cellSize = pixelSize / SSAA_level;
+	float cellSize = pixelSize / numOfSubpixelsPerSide;
 	vec3 startPosition = pixelPosition;
-	float offset = 0.5f * cellSize * (SSAA_level + 1);
+	float offset = pixelSize * 0.5f;
 	startPosition -= vec3(offset, offset, 0);
 
 	vec3 cellPosition = startPosition;
-	for (unsigned int x = 0; x < SSAA_level; x++) {
-		cellPosition.x += cellSize;
-		cellPosition.y = startPosition.y;
+	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+		cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
 
-		for (unsigned int y = 0; y < SSAA_level; y++) {
-			cellPosition.y += cellSize;
+		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+			cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
 
 			Ray cameraRay(vec3(0), cellPosition);
 			vec3 subcolor;
@@ -246,7 +281,7 @@ vec3 calculateSSAA(int SSAA_level, float pixelSize, vec3 pixelPosition) {
 			color += subcolor;
 		}
 	}
-	color /= SSAA_level * SSAA_level;
+	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
 	return color;
 }
 
@@ -264,13 +299,13 @@ Material Triangle::getMaterial(vec3 position) {
 								 bary.x * m0.normal.y + bary.y * m1.normal.y + bary.z * m2.normal.y,
 								 bary.x * m0.normal.z + bary.y * m1.normal.z + bary.z * m2.normal.z));
 
-	material.color_diffuse[0] = bary.x * m0.color_diffuse[0] + bary.y * m1.color_diffuse[0] + bary.z * m2.color_diffuse[0];
-	material.color_diffuse[1] = bary.x * m0.color_diffuse[1] + bary.y * m1.color_diffuse[1] + bary.z * m2.color_diffuse[1];
-	material.color_diffuse[2] = bary.x * m0.color_diffuse[2] + bary.y * m1.color_diffuse[2] + bary.z * m2.color_diffuse[2];
+	material.diffuse[0] = bary.x * m0.diffuse[0] + bary.y * m1.diffuse[0] + bary.z * m2.diffuse[0];
+	material.diffuse[1] = bary.x * m0.diffuse[1] + bary.y * m1.diffuse[1] + bary.z * m2.diffuse[1];
+	material.diffuse[2] = bary.x * m0.diffuse[2] + bary.y * m1.diffuse[2] + bary.z * m2.diffuse[2];
 
-	material.color_specular[0] = bary.x * m0.color_specular[0] + bary.y * m1.color_specular[0] + bary.z * m2.color_specular[0];
-	material.color_specular[1] = bary.x * m0.color_specular[1] + bary.y * m1.color_specular[1] + bary.z * m2.color_specular[1];
-	material.color_specular[2] = bary.x * m0.color_specular[2] + bary.y * m1.color_specular[2] + bary.z * m2.color_specular[2];
+	material.specular[0] = bary.x * m0.specular[0] + bary.y * m1.specular[0] + bary.z * m2.specular[0];
+	material.specular[1] = bary.x * m0.specular[1] + bary.y * m1.specular[1] + bary.z * m2.specular[1];
+	material.specular[2] = bary.x * m0.specular[2] + bary.y * m1.specular[2] + bary.z * m2.specular[2];
 
 	material.shininess = bary.x * m0.shininess + bary.y * m1.shininess + bary.z * m2.shininess;
 
@@ -389,7 +424,7 @@ void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection) {
 	Object* object = ray.getFirstIntersectedObject(position);
 	if (object) {
 		Material material = object->getMaterial(position);
-		float ks = (material.color_specular.x + material.color_specular.y + material.color_specular.z) / 3;
+		float ks = (material.specular.x + material.specular.y + material.specular.z) / 3;
 
 		vec3 localColor(0);
 		for (int i = 0; i < lights.size(); i++) {
@@ -398,12 +433,17 @@ void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection) {
 			localColor += calculatePhongShading(position, lights[i], material);
 		}
 
-		vec3 reflectionColor(0);
-		vec3 R = normalize(reflect(ray.direction, material.normal));
-		Ray reflectionRay(position, position + R);
-		calculateRayColor(reflectionColor, reflectionRay, numOfReflection + 1);
+		if (useGlobalLighting) {
+			vec3 reflectionColor(0);
+			vec3 R = normalize(reflect(ray.direction, material.normal));
+			Ray reflectionRay(position, position + R);
+			calculateRayColor(reflectionColor, reflectionRay, numOfReflection + 1);
 
-		finalColor = (1 - ks) * localColor + ks * reflectionColor;
+			finalColor = (1 - ks) * localColor + ks * reflectionColor;
+		}
+		else {
+			finalColor = localColor;
+		}
 	}
 	else {
 		finalColor = backgroundColor;
@@ -411,8 +451,8 @@ void calculateRayColor(vec3& finalColor, Ray& ray, int numOfReflection) {
 }
 vec3 calculatePhongShading(vec3 position, Light* light, Material material) {
 	vec3 lightVector = normalize(light->position - position);
-	vec3 diffuseColor = material.color_diffuse;
-	vec3 specularColor = material.color_specular;
+	vec3 diffuseColor = material.diffuse;
+	vec3 specularColor = material.specular;
 
 	float ndotl = std::max(dot(lightVector, material.normal), 0.0f);
 	vec3 diffuse = diffuseColor * ndotl;
@@ -510,8 +550,8 @@ int loadScene(char* argv) {
 			for (int j = 0; j < 3; j++) {
 				parse_doubles(file, "pos:", t->v[j].position);
 				parse_doubles(file, "nor:", t->v[j].material.normal);
-				parse_doubles(file, "dif:", t->v[j].material.color_diffuse);
-				parse_doubles(file, "spe:", t->v[j].material.color_specular);
+				parse_doubles(file, "dif:", t->v[j].material.diffuse);
+				parse_doubles(file, "spe:", t->v[j].material.specular);
 				parse_shi(file, &t->v[j].material.shininess);
 			}
 
@@ -528,8 +568,8 @@ int loadScene(char* argv) {
 			Sphere* s = new Sphere();
 			parse_doubles(file, "pos:", s->position);
 			parse_rad(file, &s->radius);
-			parse_doubles(file, "dif:", s->baseMaterial.color_diffuse);
-			parse_doubles(file, "spe:", s->baseMaterial.color_specular);
+			parse_doubles(file, "dif:", s->baseMaterial.diffuse);
+			parse_doubles(file, "spe:", s->baseMaterial.specular);
 			parse_shi(file, &s->baseMaterial.shininess);
 
 			if (spheres.size() == MAX_SPHERES) {
