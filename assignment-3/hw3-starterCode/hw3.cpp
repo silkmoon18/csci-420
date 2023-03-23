@@ -119,9 +119,16 @@ public:
 	float intersects(Ray* ray) override;
 };
 
-struct Light {
+class Light {
+public:
 	vec3 position;
 	vec3 color;
+
+	Light() {}
+	Light(vec3 position, vec3 color) {
+		this->position = position;
+		this->color = color;
+	}
 };
 
 class Ray {
@@ -153,37 +160,38 @@ float getRandom(float min, float max) {
 	return rand() / float(RAND_MAX);
 }
 
-vector<Light> sampleLight(Light light) {
-	vector<Light> lightSamples;
-	double sumR = 0.0;
-	for (int i = 0; i < 48; i++) {
+int numOfSublights = 12;
+vector<Light*> sampleLights() {
+	vector<Light*> lightSamples;
 
-		float x = rand() / float(RAND_MAX);
-		float y = rand() / float(RAND_MAX);
-		float z = rand() / float(RAND_MAX);
+	for (int i = 0; i < lights.size(); i++) {
+		Light* light = lights[i];
+		for (int j = 0; j < numOfSublights; j++) {
 
-		//calculate random offsets = rsin(theta)cos(phi), rsin(theta)sin(phi), rcos(theta)
-		//calculate random point Pi = (light.position[0] + xOffset, light.position[1] + yOffset, light.position[2] + zOffset)
-		double xPos = light.position[0] + x;
-		double yPos = light.position[1] + y;
-		double zPos = light.position[2] + z;
+			float radius = ((double)rand() / (RAND_MAX)) / 10.0;
+			//randomly sample theta
+			float theta = radians((float)fmod(rand(), 360));
+			//randomly sample phi
+			float phi = radians((float)fmod(rand(), 360));
 
-		//normalize the contribution from each sampled light
-		double r = light.color[0] / 48.0;
-		double g = light.color[1] / 48.0;
-		double b = light.color[2] / 48.0;
+			float x = radius * std::sin(theta) * std::cos(phi);
+			float y = radius * std::sin(theta) * std::sin(phi);
+			float z = radius * std::cos(theta);
 
-		//create a light with the above position and color/intensity and insert into lightSamples
-		Light randomLight;
-		randomLight.position[0] = xPos;
-		randomLight.position[1] = yPos;
-		randomLight.position[2] = zPos;
-		randomLight.color[0] = r;
-		randomLight.color[1] = g;
-		randomLight.color[2] = b;
-		lightSamples.push_back(randomLight);
+			//float x = rand() / float(RAND_MAX) * 0.1;
+			//float y = rand() / float(RAND_MAX) * 0.1;
+			//float z = rand() / float(RAND_MAX) * 0.1;
+
+			float xPos = light->position[0] + x;
+			float yPos = light->position[1] + y;
+			float zPos = light->position[2] + z;
+			vec3 position(xPos, yPos, zPos);
+
+			vec3 color = light->color / (float)numOfSublights;
+
+			lightSamples.push_back(new Light(position, color));
+		}
 	}
-
 	return lightSamples;
 }
 void draw_scene() {
@@ -412,7 +420,7 @@ vec3 calculateRayColor(Ray& ray, int numOfReflection) {
 
 		vec3 R = normalize(reflect(ray.direction, object->getNormal(position)));
 		Ray reflectionRay(position, position + R);
-		color += calculateRayColor(reflectionRay, numOfReflection + 1);
+		//color += calculateRayColor(reflectionRay, numOfReflection + 1);
 	}
 	else if (numOfReflection == 0) {
 		color = backgroundColor;
@@ -433,7 +441,7 @@ vec3 calculatePhongShading(vec3 position, Light* light, Material material, vec3 
 	float rdotv = std::max(dot(R, eyeVector), 0.0f);
 	vec3 specular = specularColor * (float)pow(rdotv, material.shininess);
 
-	return light->color * diffuse + specular;
+	return light->color * (diffuse + specular);
 }
 float calculateArea(vec3 a, vec3 b, vec3 c) {
 	return 0.5f * (((b.x - a.x) * (c.y - a.y)) - ((c.x - a.x) * (b.y - a.y)));
@@ -569,6 +577,8 @@ int loadScene(char* argv) {
 		}
 	}
 
+	lights = sampleLights();
+
 	return 0;
 }
 #pragma endregion
@@ -576,13 +586,7 @@ int loadScene(char* argv) {
 void display() {
 }
 
-void debug() {
-
-}
-
 void init() {
-	debug();
-
 	glMatrixMode(GL_PROJECTION);
 	glOrtho(0, WIDTH, 0, HEIGHT, 1, -1);
 	glMatrixMode(GL_MODELVIEW);
