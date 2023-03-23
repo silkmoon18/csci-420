@@ -69,24 +69,24 @@ class Ray;
 
 vec3 calculateSSAA(int gridSize, float cellSize, vec3 pixelPosition);
 vec3 calculateRayColor(Ray& ray, int numOfReflection);
-vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal);
+vec3 calculatePhongShading(vec3 position, Light* light, Material material, vec3 normal);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 
 vec3 toVec3(double array[3]);
-int compare(double d1, double d2);
+int compare(float f1, float f2);
 void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 void plot_pixel(int x, int y, vec3 color);
 
 struct Material {
-	double color_diffuse[3];
-	double color_specular[3];
-	double shininess;
+	vec3 color_diffuse;
+	vec3 color_specular;
+	float shininess;
 };
 
 struct Vertex {
-	double position[3];
-	double normal[3];
+	vec3 position;
+	vec3 normal;
 	Material material;
 };
 
@@ -110,8 +110,8 @@ private:
 
 class Sphere : public Object {
 public:
-	double position[3];
-	double radius;
+	vec3 position;
+	float radius;
 	Material material;
 
 	virtual vec3 getNormal(vec3 position) override;
@@ -120,8 +120,8 @@ public:
 };
 
 struct Light {
-	double position[3];
-	double color[3];
+	vec3 position;
+	vec3 color;
 };
 
 class Ray {
@@ -138,46 +138,55 @@ public:
 };
 
 vector<Object*> objects;
-Triangle triangles[MAX_TRIANGLES];
-Sphere spheres[MAX_SPHERES];
-Light lights[MAX_LIGHTS];
+vector<Triangle*> triangles;
+vector<Sphere*> spheres;
+vector<Light*> lights;
 
-int num_triangles = 0;
-int num_spheres = 0;
-int num_lights = 0;
-
-double ambient_light[3];
+vec3 ambient_light;
 vec3 backgroundColor = vec3(0);
 
 bool useSSAA = false;
 int SSAA_level = 3;
 
 
-void ext(vec3 from, double array[3]) {
-	array[0] = from.x;
-	array[1] = from.y;
-	array[2] = from.z;
-}
-double RandomValue() {
-	return (float)rand() / RAND_MAX;
+float getRandom(float min, float max) {
+	return rand() / float(RAND_MAX);
 }
 
-int SUB_LIGHTS = 30;
-void draw_scene() {
-	int origin_light_num = num_lights;
+vector<Light> sampleLight(Light light) {
+	vector<Light> lightSamples;
+	double sumR = 0.0;
+	for (int i = 0; i < 48; i++) {
 
-	for (int i = 0; i < origin_light_num; i++) {
-		vec3 color = toVec3(lights[i].color) * (1.0f / SUB_LIGHTS);
-		vec3 center = toVec3(lights[i].position);
+		float x = rand() / float(RAND_MAX);
+		float y = rand() / float(RAND_MAX);
+		float z = rand() / float(RAND_MAX);
 
-		ext(color, lights[i].color);
-		for (int j = 0; j < (SUB_LIGHTS - 1); j++) {
-			ext(color, lights[num_lights].color);
-			ext(vec3(center.x + RandomValue(), center.y + RandomValue(), center.z + RandomValue()), lights[num_lights].position);
-			num_lights++;
-		}
+		//calculate random offsets = rsin(theta)cos(phi), rsin(theta)sin(phi), rcos(theta)
+		//calculate random point Pi = (light.position[0] + xOffset, light.position[1] + yOffset, light.position[2] + zOffset)
+		double xPos = light.position[0] + x;
+		double yPos = light.position[1] + y;
+		double zPos = light.position[2] + z;
+
+		//normalize the contribution from each sampled light
+		double r = light.color[0] / 48.0;
+		double g = light.color[1] / 48.0;
+		double b = light.color[2] / 48.0;
+
+		//create a light with the above position and color/intensity and insert into lightSamples
+		Light randomLight;
+		randomLight.position[0] = xPos;
+		randomLight.position[1] = yPos;
+		randomLight.position[2] = zPos;
+		randomLight.color[0] = r;
+		randomLight.color[1] = g;
+		randomLight.color[2] = b;
+		lightSamples.push_back(randomLight);
 	}
 
+	return lightSamples;
+}
+void draw_scene() {
 	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
 	vec3 startPosition;
 	startPosition.z = -1;
@@ -201,8 +210,7 @@ void draw_scene() {
 				color = calculateSSAA(SSAA_level, pixelSize, pixelPosition);
 			}
 			else {
-				Ray cameraRay(vec3(0), pixelPosition);
-				color = calculateRayColor(cameraRay, 0);
+				color = calculateRayColor(Ray(vec3(0), pixelPosition), 0);
 			}
 
 			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
@@ -266,8 +274,8 @@ vec3 Triangle::calculateLighting(vec3 position) {
 	material.shininess = bary.x * v[0].material.shininess + bary.y * v[1].material.shininess + bary.z * v[2].material.shininess;
 
 	vec3 color(0);
-	for (int i = 0; i < num_lights; i++) {
-		vec3 lightPosition = toVec3(lights[i].position);
+	for (int i = 0; i < lights.size(); i++) {
+		vec3 lightPosition = lights[i]->position;
 		Ray shadowRay(position, lightPosition);
 		if (shadowRay.checkIfBlocked(lightPosition)) {
 			shadowRay.checkIfBlocked(lightPosition);
@@ -278,9 +286,9 @@ vec3 Triangle::calculateLighting(vec3 position) {
 	return color;
 }
 float Triangle::intersects(Ray* ray) {
-	vec3 a = toVec3(v[0].position);
-	vec3 b = toVec3(v[1].position);
-	vec3 c = toVec3(v[2].position);
+	vec3 a = v[0].position;
+	vec3 b = v[1].position;
+	vec3 c = v[2].position;
 
 	vec3 n = cross(b - a, c - a);
 	vec3 n_normalized = normalize(n);
@@ -301,9 +309,9 @@ float Triangle::intersects(Ray* ray) {
 	return t;
 }
 vec3 Triangle::getBarycentricCoords(vec3 p) {
-	vec3 a = toVec3(v[0].position);
-	vec3 b = toVec3(v[1].position);
-	vec3 c = toVec3(v[2].position);
+	vec3 a = v[0].position;
+	vec3 b = v[1].position;
+	vec3 c = v[2].position;
 	float area = std::max(EPSILON, calculateArea(a, b, c));
 
 	float alpha = calculateArea(p, b, c) / area;
@@ -316,21 +324,21 @@ vec3 Triangle::getBarycentricCoords(vec3 p) {
 
 #pragma region Sphere
 vec3 Sphere::getNormal(vec3 position) {
-	return normalize(position - toVec3(this->position));;
+	return normalize(position - this->position);;
 }
 vec3 Sphere::calculateLighting(vec3 position) {
 	vec3 normal = getNormal(position);
 
 	vec3 color(0);
-	for (int i = 0; i < num_lights; i++) {
-		Ray shadowRay(position, toVec3(lights[i].position));
+	for (int i = 0; i < lights.size(); i++) {
+		Ray shadowRay(position, lights[i]->position);
 		if (shadowRay.checkIfBlocked()) continue;
 		color += calculatePhongShading(position, lights[i], material, normal);
 	}
 	return color;
 }
 float Sphere::intersects(Ray* ray) {
-	vec3 difference = ray->start - toVec3(position);
+	vec3 difference = ray->start - position;
 
 	double a = 1;
 	double b = 2 * dot(difference, ray->direction);
@@ -395,7 +403,7 @@ bool Ray::checkIfBlocked(vec3 target) {
 vec3 calculateRayColor(Ray& ray, int numOfReflection) {
 	vec3 color(0);
 	if (numOfReflection > MAX_REFLECTION) return color;
-	if (numOfReflection == 0) color = toVec3(ambient_light);
+	if (numOfReflection == 0) color = ambient_light;
 
 	vec3 position;
 	Object* object = ray.getFirstIntersectedObject(position);
@@ -412,10 +420,10 @@ vec3 calculateRayColor(Ray& ray, int numOfReflection) {
 
 	return color;
 }
-vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 normal) {
-	vec3 lightVector = normalize(toVec3(light.position) - position);
-	vec3 diffuseColor = toVec3(material.color_diffuse);
-	vec3 specularColor = toVec3(material.color_specular);
+vec3 calculatePhongShading(vec3 position, Light* light, Material material, vec3 normal) {
+	vec3 lightVector = normalize(light->position - position);
+	vec3 diffuseColor = material.color_diffuse;
+	vec3 specularColor = material.color_specular;
 
 	float ndotl = std::max(dot(lightVector, normal), 0.0f);
 	vec3 diffuse = diffuseColor * ndotl;
@@ -425,22 +433,16 @@ vec3 calculatePhongShading(vec3 position, Light light, Material material, vec3 n
 	float rdotv = std::max(dot(R, eyeVector), 0.0f);
 	vec3 specular = specularColor * (float)pow(rdotv, material.shininess);
 
-	return toVec3(light.color) * diffuse + specular;
+	return light->color * diffuse + specular;
 }
 float calculateArea(vec3 a, vec3 b, vec3 c) {
 	return 0.5f * (((b.x - a.x) * (c.y - a.y)) - ((c.x - a.x) * (b.y - a.y)));
 }
-vec3 toVec3(double array[3]) {
-	return vec3(array[0], array[1], array[2]);
-}
-int compare(double d1, double d2) {
+int compare(float f1, float f2) {
 	int result = 1;
-
-	double diff = d1 - d2;
+	float diff = f1 - f2;
 	if (diff < 0) result = -1;
-
 	if (abs(diff) <= EPSILON) result = 0;
-
 	return result;
 }
 
@@ -477,25 +479,25 @@ void parse_check(const char* expected, char* found) {
 		exit(0);
 	}
 }
-void parse_doubles(FILE* file, const char* check, double p[3]) {
+void parse_doubles(FILE* file, const char* check, vec3& vec) {
 	char str[100];
 	fscanf(file, "%s", str);
 	parse_check(check, str);
-	fscanf(file, "%lf %lf %lf", &p[0], &p[1], &p[2]);
-	printf("%s %lf %lf %lf\n", check, p[0], p[1], p[2]);
+	fscanf(file, "%f %f %f", &vec.x, &vec.y, &vec.z);
+	printf("%s %f %f %f\n", check, vec.x, vec.y, vec.z);
 }
-void parse_rad(FILE* file, double* r) {
+void parse_rad(FILE* file, float* r) {
 	char str[100];
 	fscanf(file, "%s", str);
 	parse_check("rad:", str);
-	fscanf(file, "%lf", r);
+	fscanf(file, "%f", r);
 	printf("rad: %f\n", *r);
 }
-void parse_shi(FILE* file, double* shi) {
+void parse_shi(FILE* file, float* shi) {
 	char s[100];
 	fscanf(file, "%s", s);
 	parse_check("shi:", s);
-	fscanf(file, "%lf", shi);
+	fscanf(file, "%f", shi);
 	printf("shi: %f\n", *shi);
 }
 
@@ -503,9 +505,6 @@ int loadScene(char* argv) {
 	FILE* file = fopen(argv, "r");
 	int number_of_objects;
 	char type[50];
-	Triangle* t;
-	Sphere* s;
-	Light l;
 	fscanf(file, "%i", &number_of_objects);
 
 	printf("number of objects: %i\n", number_of_objects);
@@ -518,7 +517,7 @@ int loadScene(char* argv) {
 		if (strcasecmp(type, "triangle") == 0) {
 			printf("found triangle\n");
 
-			t = new Triangle();
+			Triangle* t = new Triangle();
 			for (int j = 0; j < 3; j++) {
 				parse_doubles(file, "pos:", t->v[j].position);
 				parse_doubles(file, "nor:", t->v[j].normal);
@@ -527,40 +526,42 @@ int loadScene(char* argv) {
 				parse_shi(file, &t->v[j].material.shininess);
 			}
 
-			if (num_triangles == MAX_TRIANGLES) {
+			if (triangles.size() == MAX_TRIANGLES) {
 				printf("too many triangles, you should increase MAX_TRIANGLES!\n");
 				exit(0);
 			}
-			triangles[num_triangles++] = *t;
+			triangles.push_back(t);
 			objects.push_back(t);
 		}
 		else if (strcasecmp(type, "sphere") == 0) {
 			printf("found sphere\n");
 
-			s = new Sphere();
+			Sphere* s = new Sphere();
 			parse_doubles(file, "pos:", s->position);
 			parse_rad(file, &s->radius);
 			parse_doubles(file, "dif:", s->material.color_diffuse);
 			parse_doubles(file, "spe:", s->material.color_specular);
 			parse_shi(file, &s->material.shininess);
 
-			if (num_spheres == MAX_SPHERES) {
+			if (spheres.size() == MAX_SPHERES) {
 				printf("too many spheres, you should increase MAX_SPHERES!\n");
 				exit(0);
 			}
-			spheres[num_spheres++] = *s;
+			spheres.push_back(s);
 			objects.push_back(s);
 		}
 		else if (strcasecmp(type, "light") == 0) {
 			printf("found light\n");
-			parse_doubles(file, "pos:", l.position);
-			parse_doubles(file, "col:", l.color);
 
-			if (num_lights == MAX_LIGHTS) {
+			Light* l = new Light();
+			parse_doubles(file, "pos:", l->position);
+			parse_doubles(file, "col:", l->color);
+
+			if (lights.size() == MAX_LIGHTS) {
 				printf("too many lights, you should increase MAX_LIGHTS!\n");
 				exit(0);
 			}
-			lights[num_lights++] = l;
+			lights.push_back(l);
 		}
 		else {
 			printf("unknown type in scene description:\n%s\n", type);
