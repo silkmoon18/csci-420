@@ -40,6 +40,7 @@
 
 #define WIDTH 640
 #define HEIGHT 480
+#define ASPECT_RATIO (WIDTH / (double)HEIGHT)
 #define FOV 60.0
 
 #define ASERT(cond)                                                      \
@@ -53,20 +54,28 @@
 using namespace std;
 using namespace glm;
 
-
-const float ASPECT_RATIO = WIDTH / (double)HEIGHT;
-extern int mode;
-extern char* filename;
-extern unsigned char buffer[HEIGHT][WIDTH][3];
-
-
-struct Material;
 struct Vertex;
+
+template<class T> class Singleton;
+
+class Scene;
+class PhongScene;
+class OpticalScene;
+
+class Material;
+class PhongMaterial;
+class OpticalMaterial;
+
 class Object;
 class Triangle;
 class Sphere;
-class Light;
+
 class Ray;
+
+class Light;
+class PointLight;
+class AreaLight;
+
 
 float getRandom();
 float getRandom(float min, float max);
@@ -74,15 +83,200 @@ vec3 getRandom(vec3 min, vec3 max);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 int compare(float f1, float f2);
 
-void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
-void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
-void plot_pixel(int x, int y, vec3 color);
-void save_jpg();
-
 void parse_check(const char* expected, char* found);
 void parse_vec3(FILE* file, const char* check, vec3& vec);
 void parse_float(FILE* file, const char* check, float& f);
 void parse_rad(FILE* file, float* r);
 void parse_shi(FILE* file, float* shi);
+
+struct Vertex {
+	vec3 position;
+	Material* material;
+};
+
+template<class T>
+class Singleton {
+protected:
+	static inline T* instance = nullptr;
+
+	Singleton() noexcept = default;
+	Singleton(const Singleton&) = delete;
+	Singleton& operator=(const Singleton&) = delete;
+	virtual ~Singleton() = default;
+
+public:
+	static T* getInstance() {
+		if (!instance) {
+			instance = new T();
+		}
+		return instance;
+	}
+};
+
+class Scene {
+public:
+    int mode = MODE_DISPLAY;
+    char* filename = NULL;
+    unsigned char buffer[HEIGHT][WIDTH][3];
+
+    vector<Object*> objects;
+    vector<Triangle*> triangles;
+    vector<Sphere*> spheres;
+    vector<Light*> lights;
+
+    vec3 ambient_light;
+    vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
+
+    bool useGlobalLighting = false;
+    bool useSSAA = false;
+    int numOfSubpixelsPerSide = 3;
+
+    virtual void draw() = 0;
+	virtual int load(char* argv) = 0;
+	virtual Triangle* parseTriangle(FILE* file) = 0;
+	virtual Sphere* parseSphere(FILE* file) = 0;
+	virtual Light* parseLight(FILE* file) = 0;
+
+	void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
+	void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
+	void plot_pixel(int x, int y, vec3 color);
+	void save_jpg();
+};
+
+class PhongScene : public Scene {
+public:
+	void draw() override;
+	int load(char* argv) override;
+	Triangle* parseTriangle(FILE* file) override;
+	Sphere* parseSphere(FILE* file) override;
+	Light* parseLight(FILE* file) override;
+
+private:
+	vec3 superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition);
+};
+
+class OpticalScene : public Scene {
+public:
+	void draw() override;
+	int load(char* argv) override;
+	Triangle* parseTriangle(FILE* file) override;
+	Sphere* parseSphere(FILE* file) override;
+	Light* parseLight(FILE* file) override;
+
+private:
+	vec3 F0;
+};
+
+
+class Material {
+public:
+	vec3 normal;
+	vec3 diffuse;
+
+	vec3 specular;
+	float shininess;
+
+	float roughness;
+	float metallic;
+
+	Material(vec3 normal, vec3 diffuse);
+
+	virtual Material* clone() = 0;
+	virtual vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) = 0;
+	virtual Material* interpolates(Material* m1, Material* m2, vec3 bary) = 0;
+};
+
+class PhongMaterial : public Material {
+public:
+	PhongMaterial(vec3 normal, vec3 diffuse, vec3 specular, float shininess);
+
+	Material* clone() override;
+	vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override; 
+	Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
+
+private:
+	vec3 calculatePhongShading(vec3 position, Light* light);
+};
+
+class OpticalMaterial : public Material {
+public:
+	OpticalMaterial(vec3 normal, vec3 diffuse, float roughness, float metallic);
+
+	Material* clone() override;
+	vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override;
+	Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
+};
+
+class Object {
+public:
+	virtual Material* getMaterial(vec3 position) = 0;
+	virtual float intersects(Ray* ray) = 0;
+};
+class Triangle : public Object {
+public:
+	Triangle(vector<Vertex> vertices);
+
+	vector<Vertex> getVertices();
+	Material* getMaterial(vec3 position) override;
+	float intersects(Ray* ray) override;
+
+private:
+	vector<Vertex> vertices;
+
+	vec3 getBarycentricCoords(vec3 p);
+};
+
+class Sphere : public Object {
+public:
+	Sphere(vec3 position, float radius, Material* material);
+
+	Material* getMaterial(vec3 position) override;
+	float intersects(Ray* ray) override;
+
+private:
+	vec3 position;
+	float radius;
+	Material* baseMaterial;
+};
+
+class Light {
+public:
+	Light(vec3 position, vec3 color);
+
+	vec3 getPosition();
+	vec3 getColor();
+
+protected:
+	vec3 position;
+	vec3 color;
+};
+class AreaLight : public Light {
+public:
+	AreaLight(vec3 position, vec3 color, vec3 normal, vector<vec3> corners);
+
+	vec3 getNormal();
+	vector<vec3> getCorners();
+
+private:
+	vec3 normal;
+	vector<vec3> corners;
+};
+
+class Ray {
+public:
+	vec3 start;
+	vec3 direction;
+
+	Ray(vec3 start, vec3 target);
+
+	void reflects(vec3 position, vec3 normal);
+	vec3 getPosition(float t);
+	Object* getFirstIntersectedObject(const vector<Object*>& objects, vec3& intersectedPosition);
+	bool checkIfBlocked(const vector<Object*>& objects, vec3 target);
+	vec3 calculateRayColor(Scene* scene);
+
+private:
+	int numOfReflection = 0;
+};
 
 #endif
