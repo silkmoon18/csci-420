@@ -24,23 +24,23 @@
 #include <glm/glm.hpp>
 #include <iostream>
 #include <vector>
+#include <random>
+
 
 #define EPSILON 0.0001f
+#define PI 3.141592653589f
 #define MAX_REFLECTION 3
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
 #define MAX_LIGHTS 100
 
-//different display modes
+// display modes
 #define MODE_DISPLAY 1
 #define MODE_JPEG 2
 
-
-//you may want to make these smaller for debugging purposes
 #define WIDTH 640
 #define HEIGHT 480
-//the field of view of the camera
-#define fov 60.0
+#define FOV 60.0
 
 #define ASERT(cond)                                                      \
   do {                                                                   \
@@ -68,7 +68,9 @@ class Sphere;
 class Light;
 class Ray;
 
+float getRandom();
 float getRandom(float min, float max);
+vec3 getRandom(vec3 min, vec3 max);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 int compare(float f1, float f2);
 

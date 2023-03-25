@@ -4,9 +4,20 @@ int mode = MODE_DISPLAY;
 char* filename = NULL;
 unsigned char buffer[HEIGHT][WIDTH][3];
 
+float getRandom() {
+	random_device rd;
+	mt19937 eng;  // or eng(r()); for non-deterministic random number
+	uniform_real_distribution<double> distrib(0.0, 1.0 - 1e-8);
+	return distrib(eng);
+}
 float getRandom(float min, float max) {
-	float f = (float)rand() / RAND_MAX;
+	float f = getRandom();
 	return min + f * (max - min);
+}
+vec3 getRandom(vec3 min, vec3 max) {
+	return vec3(getRandom(min.x, max.x),
+				getRandom(min.y, max.y),
+				getRandom(min.z, max.z))
 }
 float calculateArea(vec3 a, vec3 b, vec3 c) {
 	return 0.5f * (((b.x - a.x) * (c.y - a.y)) - ((c.x - a.x) * (b.y - a.y)));
