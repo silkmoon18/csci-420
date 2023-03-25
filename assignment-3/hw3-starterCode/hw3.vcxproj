@@ -84,7 +84,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\external\imageIO\imageIO.cpp" />
-    <ClCompile Include="hw3-extension.cpp" />
     <ClCompile Include="hw3.cpp" />
     <ClCompile Include="utility.cpp" />
   </ItemGroup>
