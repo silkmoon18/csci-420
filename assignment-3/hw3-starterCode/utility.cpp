@@ -2,6 +2,10 @@
 
 
 #pragma region Scene
+const vector<Object*>& Scene::getObjects() { return objects; }
+const vector<Triangle*>& Scene::getTriangles() { return triangles; }
+const vector<Sphere*>& Scene::getSpheres() { return spheres; }
+const vector<Light*>& Scene::getLights() { return lights; }
 void Scene::plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
 	glColor3f(((float)r) / 255.0f, ((float)g) / 255.0f, ((float)b) / 255.0f);
 	glVertex2i(x, y);
@@ -33,10 +37,6 @@ void Scene::save_jpg() {
 
 #pragma region PhongScene
 void PhongScene::draw() {
-	//debug 
-	useSSAA = false;
-	useGlobalLighting = true;
-
 	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
 	vec3 startPosition;
 	startPosition.z = -1;
@@ -162,7 +162,7 @@ Light* PhongScene::parseLight(FILE* file) {
 	vec3 position, color;
 	parse_vec3(file, "pos:", position);
 	parse_vec3(file, "col:", color);
-	return new Light(position, color);
+	return new PointLight(position, color);
 }
 vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
 	vec3 color = ambient_light;
@@ -192,6 +192,50 @@ vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pi
 
 #pragma region OpticalScene
 void OpticalScene::draw() {
+	vector<vec3> colors;
+	for (unsigned int x = 0; x < WIDTH; x++) {
+		for (unsigned int y = 0; y < HEIGHT; y++) {
+			colors.push_back(ambient_light);
+		}
+	}
+
+
+	for (int i = 0; i < numOfSampleLights; i++) {
+		vector<Light*> samples;
+		for (int i = 0; i < lights.size(); i++) {
+			samples.push_back(lights[i]->getSamples(1)[0]);
+		}
+		lights = samples;
+
+		// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
+		vec3 startPosition;
+		startPosition.z = -1;
+		startPosition.y = -tan(radians(FOV / 2));
+		startPosition.x = ASPECT_RATIO * startPosition.y;
+		float pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
+		startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
+
+		vec3 pixelPosition = startPosition;
+		for (unsigned int x = 0; x < WIDTH; x++) {
+			pixelPosition.x += pixelSize;
+			pixelPosition.y = startPosition.y;
+
+			glPointSize(2.0);
+			glBegin(GL_POINTS);
+			for (unsigned int y = 0; y < HEIGHT; y++) {
+				pixelPosition.y += pixelSize;
+
+				vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
+
+				color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
+				plot_pixel(x, y, color);
+			}
+			glEnd();
+			glFlush();
+		}
+		printf("Done!\n");
+		fflush(stdout);
+	}
 
 }
 int OpticalScene::load(char* argv) {
@@ -292,6 +336,28 @@ Light* OpticalScene::parseLight(FILE* file) {
 	parse_vec3(file, "col:", color);
 	return new AreaLight(position, color, normal, p);
 }
+vec3 OpticalScene::stratifiedSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
+	vec3 color = ambient_light;
+
+	float cellSize = pixelSize / numOfSubpixelsPerSide;
+	vec3 startPosition = pixelPosition;
+	float offset = pixelSize * 0.5f;
+	startPosition -= vec3(offset, offset, 0);
+
+	vec3 cellPosition = startPosition;
+	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+		cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
+
+		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+			cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
+
+			Ray cameraRay(vec3(0), cellPosition);
+			color += cameraRay.calculateRayColor(this);
+		}
+	}
+	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+	return color;
+}
 #pragma endregion
 
 
@@ -322,10 +388,10 @@ vec3 PhongMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	float ks = (specular.x + specular.y + specular.z) / 3;
 
 	vec3 local(0);
-	auto lights = scene->lights;
+	auto lights = scene->getLights();
 	for (int i = 0; i < lights.size(); i++) {
-		Ray shadowRay(position, lights[i]->getPosition());
-		if (shadowRay.checkIfBlocked(scene->objects, lights[i]->getPosition())) continue;
+		Ray shadowRay(position, lights[i]->position);
+		if (shadowRay.checkIfBlocked(scene->getObjects(), lights[i]->position)) continue;
 		local += calculatePhongShading(position, lights[i]);
 	}
 
@@ -360,7 +426,7 @@ Material* PhongMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
 	return new PhongMaterial(normal, diffuse, specular, shininess);
 }
 vec3 PhongMaterial::calculatePhongShading(vec3 position, Light* light) {
-	vec3 lightVector = normalize(light->getPosition() - position);
+	vec3 lightVector = normalize(light->position - position);
 	vec3 diffuseColor = diffuse;
 	vec3 specularColor = specular;
 
@@ -372,7 +438,7 @@ vec3 PhongMaterial::calculatePhongShading(vec3 position, Light* light) {
 	float rdotv = std::max(dot(R, eyeVector), 0.0f);
 	vec3 specular = specularColor * (float)pow(rdotv, shininess);
 
-	return light->getColor() * (diffuse + specular);
+	return light->color * (diffuse + specular);
 }
 #pragma endregion
 
@@ -389,6 +455,22 @@ Material* OpticalMaterial::clone() {
 vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	vec3 color(0);
 
+	auto lights = scene->getLights();
+	for (int i = 0; i < lights.size(); i++) {
+		vec3 Le(0);
+
+		vec3 w_i = normalize(lights[i]->position - position);
+		if (dot(w_i, normal) > 0.0f) {
+			Ray shadowRay(position, position + w_i);
+			if (!shadowRay.checkIfBlocked(scene->getObjects(), lights[i]->position)) {
+				Le = lights[i]->color;
+			}
+		}
+		float pdf = pow(distance(position, lights[i]->position), 2) / (abs(dot(lights[i]->normal, w_i)) * lights[i]->area());
+
+		float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
+		color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
+	}
 	return color;
 }
 Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
@@ -408,6 +490,41 @@ Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
 	metallic = bary.x * this->metallic + bary.y * m1->metallic + bary.z * m2->metallic;
 
 	return new OpticalMaterial(normal, diffuse, roughness, metallic);
+}
+vec3 OpticalMaterial::BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o) {
+	float alpha2 = pow(roughness * roughness, 2);
+
+	float w_idotn = dot(w_i, n);
+	float w_odotn = dot(w_o, n);
+
+	vec3 h = (float)sign(w_idotn) * normalize(w_i + w_o);
+	float w_idoth = dot(w_i, h);
+	float w_odoth = dot(w_o, h);
+
+	float F = F0 + (1 - F0) * pow((1 - w_odoth), 5);
+	float FD90 = 2 * pow(w_idoth, 2) * roughness + 0.5;
+
+	float theta_v_1 = angle(w_i, n);
+	float G1_1 = isPositive(w_idoth / w_idotn) * 2 / (1 + sqrt(1 + alpha2 * pow(tan(theta_v_1), 2)));
+
+	float theta_v_2 = angle(w_o, n);
+	float G1_2 = isPositive(w_odoth / w_odotn) * 2 / (1 + sqrt(1 + alpha2 * pow(tan(theta_v_2), 2)));
+
+	float G = G1_1 * G1_2;
+
+	float theta_m = angle(h, n);
+	float D = alpha2 * isPositive(dot(h, n)) / (PI * pow(cos(theta_m), 4) * pow(alpha2 + pow(tan(theta_m), 2), 2));
+
+	float fs = F * G * D / (4 * abs(w_idotn) * abs(w_odotn));
+	float fd =
+		(1 / PI)
+		* (1 + (FD90 - 1) * pow((1 - (w_idotn)), 5)
+		   * (1 + (FD90 - 1) * pow((1 - (w_odotn)), 5)
+			  * (1 - metallic)));
+
+	vec3 f = (fs + fd) * diffuse;
+
+	return Le * f * w_idotn / pdf;
 }
 #pragma endregion
 
@@ -493,8 +610,6 @@ float Sphere::intersects(Ray* ray) {
 
 
 #pragma region Light
-vec3 Light::getPosition() { return position; }
-vec3 Light::getColor() { return color; }
 Light::Light(vec3 position, vec3 color) {
 	this->position = position;
 	this->color = color;
@@ -502,13 +617,40 @@ Light::Light(vec3 position, vec3 color) {
 #pragma endregion
 
 
+#pragma region PointLight
+PointLight::PointLight(vec3 position, vec3 color) : Light(position, color) {
+
+}
+vector<Light*> PointLight::getSamples(int numOfSamples) {
+	vector<Light*> samples;
+	return samples;
+
+}
+#pragma endregion
+
 #pragma region AreaLight
-vec3 AreaLight::getNormal() { return normal; }
 vector<vec3> AreaLight::getCorners() { return corners; }
 AreaLight::AreaLight(vec3 position, vec3 color, vec3 normal, vector<vec3> corners)
 	: Light(position, color) {
 	this->normal = normal;
 	this->corners = corners;
+}
+vector<Light*> AreaLight::getSamples(int numOfSamples) {
+	vector<Light*> samples;
+	for (int j = 0; j < numOfSamples; j++) {
+		float U2 = getRandom();
+		float U3 = getRandom();
+
+		vec3 p0 = corners[0];
+		vec3 p1 = corners[1];
+		vec3 p2 = corners[2];
+		vec3 p3 = corners[3];
+		vec3 p = (1 - U2) * (p0 * (1 - U3) + p1 * U3) + U2 * (p2 * (1 - U3) + p3 * U3);
+
+		Light* sample = new AreaLight(p, color, normal, corners);
+		samples.push_back(sample);
+	}
+	return samples;
 }
 #pragma endregion
 
@@ -556,7 +698,7 @@ vec3 Ray::calculateRayColor(Scene* scene) {
 
 	vec3 color(0);
 	vec3 position;
-	Object* object = getFirstIntersectedObject(scene->objects, position);
+	Object* object = getFirstIntersectedObject(scene->getObjects(), position);
 	if (object) {
 		Material* material = object->getMaterial(position);
 		color += material->calculateLighting(scene, *this, position);
@@ -569,6 +711,15 @@ vec3 Ray::calculateRayColor(Scene* scene) {
 #pragma endregion
 
 
+int isPositive(float number) {
+	if (number > 0) return 1;
+	else return 0;
+}
+int sign(float number) {
+	if (number > 0) return 1;
+	if (number < 0) return -1;
+	return 0;
+}
 float getRandom() {
 	random_device rd;
 	mt19937 eng;  // or eng(r()); for non-deterministic random number

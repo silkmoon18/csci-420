@@ -8,43 +8,9 @@
 #include "utility.h"
 
 
-//int numOfSublights = 12;
-//vector<Light*> sampleLights() {
-//	vector<Light*> lightSamples;
-//
-//	for (int i = 0; i < lights.size(); i++) {
-//		Light* light = lights[i];
-//		for (int j = 0; j < numOfSublights; j++) {
-//
-//			float radius = ((double)rand() / (RAND_MAX)) / 10.0;
-//			//randomly sample theta
-//			float theta = radians((float)fmod(rand(), 360));
-//			//randomly sample phi
-//			float phi = radians((float)fmod(rand(), 360));
-//
-//			float x = radius * std::sin(theta) * std::cos(phi);
-//			float y = radius * std::sin(theta) * std::sin(phi);
-//			float z = radius * std::cos(theta);
-//
-//			//float x = rand() / float(RAND_MAX) * 0.1;
-//			//float y = rand() / float(RAND_MAX) * 0.1;
-//			//float z = rand() / float(RAND_MAX) * 0.1;
-//
-//			float xPos = light->position[0] + x;
-//			float yPos = light->position[1] + y;
-//			float zPos = light->position[2] + z;
-//			vec3 position(xPos, yPos, zPos);
-//
-//			vec3 color = light->color / (float)numOfSublights;
-//
-//			lightSamples.push_back(new Light(position, color));
-//		}
-//	}
-//	return lightSamples;
-//}
 
 
-Scene* scene = new PhongScene();
+Scene* scene = new OpticalScene();
 
 void display() {
 }
@@ -58,12 +24,16 @@ void init() {
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
+#include <chrono>
 
 void idle() {
 	//hack to make it only draw once
 	static int once = 0;
 	if (!once) {
+		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 		scene->draw();
+		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / 1e-6 << "[s]" << std::endl;
 		if (scene->mode == MODE_JPEG)
 			scene->save_jpg();
 	}

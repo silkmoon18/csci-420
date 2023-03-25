@@ -22,13 +22,14 @@
 
 #include <imageIO.h>
 #include <glm/glm.hpp>
+#include <glm/gtx/vector_angle.hpp>
 #include <iostream>
 #include <vector>
 #include <random>
 
 
 #define EPSILON 0.0001f
-#define PI 3.141592653589f
+#define PI 3.14159265358979323846264338327950288
 #define MAX_REFLECTION 3
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
@@ -77,6 +78,8 @@ class PointLight;
 class AreaLight;
 
 
+int sign(float number);
+int isPositive(float number);
 float getRandom();
 float getRandom(float min, float max);
 vec3 getRandom(vec3 min, vec3 max);
@@ -89,10 +92,14 @@ void parse_float(FILE* file, const char* check, float& f);
 void parse_rad(FILE* file, float* r);
 void parse_shi(FILE* file, float* shi);
 
+
+
 struct Vertex {
 	vec3 position;
 	Material* material;
 };
+
+
 
 template<class T>
 class Singleton {
@@ -113,23 +120,27 @@ public:
 	}
 };
 
+
 class Scene {
 public:
     int mode = MODE_DISPLAY;
     char* filename = NULL;
-    unsigned char buffer[HEIGHT][WIDTH][3];
-
-    vector<Object*> objects;
-    vector<Triangle*> triangles;
-    vector<Sphere*> spheres;
-    vector<Light*> lights;
 
     vec3 ambient_light;
-    vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
+    //vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
+
+	vec3 backgroundColor = vec3(0);
 
     bool useGlobalLighting = false;
     bool useSSAA = false;
     int numOfSubpixelsPerSide = 3;
+	int numOfSampleLights = 1;
+	vec3 F0;
+
+	const vector<Object*>& getObjects();
+	const vector<Triangle*>& getTriangles();
+	const vector<Sphere*>& getSpheres();
+	const vector<Light*>& getLights();
 
     virtual void draw() = 0;
 	virtual int load(char* argv) = 0;
@@ -141,7 +152,17 @@ public:
 	void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
 	void plot_pixel(int x, int y, vec3 color);
 	void save_jpg();
+
+protected:
+	unsigned char buffer[HEIGHT][WIDTH][3];
+
+	vector<Object*> objects;
+
+	vector<Triangle*> triangles;
+	vector<Sphere*> spheres;
+	vector<Light*> lights;
 };
+
 
 class PhongScene : public Scene {
 public:
@@ -155,6 +176,7 @@ private:
 	vec3 superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition);
 };
 
+
 class OpticalScene : public Scene {
 public:
 	void draw() override;
@@ -164,7 +186,7 @@ public:
 	Light* parseLight(FILE* file) override;
 
 private:
-	vec3 F0;
+	vec3 stratifiedSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition);
 };
 
 
@@ -186,6 +208,7 @@ public:
 	virtual Material* interpolates(Material* m1, Material* m2, vec3 bary) = 0;
 };
 
+
 class PhongMaterial : public Material {
 public:
 	PhongMaterial(vec3 normal, vec3 diffuse, vec3 specular, float shininess);
@@ -198,6 +221,7 @@ private:
 	vec3 calculatePhongShading(vec3 position, Light* light);
 };
 
+
 class OpticalMaterial : public Material {
 public:
 	OpticalMaterial(vec3 normal, vec3 diffuse, float roughness, float metallic);
@@ -205,13 +229,19 @@ public:
 	Material* clone() override;
 	vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override;
 	Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
+
+private:
+	vec3 BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o);
 };
+
 
 class Object {
 public:
 	virtual Material* getMaterial(vec3 position) = 0;
 	virtual float intersects(Ray* ray) = 0;
 };
+
+
 class Triangle : public Object {
 public:
 	Triangle(vector<Vertex> vertices);
@@ -226,6 +256,7 @@ private:
 	vec3 getBarycentricCoords(vec3 p);
 };
 
+
 class Sphere : public Object {
 public:
 	Sphere(vec3 position, float radius, Material* material);
@@ -239,28 +270,42 @@ private:
 	Material* baseMaterial;
 };
 
+
 class Light {
 public:
-	Light(vec3 position, vec3 color);
-
-	vec3 getPosition();
-	vec3 getColor();
-
-protected:
 	vec3 position;
 	vec3 color;
+	vec3 normal;
+
+	Light(vec3 position, vec3 color);
+
+	float area() {
+		if (corners.size() < 4) return 0;
+		return distance(corners[1], corners[0]) * distance(corners[0], corners[2]);
+	}
+	virtual vector<Light*> getSamples(int numOfSamples) = 0;
+
+protected:
+	vector<vec3> corners;
 };
+
+class PointLight : public Light {
+public:
+	PointLight(vec3 position, vec3 color);
+
+	vector<Light*> getSamples(int numOfSamples) override;
+};
+
 class AreaLight : public Light {
 public:
 	AreaLight(vec3 position, vec3 color, vec3 normal, vector<vec3> corners);
 
-	vec3 getNormal();
 	vector<vec3> getCorners();
+	vector<Light*> getSamples(int numOfSamples) override;
 
 private:
-	vec3 normal;
-	vector<vec3> corners;
 };
+
 
 class Ray {
 public:
@@ -278,5 +323,7 @@ public:
 private:
 	int numOfReflection = 0;
 };
+
+
 
 #endif
