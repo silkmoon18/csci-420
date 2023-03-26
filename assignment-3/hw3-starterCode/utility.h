@@ -133,7 +133,7 @@ public:
 
 	vec3 backgroundColor = vec3(0);
 
-    bool useGlobalLighting = false;
+    bool useGlobalLighting = true;
     bool useSSAA = false;
     int numOfSubpixelsPerSide = 3;
 	int numOfSampleLights = 12;

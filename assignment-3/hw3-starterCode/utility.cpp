@@ -1,6 +1,11 @@
 #include "utility.h"
 
 
+random_device rd;
+mt19937 eng;  // or eng(r()); for non-deterministic random number
+uniform_real_distribution<double> distrib(0.0, 1.0 - 1e-8);
+
+
 #pragma region Scene
 const vector<Object*>& Scene::getObjects() { return objects; }
 const vector<Triangle*>& Scene::getTriangles() { return triangles; }
@@ -195,6 +200,7 @@ void OpticalScene::draw(int x, int y, float pixelSize, vec3 pixelPosition) {
 
 
 	vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
+	color /= numOfSampleLights;
 	color /= color + 1.0f;
 	color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
 	plot_pixel(x, y, color);
@@ -209,6 +215,9 @@ void OpticalScene::sampleLights() {
 		}
 	}
 	lights = samples;
+}
+float D(vec3 m) {
+	return 0;
 }
 
 #pragma region OpticalScene
@@ -729,9 +738,6 @@ int sign(float number) {
 	return 0;
 }
 float getRandom() {
-	random_device rd;
-	mt19937 eng;  // or eng(r()); for non-deterministic random number
-	uniform_real_distribution<double> distrib(0.0, 1.0 - 1e-8);
 	return distrib(eng);
 }
 float getRandom(float min, float max) {

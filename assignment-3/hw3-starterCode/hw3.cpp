@@ -10,7 +10,6 @@
 
 
 
-
 OpticalScene* scene = new OpticalScene();
 
 struct Pixel {
@@ -50,13 +49,18 @@ void getPixels() {
 }
 
 float num = 0;
-float per;
+float progress = 0;
+float curr = 0;
 void drawPixel(Pixel pixel) {
 	scene->draw(pixel.index.x, pixel.index.y, pixel.size, pixel.position);
-	//num++;
 
-	//per = num / pixels.size();
-	//printf("\r%f%%", per * 100);
+	num++;
+	float curr = num / pixels.size();
+	if (curr > 0.05f) {
+		progress += curr;
+		num = 0;
+		printf("\r%d%%", int(progress * 100));
+	}
 	
 }
 
@@ -85,6 +89,9 @@ void draw_test() {
 	for (auto& thread : threads) {
 		thread.join();
 	}
+	
+	printf("\r100%%\n");
+
 	for (unsigned int x = 0; x < WIDTH; x++) {
 		glPointSize(2.0);
 		glBegin(GL_POINTS);
