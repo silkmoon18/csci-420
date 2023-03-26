@@ -190,6 +190,16 @@ vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pi
 #pragma endregion
 
 
+void OpticalScene::draw(int x, int y, float pixelSize, vec3 pixelPosition) {
+
+
+	vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
+	color /= color + 1.0f;
+	color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
+	plot_pixel(x, y, color);
+
+}
+
 #pragma region OpticalScene
 void OpticalScene::draw() {
 	vector<vec3> colors;

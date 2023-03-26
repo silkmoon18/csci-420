@@ -26,6 +26,9 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include <thread>
+#include <string> 
+
 
 
 #define EPSILON 0.0001f
@@ -121,6 +124,7 @@ public:
 
 class Scene {
 public:
+	unsigned char buffer[HEIGHT][WIDTH][3];
     int mode = MODE_DISPLAY;
     char* filename = NULL;
 
@@ -131,7 +135,7 @@ public:
 
     bool useGlobalLighting = false;
     bool useSSAA = false;
-    int numOfSubpixelsPerSide = 3;
+    int numOfSubpixelsPerSide = 1;
 	int numOfSampleLights = 1;
 	vec3 F0;
 
@@ -152,7 +156,6 @@ public:
 	void save_jpg();
 
 protected:
-	unsigned char buffer[HEIGHT][WIDTH][3];
 
 	vector<Object*> objects;
 
@@ -178,6 +181,7 @@ private:
 class OpticalScene : public Scene {
 public:
 	void draw() override;
+	void draw(int x, int y, float pixelSize, vec3 pixelPosition);
 	int load(char* argv) override;
 	Triangle* parseTriangle(FILE* file) override;
 	Sphere* parseSphere(FILE* file) override;
