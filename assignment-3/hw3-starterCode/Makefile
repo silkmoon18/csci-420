@@ -2,12 +2,16 @@ HW3_CXX_SRC=hw3.cpp
 HW3_HEADER=
 HW3_OBJ=$(notdir $(patsubst %.cpp,%.o,$(HW3_CXX_SRC)))
 
+UTIL_CXX_SRC=utility.cpp
+UTIL_HEADER=utility.h
+UTIL_OBJ=$(notdir $(patsubst %.cpp,%.o,$(UTIL_CXX_SRC)))
+
 IMAGE_LIB_SRC=$(wildcard ../external/imageIO/*.cpp)
 IMAGE_LIB_HEADER=$(wildcard ../external/imageIO/*.h)
 IMAGE_LIB_OBJ=$(notdir $(patsubst %.cpp,%.o,$(IMAGE_LIB_SRC)))
 
-HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER)
-CXX_OBJ=$(HW3_OBJ) $(IMAGE_LIB_OBJ)
+HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER) $(UTIL_HEADER)
+CXX_OBJ=$(HW3_OBJ) $(IMAGE_LIB_OBJ) $(UTIL_OBJ)
 
 CXX=g++
 TARGET=hw3
@@ -35,6 +39,9 @@ $(TARGET): $(CXX_OBJ)
 	$(CXX) $(LDFLAGS) $^ $(OPT) $(LIB) -o $@
 
 $(HW3_OBJ):%.o: %.cpp $(HEADER)
+	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
+
+$(UTIL_OBJ):%.o: %.cpp $(UTIL_HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
 $(IMAGE_LIB_OBJ):%.o: ../external/imageIO/%.cpp $(IMAGE_LIB_HEADER)
