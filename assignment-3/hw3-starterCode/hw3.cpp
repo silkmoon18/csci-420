@@ -20,7 +20,9 @@ struct Pixel {
 };
 
 vector<Pixel> pixels;
-int numOfThreads = 16;
+const int numOfThreads = 16;
+
+
 void getPixels() {
 	vec3 startPosition;
 	startPosition.z = -1;
@@ -47,8 +49,15 @@ void getPixels() {
 	}
 }
 
+float num = 0;
+float per;
 void drawPixel(Pixel pixel) {
 	scene->draw(pixel.index.x, pixel.index.y, pixel.size, pixel.position);
+	//num++;
+
+	//per = num / pixels.size();
+	//printf("\r%f%%", per * 100);
+	
 }
 
 void drawPixels(int id) {
@@ -64,7 +73,9 @@ void drawPixels(int id) {
 	}
 }
 
-void draw_test3() {
+void draw_test() {
+	scene->sampleLights();
+
 	std::vector<std::thread> threads;
 	for (int i = 0; i < numOfThreads; i++) {
 		std::thread t(drawPixels, i);
@@ -84,6 +95,8 @@ void draw_test3() {
 			glColor3f(((float)r) / 255.0f, ((float)g) / 255.0f, ((float)b) / 255.0f);
 			glVertex2i(x, y);
 		}
+		//printf("\r%f%%", ceil(x / (float)WIDTH) * 100.0f) / 100.0f;
+
 		glEnd();
 		glFlush();
 	}
@@ -108,7 +121,7 @@ void idle() {
 	if (!once) {
 		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-		draw_test3();
+		draw_test();
 
 
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();

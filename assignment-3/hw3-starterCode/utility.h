@@ -124,9 +124,9 @@ public:
 
 class Scene {
 public:
-	unsigned char buffer[HEIGHT][WIDTH][3];
+	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
     int mode = MODE_DISPLAY;
-    char* filename = NULL;
+    char* filename = NULL; // ouput jpg filename
 
     vec3 ambient_light;
     //vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
@@ -135,8 +135,8 @@ public:
 
     bool useGlobalLighting = false;
     bool useSSAA = false;
-    int numOfSubpixelsPerSide = 1;
-	int numOfSampleLights = 1;
+    int numOfSubpixelsPerSide = 3;
+	int numOfSampleLights = 12;
 	vec3 F0;
 
 	const vector<Object*>& getObjects();
@@ -156,7 +156,6 @@ public:
 	void save_jpg();
 
 protected:
-
 	vector<Object*> objects;
 
 	vector<Triangle*> triangles;
@@ -180,8 +179,12 @@ private:
 
 class OpticalScene : public Scene {
 public:
-	void draw() override;
+	// test
+	void sampleLights();
 	void draw(int x, int y, float pixelSize, vec3 pixelPosition);
+
+
+	void draw() override;
 	int load(char* argv) override;
 	Triangle* parseTriangle(FILE* file) override;
 	Sphere* parseSphere(FILE* file) override;

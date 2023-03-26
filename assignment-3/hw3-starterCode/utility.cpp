@@ -190,6 +190,7 @@ vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pi
 #pragma endregion
 
 
+// test
 void OpticalScene::draw(int x, int y, float pixelSize, vec3 pixelPosition) {
 
 
@@ -198,6 +199,16 @@ void OpticalScene::draw(int x, int y, float pixelSize, vec3 pixelPosition) {
 	color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
 	plot_pixel(x, y, color);
 
+}
+void OpticalScene::sampleLights() {
+	vector<Light*> samples;
+	for (auto& l : lights) {
+		auto s = l->getSamples(numOfSampleLights);
+		for (auto& sa : s) {
+			samples.push_back(sa);
+		}
+	}
+	lights = samples;
 }
 
 #pragma region OpticalScene
@@ -502,6 +513,7 @@ Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
 
 	return new OpticalMaterial(normal, diffuse, roughness, metallic);
 }
+
 vec3 OpticalMaterial::BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o) {
 	float alpha2 = pow(roughness * roughness, 2);
 
