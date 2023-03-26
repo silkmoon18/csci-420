@@ -162,7 +162,7 @@ Light* PhongScene::parseLight(FILE* file) {
 	vec3 position, color;
 	parse_vec3(file, "pos:", position);
 	parse_vec3(file, "col:", color);
-	return new PointLight(position, color);
+	return new Light(position, color);
 }
 vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
 	vec3 color = ambient_light;
@@ -227,6 +227,7 @@ void OpticalScene::draw() {
 
 				vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
 
+				color /= color + 1.0f;
 				color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
 				plot_pixel(x, y, color);
 			}
@@ -334,7 +335,7 @@ Light* OpticalScene::parseLight(FILE* file) {
 	parse_vec3(file, "pos:", position);
 	parse_vec3(file, "nrm:", normal);
 	parse_vec3(file, "col:", color);
-	return new AreaLight(position, color, normal, p);
+	return new Light(position, color, normal, p);
 }
 vec3 OpticalScene::stratifiedSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
 	vec3 color = ambient_light;
@@ -610,44 +611,29 @@ float Sphere::intersects(Ray* ray) {
 
 
 #pragma region Light
-Light::Light(vec3 position, vec3 color) {
+Light::Light(vec3 position, vec3 color, vec3 normal, vector<vec3> p) {
 	this->position = position;
 	this->color = color;
-}
-#pragma endregion
-
-
-#pragma region PointLight
-PointLight::PointLight(vec3 position, vec3 color) : Light(position, color) {
-
-}
-vector<Light*> PointLight::getSamples(int numOfSamples) {
-	vector<Light*> samples;
-	return samples;
-
-}
-#pragma endregion
-
-#pragma region AreaLight
-vector<vec3> AreaLight::getCorners() { return corners; }
-AreaLight::AreaLight(vec3 position, vec3 color, vec3 normal, vector<vec3> corners)
-	: Light(position, color) {
 	this->normal = normal;
-	this->corners = corners;
+	this->p = p;
 }
-vector<Light*> AreaLight::getSamples(int numOfSamples) {
+float Light::area() {
+	if (p.size() < 4) return 0;
+	return distance(p[1], p[0]) * distance(p[0], p[2]);
+}
+vector<Light*> Light::getSamples(int numOfSamples) {
 	vector<Light*> samples;
 	for (int j = 0; j < numOfSamples; j++) {
 		float U2 = getRandom();
 		float U3 = getRandom();
 
-		vec3 p0 = corners[0];
-		vec3 p1 = corners[1];
-		vec3 p2 = corners[2];
-		vec3 p3 = corners[3];
-		vec3 p = (1 - U2) * (p0 * (1 - U3) + p1 * U3) + U2 * (p2 * (1 - U3) + p3 * U3);
+		vec3 p0 = p[0];
+		vec3 p1 = p[1];
+		vec3 p2 = p[2];
+		vec3 p3 = p[3];
+		vec3 pos = (1 - U2) * (p0 * (1 - U3) + p1 * U3) + U2 * (p2 * (1 - U3) + p3 * U3);
 
-		Light* sample = new AreaLight(p, color, normal, corners);
+		Light* sample = new Light(pos, color, normal, p);
 		samples.push_back(sample);
 	}
 	return samples;

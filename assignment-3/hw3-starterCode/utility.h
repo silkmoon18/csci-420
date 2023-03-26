@@ -74,8 +74,6 @@ class Sphere;
 class Ray;
 
 class Light;
-class PointLight;
-class AreaLight;
 
 
 int sign(float number);
@@ -276,35 +274,14 @@ public:
 	vec3 position;
 	vec3 color;
 	vec3 normal;
+	vector<vec3> p;
 
-	Light(vec3 position, vec3 color);
+	Light(vec3 position, vec3 color, vec3 normal = vec3(0), vector<vec3> p = vector<vec3>());
 
-	float area() {
-		if (corners.size() < 4) return 0;
-		return distance(corners[1], corners[0]) * distance(corners[0], corners[2]);
-	}
-	virtual vector<Light*> getSamples(int numOfSamples) = 0;
-
-protected:
-	vector<vec3> corners;
+	float area();
+	vector<Light*> getSamples(int numOfSamples);
 };
 
-class PointLight : public Light {
-public:
-	PointLight(vec3 position, vec3 color);
-
-	vector<Light*> getSamples(int numOfSamples) override;
-};
-
-class AreaLight : public Light {
-public:
-	AreaLight(vec3 position, vec3 color, vec3 normal, vector<vec3> corners);
-
-	vector<vec3> getCorners();
-	vector<Light*> getSamples(int numOfSamples) override;
-
-private:
-};
 
 
 class Ray {
