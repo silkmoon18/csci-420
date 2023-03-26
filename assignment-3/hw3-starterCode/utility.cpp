@@ -6,37 +6,22 @@ mt19937 eng;  // or eng(r()); for non-deterministic random number
 uniform_real_distribution<double> distrib(0.0, 1.0 - 1e-8);
 
 
+
+#pragma region Timer
+float Timer::getDeltaTime() {
+	return deltaTime;
+}
+void Timer::setCurrentTime(int currentTime) {
+	deltaTime = (currentTime - previousTime) / 1000.0f;
+	previousTime = currentTime;
+}
+#pragma endregion
+
 #pragma region Scene
 const vector<Object*>& Scene::getObjects() { return objects; }
 const vector<Triangle*>& Scene::getTriangles() { return triangles; }
 const vector<Sphere*>& Scene::getSpheres() { return spheres; }
 const vector<Light*>& Scene::getLights() { return lights; }
-void Scene::plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
-	glColor3f(((float)r) / 255.0f, ((float)g) / 255.0f, ((float)b) / 255.0f);
-	glVertex2i(x, y);
-}
-void Scene::plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
-	buffer[y][x][0] = r;
-	buffer[y][x][1] = g;
-	buffer[y][x][2] = b;
-}
-void Scene::plot_pixel(int x, int y, vec3 color) {
-	unsigned char r = color.x;
-	unsigned char g = color.y;
-	unsigned char b = color.z;
-	plot_pixel_display(x, y, r, g, b);
-	if (mode == MODE_JPEG)
-		plot_pixel_jpeg(x, y, r, g, b);
-}
-void Scene::save_jpg() {
-	printf("Saving JPEG file: %s\n", filename);
-
-	ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
-	if (img.save(filename, ImageIO::FORMAT_JPEG) != ImageIO::OK)
-		printf("Error in Saving\n");
-	else
-		printf("File saved Successfully\n");
-}
 #pragma endregion
 
 
@@ -70,7 +55,7 @@ void PhongScene::draw() {
 			}
 
 			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-			plot_pixel(x, y, color);
+			//plot_pixel(x, y, color);
 		}
 		glEnd();
 		glFlush();
@@ -196,14 +181,12 @@ vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pi
 
 
 // test
-void OpticalScene::draw(int x, int y, float pixelSize, vec3 pixelPosition) {
-
-
-	vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
+vec3 OpticalScene::calculatePixelColor(const Pixel& pixel) {
+	vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
 	color /= numOfSampleLights;
 	color /= color + 1.0f;
-	color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-	plot_pixel(x, y, color);
+	return color;
+	//plot_pixel(x, y, color);
 
 }
 void OpticalScene::sampleLights() {
@@ -215,9 +198,6 @@ void OpticalScene::sampleLights() {
 		}
 	}
 	lights = samples;
-}
-float D(vec3 m) {
-	return 0;
 }
 
 #pragma region OpticalScene
@@ -259,7 +239,7 @@ void OpticalScene::draw() {
 
 				color /= color + 1.0f;
 				color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-				plot_pixel(x, y, color);
+				//plot_pixel(x, y, color);
 			}
 			glEnd();
 			glFlush();
@@ -654,18 +634,24 @@ float Light::area() {
 }
 vector<Light*> Light::getSamples(int numOfSamples) {
 	vector<Light*> samples;
-	for (int j = 0; j < numOfSamples; j++) {
-		float U2 = getRandom();
-		float U3 = getRandom();
 
-		vec3 p0 = p[0];
-		vec3 p1 = p[1];
-		vec3 p2 = p[2];
-		vec3 p3 = p[3];
-		vec3 pos = (1 - U2) * (p0 * (1 - U3) + p1 * U3) + U2 * (p2 * (1 - U3) + p3 * U3);
+	if (numOfSamples <= 0) {
+		samples.push_back(this);
+	}
+	else {
+		for (int j = 0; j < numOfSamples; j++) {
+			float U2 = getRandom();
+			float U3 = getRandom();
 
-		Light* sample = new Light(pos, color, normal, p);
-		samples.push_back(sample);
+			vec3 p0 = p[0];
+			vec3 p1 = p[1];
+			vec3 p2 = p[2];
+			vec3 p3 = p[3];
+			vec3 pos = (1 - U2) * (p0 * (1 - U3) + p1 * U3) + U2 * (p2 * (1 - U3) + p3 * U3);
+
+			Light* sample = new Light(pos, color, normal, p);
+			samples.push_back(sample);
+		}
 	}
 	return samples;
 }
@@ -719,6 +705,7 @@ vec3 Ray::calculateRayColor(Scene* scene) {
 	if (object) {
 		Material* material = object->getMaterial(position);
 		color += material->calculateLighting(scene, *this, position);
+		delete material;
 	}
 	else {
 		color = scene->backgroundColor;

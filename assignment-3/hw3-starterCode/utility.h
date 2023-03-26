@@ -58,9 +58,12 @@
 using namespace std;
 using namespace glm;
 
+struct Pixel;
 struct Vertex;
 
 template<class T> class Singleton;
+
+class Timer;
 
 class Scene;
 class PhongScene;
@@ -95,6 +98,13 @@ void parse_shi(FILE* file, float* shi);
 
 
 
+struct Pixel {
+	ivec2 index;
+	vec3 position;
+	float size;
+	vec3 color;
+};
+
 struct Vertex {
 	vec3 position;
 	Material* material;
@@ -121,13 +131,20 @@ public:
 	}
 };
 
+class Timer {
+public:
+	// Get time between this and previous frame
+	float getDeltaTime();
+	// Set time of current frame
+	void setCurrentTime(int curr);
+
+private:
+	int previousTime = 0; // in ms
+	float deltaTime = 0; // in s
+};
 
 class Scene {
 public:
-	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
-    int mode = MODE_DISPLAY;
-    char* filename = NULL; // ouput jpg filename
-
     vec3 ambient_light;
     //vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
 
@@ -149,11 +166,6 @@ public:
 	virtual Triangle* parseTriangle(FILE* file) = 0;
 	virtual Sphere* parseSphere(FILE* file) = 0;
 	virtual Light* parseLight(FILE* file) = 0;
-
-	void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b);
-	void plot_pixel_jpeg(int x, int y, unsigned char r, unsigned char g, unsigned char b);
-	void plot_pixel(int x, int y, vec3 color);
-	void save_jpg();
 
 protected:
 	vector<Object*> objects;
@@ -181,7 +193,7 @@ class OpticalScene : public Scene {
 public:
 	// test
 	void sampleLights();
-	void draw(int x, int y, float pixelSize, vec3 pixelPosition);
+	vec3 calculatePixelColor(const Pixel& pixel);
 
 
 	void draw() override;

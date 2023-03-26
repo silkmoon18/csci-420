@@ -9,20 +9,61 @@
 #include <chrono>
 
 
+unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
+int mode = MODE_DISPLAY;
+char* filename = NULL; // ouput jpg filename
 
+Timer timer;
 OpticalScene* scene = new OpticalScene();
-
-struct Pixel {
-	vec2 index;
-	vec3 position;
-	float size;
-};
 
 vector<Pixel> pixels;
 const int numOfThreads = 16;
 
+atomic_int numOfCompletedPixels = 0;
 
-void getPixels() {
+
+void plot_pixel_display(int x, int y, unsigned char r, unsigned char g, unsigned char b) {
+	glColor3f(((float)r) / 255.0f, ((float)g) / 255.0f, ((float)b) / 255.0f);
+	glVertex2i(x, y);
+}
+void plot_pixel(int x, int y, vec3 color) {
+	unsigned char r = color.x;
+	unsigned char g = color.y;
+	unsigned char b = color.z;
+	plot_pixel_display(x, y, r, g, b);
+}
+void save_jpg() {
+	printf("Saving JPEG file: %s\n", filename);
+
+	for (auto& pixel : pixels) {
+		vec3 color = clamp(pixel.color * 255.0f, vec3(0.0f), vec3(255.0f));
+		buffer[pixel.index.y][pixel.index.x][0] = pixel.color.x;
+		buffer[pixel.index.y][pixel.index.x][1] = pixel.color.y;
+		buffer[pixel.index.y][pixel.index.x][2] = pixel.color.z;
+	}
+
+	ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
+	if (img.save(filename, ImageIO::FORMAT_JPEG) != ImageIO::OK)
+		printf("Error in Saving\n");
+	else
+		printf("File saved Successfully\n");
+}
+
+
+
+void printProgress() {
+	while (true) {
+		timer.setCurrentTime(glutGet(GLUT_ELAPSED_TIME));
+		int progress = int((float)numOfCompletedPixels / pixels.size() * 100);
+		printf("\r%d%% (%d / %d)", progress, (int)numOfCompletedPixels, pixels.size());
+
+		if (progress == 100) {
+			printf("\n");
+			break;
+		}
+	}
+}
+void initializePixels() {
 	vec3 startPosition;
 	startPosition.z = -1;
 	startPosition.y = -tan(radians(FOV / 2));
@@ -43,25 +84,16 @@ void getPixels() {
 			pixel.position = base.position;
 			pixel.index = vec2(x, y);
 			pixel.size = pixelSize;
+			pixel.color = vec3(0);
 			pixels.push_back(pixel);
 		}
 	}
 }
 
-float num = 0;
-float progress = 0;
-float curr = 0;
-void drawPixel(Pixel pixel) {
-	scene->draw(pixel.index.x, pixel.index.y, pixel.size, pixel.position);
+void drawPixel(Pixel& pixel) {
+	pixel.color += scene->calculatePixelColor(pixel);
 
-	num++;
-	float curr = num / pixels.size();
-	if (curr > 0.05f) {
-		progress += curr;
-		num = 0;
-		printf("\r%d%%", int(progress * 100));
-	}
-	
+	numOfCompletedPixels++;
 }
 
 void drawPixels(int id) {
@@ -78,34 +110,40 @@ void drawPixels(int id) {
 }
 
 void draw_test() {
-	scene->sampleLights();
+	for (int i = 0; i < 12; i++) {
+		numOfCompletedPixels = 0;
+		scene->numOfSampleLights = 1;
+		scene->sampleLights();
+		scene->numOfSampleLights = 12;
 
-	std::vector<std::thread> threads;
-	for (int i = 0; i < numOfThreads; i++) {
-		std::thread t(drawPixels, i);
-		threads.push_back(std::move(t));
-	}
-
-	for (auto& thread : threads) {
-		thread.join();
-	}
-	
-	printf("\r100%%\n");
-
-	for (unsigned int x = 0; x < WIDTH; x++) {
-		glPointSize(2.0);
-		glBegin(GL_POINTS);
-		for (unsigned int y = 0; y < HEIGHT; y++) {
-			unsigned char r = scene->buffer[y][x][0];
-			unsigned char g = scene->buffer[y][x][1];
-			unsigned char b = scene->buffer[y][x][2];
-			glColor3f(((float)r) / 255.0f, ((float)g) / 255.0f, ((float)b) / 255.0f);
-			glVertex2i(x, y);
+		std::vector<std::thread> threads;
+		for (int j = 0; j < numOfThreads; j++) {
+			std::thread t(drawPixels, j);
+			threads.push_back(std::move(t));
 		}
-		//printf("\r%f%%", ceil(x / (float)WIDTH) * 100.0f) / 100.0f;
+		threads.push_back(move(thread(printProgress)));
 
-		glEnd();
-		glFlush();
+		for (auto& thread : threads) {
+			thread.join();
+		}
+		threads.clear();
+
+		cout << i + 1 << " done. " << endl;
+
+		for (unsigned int x = 0; x < WIDTH; x++) {
+			glPointSize(2.0);
+			glBegin(GL_POINTS);
+			for (unsigned int y = 0; y < HEIGHT; y++) {
+				int index = x * HEIGHT + y;
+				glColor3f(pixels[index].color.x, 
+						  pixels[index].color.y, 
+						  pixels[index].color.z);
+				glVertex2i(x, y);
+			}
+
+			glEnd();
+			glFlush();
+		}
 	}
 }
 
@@ -133,8 +171,8 @@ void idle() {
 
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		printf("delta time = %fs\n", std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() * 1e-6);
-		if (scene->mode == MODE_JPEG)
-			scene->save_jpg();
+		if (mode == MODE_JPEG)
+			save_jpg();
 	}
 	once = 1;
 }
@@ -145,17 +183,17 @@ int main(int argc, char** argv) {
 		exit(0);
 	}
 	if (argc == 3) {
-		scene->mode = MODE_JPEG;
-		scene->filename = argv[2];
+		mode = MODE_JPEG;
+		filename = argv[2];
 	}
 	else if (argc == 2) {
-		scene->mode = MODE_DISPLAY;
+		mode = MODE_DISPLAY;
 	}
 	printf("Input file: %s\n", argv[1]);
 
 	glutInit(&argc, argv);
-	
-	getPixels();
+
+	initializePixels();
 	scene->load(argv[1]);
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_SINGLE);
