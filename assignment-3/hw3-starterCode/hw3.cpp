@@ -17,7 +17,7 @@ Timer timer;
 OpticalScene* scene = new OpticalScene();
 
 vector<Pixel> pixels;
-const int numOfThreads = 16;
+const int numOfThreads = 32;
 
 atomic_int numOfCompletedPixels = 0;
 
@@ -37,9 +37,9 @@ void save_jpg() {
 
 	for (auto& pixel : pixels) {
 		vec3 color = clamp(pixel.color * 255.0f, vec3(0.0f), vec3(255.0f));
-		buffer[pixel.index.y][pixel.index.x][0] = pixel.color.x;
-		buffer[pixel.index.y][pixel.index.x][1] = pixel.color.y;
-		buffer[pixel.index.y][pixel.index.x][2] = pixel.color.z;
+		buffer[pixel.index.y][pixel.index.x][0] = (int)color.x;
+		buffer[pixel.index.y][pixel.index.x][1] = (int)color.y;
+		buffer[pixel.index.y][pixel.index.x][2] = (int)color.z;
 	}
 
 	ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
@@ -110,11 +110,11 @@ void drawPixels(int id) {
 }
 
 void draw_test() {
-	for (int i = 0; i < 12; i++) {
+	for (int i = 0; i < 1; i++) {
 		numOfCompletedPixels = 0;
 		scene->numOfSampleLights = 1;
 		scene->sampleLights();
-		scene->numOfSampleLights = 12;
+		scene->numOfSampleLights = 1;
 
 		std::vector<std::thread> threads;
 		for (int j = 0; j < numOfThreads; j++) {
