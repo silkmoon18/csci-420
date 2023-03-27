@@ -140,7 +140,6 @@ int loadSplines(char* argv) {
 
 	return 0;
 }
-
 // write a screenshot to the specified filename
 void saveScreenshot() {
 	if (screenshotIndex > 999) {
@@ -169,7 +168,7 @@ void saveScreenshot() {
 
 	delete[] screenshotData;
 }
-
+// handle viewing angles from mouse input
 void HandleViewInput(int mousePosDelta[2]) {
 	float lookStep = mouseSensitivity * Timer::getInstance()->getDeltaTime();
 	Entity* target;
@@ -201,6 +200,7 @@ void HandleViewInput(int mousePosDelta[2]) {
 	target->transform->rotateAround(y, worldUp, true);
 	target->transform->rotateAround(x, worldRight, false);
 }
+// handle movement
 void HandleMoveInput() {
 	if (isControllingPlayer) {
 		player->getComponent<PlayerController>()->moveOnGround(moveInput);
@@ -209,6 +209,7 @@ void HandleMoveInput() {
 		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
+// handle jump action
 void HandleJumpInput() {
 	if (isControllingPlayer) {
 		Physics* physics = player->getComponent<Physics>();
@@ -220,18 +221,21 @@ void HandleJumpInput() {
 		worldCamera->getComponent<PlayerController>()->move(moveInput, verticalMove);
 	}
 }
+// reset player viewing angles
 void ResetPlayerView() {
 	RollerCoaster* coaster = rollerCoasters[currentCoasterIndex]->getComponent<RollerCoaster>();
 	player->transform->faceTo(
 		player->transform->getPosition(true) + coaster->getCurrentDirection(),
 		coaster->getCurrentNormal());
 }
+// ride a roller-coaster
 void rideCoaster(RollerCoaster* coaster) {
 	player->getComponent<Physics>()->setActive(false);
 	player->getComponent<PlayerController>()->setActive(false);
 	player->setParent(coaster->seat);
 	player->transform->setPosition(vec3(0, 0, 0), false);
 }
+// unride current roller-coaster
 void unrideCoaster() {
 	player->getComponent<Physics>()->setActive(true);
 	player->getComponent<PlayerController>()->setActive(true);
@@ -244,6 +248,7 @@ void unrideCoaster() {
 	currentCoasterIndex = -1;
 	lockView = false;
 }
+// try activating a nearby roller-coaster
 void TryActivateNearestRollerCoaster() {
 	float minDistance = (float)INT_MAX;
 	int nearest = 0;
@@ -265,6 +270,7 @@ void TryActivateNearestRollerCoaster() {
 		printf("Roller coaster No.%i activated. \n", nearest + 1);
 	}
 }
+// rotates planet models
 void updatePlanetModel() {
 	planet0->transform->rotateAround(-0.05f, vec3(0, 1, 0), false);
 	vec3 pivot = planet0->transform->getPosition(true);
@@ -293,10 +299,11 @@ void idleFunc() {
 void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	// movement
 	HandleMoveInput();
 
-	sky->transform->rotateAround(0.01f, worldForward, true);
-
+	// animations
+	sky->transform->rotateAround(0.02f, worldForward, true);
 	updatePlanetModel();
 
 	// update entities
@@ -310,45 +317,45 @@ void keyboardFunc(unsigned char key, int x, int y) {
 			exit(0); // exit the program
 			break;
 		case ' ':
-			if (isControllingPlayer) HandleJumpInput();
-			else verticalMove = 1;
+			if (isControllingPlayer) HandleJumpInput(); // do jump
+			else verticalMove = 1; // move upward
 			break;
 		case 'w':
-			moveInput.x = 1;
+			moveInput.x = 1; // move forward
 			break;
 		case 's':
-			moveInput.y = 1;
+			moveInput.y = 1; // move backward
 			break;
 		case 'a':
-			moveInput.z = 1;
+			moveInput.z = 1; // move left
 			break;
 		case 'd':
-			moveInput.w = 1;
+			moveInput.w = 1; // move right
 			break;
 		case 'c':
-			verticalMove = -1;
+			verticalMove = -1; // move downward
 			break;
 			// toggle screenshots recording
 		case 'e':
-			if (currentCoasterIndex == -1) {
+			if (currentCoasterIndex == -1) { // ride
 				TryActivateNearestRollerCoaster();
 			}
-			else {
+			else { // unride
 				unrideCoaster();
 			}
 			break;
 		case 'r':
-			if (currentCoasterIndex != -1) {
-				lockView = !lockView;
+			if (currentCoasterIndex != -1) { // if riding
+				lockView = !lockView; // update locking status
 				if (lockView) {
-					ResetPlayerView();
+					ResetPlayerView(); // lock to default angles
 				}
 			}
 			break;
-		case 'x':
+		case 'x': // take screenshots
 			isTakingScreenshot = !isTakingScreenshot;
 			break;
-		case 'p':
+		case 'p': // switch between player and world camera
 			if (isControllingPlayer) {
 				worldCamera->getComponent<Camera>()->setCurrent();
 				isControllingPlayer = false;
@@ -383,23 +390,6 @@ void keyboardUpFunc(unsigned char key, int x, int y) {
 	}
 }
 void mouseButtonFunc(int button, int state, int x, int y) {
-	// a mouse button has has been pressed or depressed
-
-	// keep track of the mouse button state, in leftMouseButton, middleMouseButton, rightMouseButton variables
-	switch (button) {
-		case GLUT_LEFT_BUTTON:
-			leftMouseButton = (state == GLUT_DOWN);
-			break;
-
-		case GLUT_MIDDLE_BUTTON:
-			middleMouseButton = (state == GLUT_DOWN);
-			break;
-
-		case GLUT_RIGHT_BUTTON:
-			rightMouseButton = (state == GLUT_DOWN);
-			break;
-	}
-
 	// store the new mouse position
 	mousePos[0] = x;
 	mousePos[1] = y;
@@ -738,15 +728,20 @@ void initObjects() {
 	Entity* paifang = generatePaifang(vec4(168, 48, 37, 255), vec4(100, 4, 5, 255), vec4(66, 102, 102, 255));
 	paifang->transform->setPosition(vec3(0, 0, -60), true);
 
+	// init building group
 	initBuildings(5, 20, vec3(-400, 0, -600));
 	initBuildings(15, 3, vec3(-200, 0, -400));
 	initBuildings(15, 3, vec3(400, 0, -400));
 	initBuildings(10, 3, vec3(200, 0, -200));
 	initBuildings(10, 2, vec3(100, 0, -100));
 
+	// init planet models
 	initPlanetModel();
+
+	// init roller-coaster
 	initRollerCoaster();
 
+	// init skybox
 	sky = SceneManager::getInstance()->createSkybox(skyboxPipeline, getTexture("skybox"));
 	SceneManager::getInstance()->isLightingEnabled = true;
 }

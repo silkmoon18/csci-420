@@ -45,7 +45,7 @@ Extra Credit Features
 
 3. Made the track circular and closed it with C1 continuity - Y
 
-4. Any Additional Scene Elements? (list them here) - Y. An animated planet model(texture-mapped), street lamps(point lights), road(texture-mapped), buildings(texture-mapped) and a paifang.
+4. Any Additional Scene Elements? (list them here) - Y. An animated planet model(texture-mapped), street lamps(point lights), road(texture-mapped), buildings(texture-mapped) and a paifang model.
 
 5. Render a sky-box - Y. Animated(Rotates with time). 
 
@@ -55,13 +55,74 @@ Extra Credit Features
 
 8. Draw splines using recursive subdivision - Y.
 
-9. Render environment in a better manner - N.
+9. Render environment in a better manner - Y.
 
-10. Improved coaster normals - Y. Each face has its own normal.
+10. Improved coaster normals - N.
 
-11. Modify velocity with which the camera moves - Y. 
+11. Modify velocity with which the camera moves - Y. But not exactly using the given formula.
+
+    ```c++
+    void RollerCoaster::onUpdate() {
+    	// physical calculation
+    	float deltaTime = Timer::getInstance()->getDeltaTime();
+    	vec3 tangent = mix( // interpolates to get current tangent
+    		vertexTangents[currentVertexIndex],
+    		vertexTangents[currentVertexIndex % numOfVertices],
+    		currentSegmentProgress
+    	);
+    	float drag = dot(-tangent, Physics::GRAVITY); // drag speed at the given tangent
+    	speed -= drag * deltaTime;
+    	speed = std::max(speed, minSpeed);
+    	float step = speed * deltaTime; // final move step
+    
+    	// consume step
+    	while (step > 0) {
+    		float distanceToNext = // remaining distance to next vertex
+                vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress); 
+    		if (step < distanceToNext) break; // done if remaining step is not enough to move forward
+    
+    		// move to the next vertex and reset distance from current vertex
+    		step -= distanceToNext;
+    		currentSegmentProgress = 0;
+    		currentVertexIndex++;
+            
+            // if reach the last vertex
+    		if (currentVertexIndex == numOfVertices - 1) {
+                // if the roller-coaster is repeating
+    			if (!isRepeating) {
+    				step = 0;
+    				pause();
+    				reset(true);
+    			}
+                // else stop
+    			else {
+    				reset(false);
+    				start();
+    			}
+    		}
+    	}
+        // update progress between current and next vertices
+    	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+        
+        // update seat position
+        // in function moveSeat(), the position is calculated by interpolating the positions of current and next vertices by currentSegmentProgress
+    	moveSeat();
+    }
+    ```
+
+    
 
 12. Derive the steps that lead to the physically realistic equation of updating u - Y.
+
+    ```c++
+    let delta_h = maxHeight - currentHeight
+    1. delta_h = 0.5 * g * t^2 => t = sqrt(2 * delta_h / g)
+    2. velocity = a * t = g * t = g * sqrt(2 * delta_h / g) = sqrt(2 * g * delta_h)
+    3. from 1 and 2: d(delta_h) / dt = g * t => d(delta_h) = g * t * dt = dt * sqrt(2 * g * delta_h)
+    We know length(dp / du) = speed at u
+    Now parameterize d(delta_h) by speed at u, we get u_new - u_old.
+    Therefore, u_new = u_old + dt * sqrt(2 * g * delta_h) / length(dp / du)
+    ```
 
     
 
@@ -69,13 +130,15 @@ Additional Features: (Please document any additional features you may have imple
 1. Multiple light sources. (1 directional light and multiple point lights)
 2. Controllable player and a world camera.
 3. .sp contains only point positions, no need to include the number of points. track.txt contains only .sp file paths, no need to include the number of .sp files.
-4. Most details can be found in Utility.h and Utility.cpp. 
+4. All details can be found in Utility.h and Utility.cpp. 
 
 <img src="C:\Users\ybhba\AppData\Roaming\Typora\typora-user-images\image-20230302012314513.png" alt="image-20230302012314513" style="zoom:67%;" />
 
 Open-Ended Problems: (Please document approaches to any open-ended problems that you have tackled)
 
+1. Use quaternion to represent rotations of objects.
 
+   
 
 Keyboard/Mouse controls: (Please document Keyboard/Mouse controls if any)
 
@@ -85,15 +148,17 @@ Keyboard/Mouse controls: (Please document Keyboard/Mouse controls if any)
 
 3. Press c to move downward(world camera).
 
-4. Press e to start a roller-coaster. (Need to get close enough. Distance = 5 by default)
+4. Press e to ride a roller-coaster. (Need to get close enough. Distance = 5 by default)
 
-5. Press r to lock / unlock player's view when riding a roller-coaster.
+5. Press e to stop and reset a running roller-coaster. 
 
-6. Press p to switch between player and world camera.
+6. Press r to lock / unlock player's view when riding a roller-coaster.
 
-7. Rotate first-person view with mouse drag.
+7. Press p to switch between player and world camera.
 
-8. Press x to toggle screenshots recording. 
+8. Rotate first-person view with mouse drag.
+
+9. Press x to toggle screenshots recording. 
 
    
 

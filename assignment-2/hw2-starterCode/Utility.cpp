@@ -143,7 +143,7 @@ Shape makeSphere(float radius, int resolution) {
 			float s = fmod(sectorAngle, radians(360.0f)) / radians(360.0f);
 			float t = (fmod(stackAngle, radians(360.0f)) + radians(90.0f)) / radians(180.0f);
 			texCoords.push_back(vec2(s, t));
-			
+
 			sectorAngle += rad;
 			index = (i - 1) * resolution + j;
 
@@ -261,7 +261,7 @@ Shape makeTetrahedron(float width, float height) {
 		0, 1, 2,
 		3, 4, 5,
 		6, 7, 8,
-		9, 10, 11};
+		9, 10, 11 };
 
 	return Shape(positions, indices, normals, texCoords, drawMode);
 }
@@ -1197,7 +1197,7 @@ RollerCoaster::RollerCoaster(vector<Spline> splines, bool closedPath, float scal
 
 	// deactivated at defualt
 	setActive(false);
-}	
+}
 vec3 RollerCoaster::getStartPosition() {
 	return vertexPositions[0] + 3.0f * cross(vertexTangents[0], vertexNormals[0]) + entity->transform->getPosition(true);;
 }
@@ -1291,7 +1291,7 @@ void RollerCoaster::render(vec3 normal, vec4 crossbarColor, vec4 trackColor, vec
 		}
 	}
 	vertexNormals = pointNormals;
-	
+
 	makeTrack(0.3f, 0.05f, -0.5f, trackColor);
 	makeTrack(0.3f, 0.05f, 0.5f, trackColor);
 
@@ -1394,36 +1394,47 @@ void RollerCoaster::moveSeat() {
 void RollerCoaster::onUpdate() {
 	// physical calculation
 	float deltaTime = Timer::getInstance()->getDeltaTime();
-	float drag = dot(-vertexTangents[currentVertexIndex], Physics::GRAVITY);
+	vec3 tangent = mix( // interpolates to get current tangent
+					   vertexTangents[currentVertexIndex],
+					   vertexTangents[currentVertexIndex % numOfVertices],
+					   currentSegmentProgress
+	);
+	float drag = dot(-tangent, Physics::GRAVITY); // drag speed at the given tangent
 	speed -= drag * deltaTime;
-	if (speed < minSpeed) {
-		speed = minSpeed;
-	}
-	float step = speed * deltaTime;
+	speed = std::max(speed, minSpeed);
+	float step = speed * deltaTime; // final move step
 
 	// consume step
 	while (step > 0) {
-		float distanceToNext = vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
-		if (step < distanceToNext) break;
-
-		step -= distanceToNext;
+		float distanceToNext = // remaining distance to next vertex
+			vertexDistances[currentVertexIndex] * (1 - currentSegmentProgress);
+		if (step < distanceToNext) break; // done if remaining step is not enough to move forward
 
 		// move to the next vertex and reset distance from current vertex
+		step -= distanceToNext;
 		currentSegmentProgress = 0;
 		currentVertexIndex++;
+
+		// if reach the last vertex
 		if (currentVertexIndex == numOfVertices - 1) {
+			// if the roller-coaster is repeating
 			if (!isRepeating) {
 				step = 0;
 				pause();
 				reset(true);
 			}
+			// else stop
 			else {
 				reset(false);
 				start();
 			}
 		}
 	}
+	// update progress between current and next vertices
 	currentSegmentProgress += step / vertexDistances[currentVertexIndex];
+
+	// update seat position
+    // in function moveSeat(), the position is calculated by interpolating the positions of current and next vertices by currentSegmentProgress
 	moveSeat();
 }
 #pragma endregion
