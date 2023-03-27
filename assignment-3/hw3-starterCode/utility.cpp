@@ -22,6 +22,16 @@ const vector<Object*>& Scene::getObjects() { return objects; }
 const vector<Triangle*>& Scene::getTriangles() { return triangles; }
 const vector<Sphere*>& Scene::getSpheres() { return spheres; }
 const vector<Light*>& Scene::getLights() { return lights; }
+void Scene::sampleLights(int numOfSamples) {
+	vector<Light*> lightSamples;
+	for (int i = 0; i < lights.size(); i++) {
+		auto samples = lights[i]->getSamples(numOfSampleLights);
+		for (auto& s : samples) {
+			lightSamples.push_back(s);
+		}
+	}
+	lights = lightSamples;
+}
 #pragma endregion
 
 
@@ -189,64 +199,91 @@ vec3 OpticalScene::calculatePixelColor(const Pixel& pixel) {
 	//plot_pixel(x, y, color);
 
 }
-void OpticalScene::sampleLights() {
-	vector<Light*> samples;
-	for (auto& l : lights) {
-		auto s = l->getSamples(numOfSampleLights);
-		for (auto& sa : s) {
-			samples.push_back(sa);
-		}
-	}
-	lights = samples;
-}
 
 #pragma region OpticalScene
 void OpticalScene::draw() {
-	vector<vec3> colors;
-	for (unsigned int x = 0; x < WIDTH; x++) {
-		for (unsigned int y = 0; y < HEIGHT; y++) {
-			colors.push_back(ambient_light);
+	for (int i = 0; i < 1; i++) {
+		numOfCompletedPixels = 0;
+		numOfSampleLights = 1;
+		sampleLights(1);
+		numOfSampleLights = 1;
+
+		std::vector<std::thread> threads;
+		for (int j = 0; j < numOfThreads; j++) {
+			std::thread t(&Scene::drawPixels, this, j);
+			threads.push_back(std::move(t));
 		}
-	}
+		threads.push_back(move(thread(&Scene::printProgress, this)));
 
-
-	for (int i = 0; i < numOfSampleLights; i++) {
-		vector<Light*> samples;
-		for (int i = 0; i < lights.size(); i++) {
-			samples.push_back(lights[i]->getSamples(1)[0]);
+		for (auto& thread : threads) {
+			thread.join();
 		}
-		lights = samples;
+		threads.clear();
 
-		// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
-		vec3 startPosition;
-		startPosition.z = -1;
-		startPosition.y = -tan(radians(FOV / 2));
-		startPosition.x = ASPECT_RATIO * startPosition.y;
-		float pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
-		startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
+		cout << i + 1 << " done. " << endl;
 
-		vec3 pixelPosition = startPosition;
 		for (unsigned int x = 0; x < WIDTH; x++) {
-			pixelPosition.x += pixelSize;
-			pixelPosition.y = startPosition.y;
-
 			glPointSize(2.0);
 			glBegin(GL_POINTS);
 			for (unsigned int y = 0; y < HEIGHT; y++) {
-				pixelPosition.y += pixelSize;
-
-				vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
-
-				color /= color + 1.0f;
-				color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-				//plot_pixel(x, y, color);
+				int index = x * HEIGHT + y;
+				glColor3f(pixels[index].color.x,
+						  pixels[index].color.y,
+						  pixels[index].color.z);
+				glVertex2i(x, y);
 			}
+
 			glEnd();
 			glFlush();
 		}
-		printf("Done!\n");
-		fflush(stdout);
 	}
+	if (mode == MODE_JPEG)
+		save_jpg();
+	//vector<vec3> colors;
+	//for (unsigned int x = 0; x < WIDTH; x++) {
+	//	for (unsigned int y = 0; y < HEIGHT; y++) {
+	//		colors.push_back(ambient_light);
+	//	}
+	//}
+
+
+	//for (int i = 0; i < numOfSampleLights; i++) {
+	//	vector<Light*> samples;
+	//	for (int i = 0; i < lights.size(); i++) {
+	//		samples.push_back(lights[i]->getSamples(1)[0]);
+	//	}
+	//	lights = samples;
+
+	//	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
+	//	vec3 startPosition;
+	//	startPosition.z = -1;
+	//	startPosition.y = -tan(radians(FOV / 2));
+	//	startPosition.x = ASPECT_RATIO * startPosition.y;
+	//	float pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
+	//	startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
+
+	//	vec3 pixelPosition = startPosition;
+	//	for (unsigned int x = 0; x < WIDTH; x++) {
+	//		pixelPosition.x += pixelSize;
+	//		pixelPosition.y = startPosition.y;
+
+	//		glPointSize(2.0);
+	//		glBegin(GL_POINTS);
+	//		for (unsigned int y = 0; y < HEIGHT; y++) {
+	//			pixelPosition.y += pixelSize;
+
+	//			vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
+
+	//			color /= color + 1.0f;
+	//			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
+	//			//plot_pixel(x, y, color);
+	//		}
+	//		glEnd();
+	//		glFlush();
+	//	}
+	//	printf("Done!\n");
+	//	fflush(stdout);
+	//}
 
 }
 int OpticalScene::load(char* argv) {
