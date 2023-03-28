@@ -164,8 +164,8 @@ void Scene::display() {
 void Scene::save() {
 	// always save
 	filesystem::path inputPath = string(inputFilename);
-	string outputFilename = format("{}-aa{}-ls{}", 
-								   inputPath.filename().string(), numOfSubpixelsPerSide, numOfSampleLights);
+	string outputFilename = format("{}-aa{}-ls{}.jpg", 
+								   inputPath.stem().string(), numOfSubpixelsPerSide, numOfSampleLights);
 
 	printf("Saving JPEG file: %s\n", outputFilename.c_str());
 	for (auto& pixel : pixels) {
