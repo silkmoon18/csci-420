@@ -6,8 +6,12 @@ UTIL_CXX_SRC=utility.cpp
 UTIL_HEADER=utility.h
 UTIL_OBJ=$(notdir $(patsubst %.cpp,%.o,$(UTIL_CXX_SRC)))
 
-IMAGE_LIB_SRC=$(wildcard ../external/imageIO/*.cpp)
-IMAGE_LIB_HEADER=$(wildcard ../external/imageIO/*.h)
+EXTERNAL=external
+ifeq ($(shell uname), Darwin)
+	EXTERNAL=external-mac
+endif
+IMAGE_LIB_SRC=$(wildcard ../$(EXTERNAL)/imageIO/*.cpp)
+IMAGE_LIB_HEADER=$(wildcard ../$(EXTERNAL)/imageIO/*.h)
 IMAGE_LIB_OBJ=$(notdir $(patsubst %.cpp,%.o,$(IMAGE_LIB_SRC)))
 
 HEADER=$(HW3_HEADER) $(IMAGE_LIB_HEADER) $(UTIL_HEADER)
@@ -21,16 +25,16 @@ OPT=-O3
 UNAME_S=$(shell uname -s)
 
 ifeq ($(UNAME_S),Linux)
-  PLATFORM=Linux
-  INCLUDE=-I../external/glm/ -I../external/imageIO
-  LIB=-lGLEW -lGL -lglut -ljpeg
-  LDFLAGS=
+	PLATFORM=Linux
+	INCLUDE=-I../$(EXTERNAL)/glm/ -I../$(EXTERNAL)/imageIO
+	LIB=-lGLEW -lGL -lglut -ljpeg
+	LDFLAGS=
 else
-  PLATFORM=Mac OS
-  INCLUDE=-I../external/glm/ -I../external/imageIO -I../external/jpeg-9a-mac/include
-  LIB=-framework OpenGL -framework GLUT ../external/jpeg-9a-mac/lib/libjpeg.a
-  CXXFLAGS+= -Wno-deprecated-declarations
-  LDFLAGS=-Wl,-w
+	PLATFORM=Mac OS
+	INCLUDE=-I../$(EXTERNAL)/glm/ -I../$(EXTERNAL)/imageIO -I../$(EXTERNAL)/jpeg-9a-mac/include
+	LIB=-framework OpenGL -framework GLUT ../$(EXTERNAL)/jpeg-9a-mac/lib/libjpeg.a
+	CXXFLAGS+= -Wno-deprecated-declarations
+	LDFLAGS=-Wl,-w
 endif
 
 all: $(TARGET)
@@ -44,7 +48,7 @@ $(HW3_OBJ):%.o: %.cpp $(HEADER)
 $(UTIL_OBJ):%.o: %.cpp $(UTIL_HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
-$(IMAGE_LIB_OBJ):%.o: ../external/imageIO/%.cpp $(IMAGE_LIB_HEADER)
+$(IMAGE_LIB_OBJ):%.o: ../$(EXTERNAL)/imageIO/%.cpp $(IMAGE_LIB_HEADER)
 	$(CXX) -c $(CXXFLAGS) $(OPT) $(INCLUDE) $< -o $@
 
 clean:

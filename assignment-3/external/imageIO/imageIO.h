@@ -53,7 +53,7 @@ public:
   inline unsigned int getWidth() { return width; }
   inline unsigned int getHeight() { return height; }
   inline unsigned int getBytesPerPixel() { return bytesPerPixel; }
-  inline unsigned char * initializePixels() { return pixels; }
+  inline unsigned char * getPixels() { return pixels; }
   inline unsigned char getPixel(int x, int y, int channel) { return pixels[(y * width + x) * bytesPerPixel + channel]; }
 
   // error codes
