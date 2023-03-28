@@ -7,22 +7,195 @@ uniform_real_distribution<double> distrib(0.0, 1.0 - 1e-8);
 
 
 
+
+void printProgress(Scene* scene) {
+	string info;
+	float deltaTime = 0.0f;
+	while (true) {
+		Timer::getInstance()->update();
+
+		deltaTime += Timer::getInstance()->getDeltaTime();
+		if (deltaTime < 1.0f) continue;
+
+		deltaTime = 0.0f;
+		printf("\r%s", string(info.length(), ' ').c_str());
+
+		info = scene->getProgressInfo();
+		printf("\r%s", info.c_str());
+
+		if (info.empty()) {
+			printf("\n");
+			break;
+		}
+	}
+}
+void parse_check(const char* expected, char* found) {
+	if (strcasecmp(expected, found)) {
+		printf("Expected '%s ' found '%s '\n", expected, found);
+		printf("Parse error, abnormal abortion\n");
+		exit(0);
+	}
+}
+void parse_vec3(FILE* file, const char* check, vec3& vec) {
+	char str[100];
+	fscanf(file, "%s", str);
+	parse_check(check, str);
+	fscanf(file, "%f %f %f", &vec.x, &vec.y, &vec.z);
+	printf("%s %f %f %f\n", check, vec.x, vec.y, vec.z);
+}
+void parse_float(FILE* file, const char* check, float& f) {
+	char str[512];
+	int ret = fscanf(file, "%s", str);
+	ASERT(ret == 1);
+
+	parse_check(check, str);
+
+	ret = fscanf(file, "%f", &f);
+	ASERT(ret == 1);
+
+	printf("%s %f\n", check, f);
+}
+void parse_rad(FILE* file, float* r) {
+	char str[100];
+	fscanf(file, "%s", str);
+	parse_check("rad:", str);
+	fscanf(file, "%f", r);
+	printf("rad: %f\n", *r);
+}
+void parse_shi(FILE* file, float* shi) {
+	char s[100];
+	fscanf(file, "%s", s);
+	parse_check("shi:", s);
+	fscanf(file, "%f", shi);
+	printf("shi: %f\n", *shi);
+}
+
+
+int isPositive(float number) {
+	if (number > 0) return 1;
+	else return 0;
+}
+int sign(float number) {
+	if (number > 0) return 1;
+	if (number < 0) return -1;
+	return 0;
+}
+float getRandom() {
+	return distrib(eng);
+}
+float getRandom(float min, float max) {
+	float f = getRandom();
+	return min + f * (max - min);
+}
+vec3 getRandom(vec3 min, vec3 max) {
+	return vec3(getRandom(min.x, max.x),
+				getRandom(min.y, max.y),
+				getRandom(min.z, max.z));
+}
+float calculateArea(vec3 a, vec3 b, vec3 c) {
+	return 0.5f * (((b.x - a.x) * (c.y - a.y)) - ((c.x - a.x) * (b.y - a.y)));
+}
+int compare(float f1, float f2) {
+	int result = 1;
+	float diff = f1 - f2;
+	if (diff < 0) result = -1;
+	if (abs(diff) <= EPSILON) result = 0;
+	return result;
+}
+
+
+
+
+
 #pragma region Timer
 float Timer::getDeltaTime() {
 	return deltaTime;
 }
-void Timer::setCurrentTime(int currentTime) {
-	deltaTime = (currentTime - previousTime) / 1000.0f;
+void Timer::update() {
+	float currentTime = getCurrentTime();
+	deltaTime = currentTime - previousTime;
 	previousTime = currentTime;
 }
+float Timer::getCurrentTime() {
+	return glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+}
 #pragma endregion
+
 
 #pragma region Scene
 const vector<Object*>& Scene::getObjects() { return objects; }
 const vector<Triangle*>& Scene::getTriangles() { return triangles; }
 const vector<Sphere*>& Scene::getSpheres() { return spheres; }
 const vector<Light*>& Scene::getLights() { return lights; }
-void Scene::sampleLights(int numOfSamples) {
+void Scene::setAntiAliasingLevel(int antiAliasingLevel) {
+	numOfSubpixelsPerSide = std::max(0, (int)pow(2, std::max(0, antiAliasingLevel)));
+}
+void Scene::setSoftShadowLevel(int softShadowLevel) {
+	numOfSampleLights = std::max(1, (int)pow(2, std::max(0, softShadowLevel)));
+}
+void Scene::setNumOfThreads(int num) {
+	numOfThreads = std::max(1, num);
+}
+void Scene::render() {
+	initializePixels();
+	sampleLights();
+
+	startTime = Timer::getInstance()->getCurrentTime();
+	process();
+
+	display();
+	save();
+
+	printf("Done. ");
+}
+void Scene::display() {
+	// display only on display mode
+	if (mode != MODE_DISPLAY) return;
+
+	glPointSize(2.0);
+	glBegin(GL_POINTS);
+	for (auto& pixel : pixels) {
+		glColor3f(pixel.color.x, pixel.color.y, pixel.color.z);
+		glVertex2i(pixel.index.x, pixel.index.y);
+	}
+	glEnd();
+	glFlush();
+}
+void Scene::save() {
+	// always save
+	filesystem::path inputPath = string(inputFilename);
+	string outputFilename = format("{}-aa{}-ls{}", 
+								   inputPath.filename().string(), numOfSubpixelsPerSide, numOfSampleLights);
+
+	printf("Saving JPEG file: %s\n", outputFilename.c_str());
+	for (auto& pixel : pixels) {
+		vec3 color = clamp(pixel.color * 255.0f, vec3(0.0f), vec3(255.0f));
+		buffer[pixel.index.y][pixel.index.x][0] = (int)color.x;
+		buffer[pixel.index.y][pixel.index.x][1] = (int)color.y;
+		buffer[pixel.index.y][pixel.index.x][2] = (int)color.z;
+	}
+
+	ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
+	if (img.save(outputFilename.c_str(), ImageIO::FORMAT_JPEG) != ImageIO::OK)
+		printf("Error in Saving\n");
+	else
+		printf("File saved Successfully\n");
+}
+string Scene::getProgressInfo() {
+	string info;
+
+	int progress = (float)numOfCompletedPixels / pixels.size() * 100;
+	if (progress < 100) {
+		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
+		int timeRemaining = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
+
+		info = format("\r{}% ({} / {}) {} pixels / s {} remaining",
+					  progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, timeRemaining);
+	}
+
+	return info;
+}
+void Scene::sampleLights() {
 	vector<Light*> lightSamples;
 	for (int i = 0; i < lights.size(); i++) {
 		auto samples = lights[i]->getSamples(numOfSampleLights);
@@ -32,12 +205,7 @@ void Scene::sampleLights(int numOfSamples) {
 	}
 	lights = lightSamples;
 }
-#pragma endregion
-
-
-#pragma region PhongScene
-void PhongScene::draw() {
-	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
+void Scene::initializePixels() {
 	vec3 startPosition;
 	startPosition.z = -1;
 	startPosition.y = -tan(radians(FOV / 2));
@@ -45,35 +213,51 @@ void PhongScene::draw() {
 	float pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
 	startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
 
-	vec3 pixelPosition = startPosition;
+	Pixel base;
+	base.position = startPosition;
 	for (unsigned int x = 0; x < WIDTH; x++) {
-		pixelPosition.x += pixelSize;
-		pixelPosition.y = startPosition.y;
+		base.position.x += pixelSize;
+		base.position.y = startPosition.y;
 
-		glPointSize(2.0);
-		glBegin(GL_POINTS);
 		for (unsigned int y = 0; y < HEIGHT; y++) {
-			pixelPosition.y += pixelSize;
+			base.position.y += pixelSize;
 
-			vec3 color = ambient_light;
-			if (useSSAA) {
-				color = superSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
-			}
-			else {
-				Ray ray(vec3(0), pixelPosition);
-				color = ray.calculateRayColor(this);
-			}
-
-			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-			//plot_pixel(x, y, color);
+			Pixel pixel;
+			pixel.position = base.position;
+			pixel.index = vec2(x, y);
+			pixel.size = pixelSize;
+			pixel.color = vec3(0);
+			pixels.push_back(pixel);
 		}
-		glEnd();
-		glFlush();
 	}
-	printf("Done!\n"); fflush(stdout);
 }
+void Scene::drawPixels(int threadIndex) {
+	int pixelsPerThread = pixels.size() / numOfThreads;
+	int start = threadIndex * pixelsPerThread;
+	int end = (threadIndex + 1) * pixelsPerThread;
+
+	for (int i = start; i < end; i++) {
+		calculatePixelColor(pixels[i]);
+		numOfCompletedPixels++;
+	}
+}
+void Scene::process() {
+	vector<thread> threads;
+	for (int i = 0; i < numOfThreads; i++) {
+		threads.emplace_back(&Scene::drawPixels, this, i);
+	}
+	printProgress(this);
+	for (auto& thread : threads) {
+		thread.join();
+	}
+}
+#pragma endregion
+
+
+#pragma region PhongScene
 int PhongScene::load(char* argv) {
 	FILE* file = fopen(argv, "r");
+	inputFilename = argv;
 	int number_of_objects;
 	char type[50];
 	fscanf(file, "%i", &number_of_objects);
@@ -125,9 +309,11 @@ int PhongScene::load(char* argv) {
 			exit(0);
 		}
 	}
-	//lights = sampleLights();
 
 	return 0;
+}
+void PhongScene::calculatePixelColor(Pixel& pixel) {
+	pixel.color = superSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
 }
 Triangle* PhongScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse, specular;
@@ -190,104 +376,10 @@ vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pi
 #pragma endregion
 
 
-// test
-vec3 OpticalScene::calculatePixelColor(const Pixel& pixel) {
-	vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
-	color /= numOfSampleLights;
-	color /= color + 1.0f;
-	return color;
-	//plot_pixel(x, y, color);
-
-}
-
 #pragma region OpticalScene
-void OpticalScene::draw() {
-	for (int i = 0; i < 1; i++) {
-		numOfCompletedPixels = 0;
-		numOfSampleLights = 1;
-		sampleLights(1);
-		numOfSampleLights = 1;
-
-		std::vector<std::thread> threads;
-		for (int j = 0; j < numOfThreads; j++) {
-			std::thread t(&Scene::drawPixels, this, j);
-			threads.push_back(std::move(t));
-		}
-		threads.push_back(move(thread(&Scene::printProgress, this)));
-
-		for (auto& thread : threads) {
-			thread.join();
-		}
-		threads.clear();
-
-		cout << i + 1 << " done. " << endl;
-
-		for (unsigned int x = 0; x < WIDTH; x++) {
-			glPointSize(2.0);
-			glBegin(GL_POINTS);
-			for (unsigned int y = 0; y < HEIGHT; y++) {
-				int index = x * HEIGHT + y;
-				glColor3f(pixels[index].color.x,
-						  pixels[index].color.y,
-						  pixels[index].color.z);
-				glVertex2i(x, y);
-			}
-
-			glEnd();
-			glFlush();
-		}
-	}
-	if (mode == MODE_JPEG)
-		save_jpg();
-	//vector<vec3> colors;
-	//for (unsigned int x = 0; x < WIDTH; x++) {
-	//	for (unsigned int y = 0; y < HEIGHT; y++) {
-	//		colors.push_back(ambient_light);
-	//	}
-	//}
-
-
-	//for (int i = 0; i < numOfSampleLights; i++) {
-	//	vector<Light*> samples;
-	//	for (int i = 0; i < lights.size(); i++) {
-	//		samples.push_back(lights[i]->getSamples(1)[0]);
-	//	}
-	//	lights = samples;
-
-	//	// calculate pixel start position, which is at x = -1, y = -1 (outside of the image).
-	//	vec3 startPosition;
-	//	startPosition.z = -1;
-	//	startPosition.y = -tan(radians(FOV / 2));
-	//	startPosition.x = ASPECT_RATIO * startPosition.y;
-	//	float pixelSize = abs(2 * startPosition.y / HEIGHT); // calculate pixel size
-	//	startPosition -= vec3(pixelSize / 2, pixelSize / 2, 0);
-
-	//	vec3 pixelPosition = startPosition;
-	//	for (unsigned int x = 0; x < WIDTH; x++) {
-	//		pixelPosition.x += pixelSize;
-	//		pixelPosition.y = startPosition.y;
-
-	//		glPointSize(2.0);
-	//		glBegin(GL_POINTS);
-	//		for (unsigned int y = 0; y < HEIGHT; y++) {
-	//			pixelPosition.y += pixelSize;
-
-	//			vec3 color = stratifiedSample(numOfSubpixelsPerSide, pixelSize, pixelPosition);
-
-	//			color /= color + 1.0f;
-	//			color = clamp(color * 255.0f, vec3(0.0f), vec3(255.0f));
-	//			//plot_pixel(x, y, color);
-	//		}
-	//		glEnd();
-	//		glFlush();
-	//	}
-	//	printf("Done!\n");
-	//	fflush(stdout);
-	//}
-
-}
 int OpticalScene::load(char* argv) {
 	FILE* file = fopen(argv, "r");
+	inputFilename = argv;
 	int number_of_objects;
 	char type[50];
 	fscanf(file, "%i", &number_of_objects);
@@ -342,6 +434,11 @@ int OpticalScene::load(char* argv) {
 	//lights = sampleLights();
 
 	return 0;
+}
+void OpticalScene::calculatePixelColor(Pixel& pixel) {
+	pixel.color = stratifiedSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
+	pixel.color /= numOfSampleLights;
+	pixel.color /= pixel.color + 1.0f;
 }
 Triangle* OpticalScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse;
@@ -443,7 +540,7 @@ vec3 PhongMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 		local += calculatePhongShading(position, lights[i]);
 	}
 
-	if (scene->useGlobalLighting) {
+	if (scene->isGlobalLightingEnabled) {
 		ray.reflects(position, normal);
 		vec3 reflection = ray.calculateRayColor(scene);
 		color = (1 - ks) * local + ks * reflection;
@@ -672,21 +769,29 @@ float Light::area() {
 vector<Light*> Light::getSamples(int numOfSamples) {
 	vector<Light*> samples;
 
-	if (numOfSamples <= 0) {
+	if (numOfSamples <= 1) {
 		samples.push_back(this);
 	}
 	else {
 		for (int j = 0; j < numOfSamples; j++) {
+			vec3 pos;
+			float U1 = getRandom();
 			float U2 = getRandom();
-			float U3 = getRandom();
-
-			vec3 p0 = p[0];
-			vec3 p1 = p[1];
-			vec3 p2 = p[2];
-			vec3 p3 = p[3];
-			vec3 pos = (1 - U2) * (p0 * (1 - U3) + p1 * U3) + U2 * (p2 * (1 - U3) + p3 * U3);
-
-			Light* sample = new Light(pos, color, normal, p);
+			if (p.size() < 3) {
+				float U3 = getRandom();
+				U1 -= 0.5f;
+				U2 -= 0.5f;
+				U3 -= 0.5f;
+				pos = position + vec3(U1, U2, U3);
+			}
+			else {
+				vec3 p0 = p[0];
+				vec3 p1 = p[1];
+				vec3 p2 = p[2];
+				vec3 p3 = p[3];
+				pos = (1 - U1) * (p0 * (1 - U2) + p1 * U2) + U1 * (p2 * (1 - U2) + p3 * U2);
+			}
+			Light* sample = new Light(pos, color / (float)numOfSamples, normal, p);
 			samples.push_back(sample);
 		}
 	}
@@ -750,79 +855,3 @@ vec3 Ray::calculateRayColor(Scene* scene) {
 	return color;
 }
 #pragma endregion
-
-
-int isPositive(float number) {
-	if (number > 0) return 1;
-	else return 0;
-}
-int sign(float number) {
-	if (number > 0) return 1;
-	if (number < 0) return -1;
-	return 0;
-}
-float getRandom() {
-	return distrib(eng);
-}
-float getRandom(float min, float max) {
-	float f = getRandom();
-	return min + f * (max - min);
-}
-vec3 getRandom(vec3 min, vec3 max) {
-	return vec3(getRandom(min.x, max.x),
-				getRandom(min.y, max.y),
-				getRandom(min.z, max.z));
-}
-float calculateArea(vec3 a, vec3 b, vec3 c) {
-	return 0.5f * (((b.x - a.x) * (c.y - a.y)) - ((c.x - a.x) * (b.y - a.y)));
-}
-int compare(float f1, float f2) {
-	int result = 1;
-	float diff = f1 - f2;
-	if (diff < 0) result = -1;
-	if (abs(diff) <= EPSILON) result = 0;
-	return result;
-}
-
-
-void parse_check(const char* expected, char* found) {
-	if (strcasecmp(expected, found)) {
-		printf("Expected '%s ' found '%s '\n", expected, found);
-		printf("Parse error, abnormal abortion\n");
-		exit(0);
-	}
-}
-void parse_vec3(FILE* file, const char* check, vec3& vec) {
-	char str[100];
-	fscanf(file, "%s", str);
-	parse_check(check, str);
-	fscanf(file, "%f %f %f", &vec.x, &vec.y, &vec.z);
-	printf("%s %f %f %f\n", check, vec.x, vec.y, vec.z);
-}
-void parse_float(FILE* file, const char* check, float& f) {
-	char str[512];
-	int ret = fscanf(file, "%s", str);
-	ASERT(ret == 1);
-
-	parse_check(check, str);
-
-	ret = fscanf(file, "%f", &f);
-	ASERT(ret == 1);
-
-	printf("%s %f\n", check, f);
-}
-
-void parse_rad(FILE* file, float* r) {
-	char str[100];
-	fscanf(file, "%s", str);
-	parse_check("rad:", str);
-	fscanf(file, "%f", r);
-	printf("rad: %f\n", *r);
-}
-void parse_shi(FILE* file, float* shi) {
-	char s[100];
-	fscanf(file, "%s", s);
-	parse_check("shi:", s);
-	fscanf(file, "%f", shi);
-	printf("shi: %f\n", *shi);
-}

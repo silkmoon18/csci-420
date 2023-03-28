@@ -9,8 +9,8 @@
 
 
 
-
-OpticalScene* scene = new OpticalScene();
+vector<const char*> inputFiles;
+Scene* scene;
 
 
 
@@ -33,7 +33,8 @@ void idle() {
 	if (!once) {
 		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-		scene->draw();
+
+		scene->render();
 
 
 		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -42,23 +43,127 @@ void idle() {
 	once = 1;
 }
 
+void readMode() {
+	int type = 0;
+
+	cout << "\n1. Single file\n2. Multiple files\n";
+	while (true) {
+		cout << "Choose a process mode: \n";
+		cin >> type;
+		if (type == 1) {
+			char ans;
+			while (true) {
+				cout << "Do you want to display the result? (Y/N) \n";
+				cin >> ans;
+				ans = tolower(ans);
+				if (ans == 'y') {
+					scene->mode = MODE_DISPLAY;
+					break;
+				}
+				else if (ans == 'n') {
+					scene->mode = MODE_JPEG;
+					break;
+				}
+				cout << ans << " is not valid.\n";
+			}
+			cout << endl;
+			break;
+		}
+		else if (type == 2) {
+			scene->mode = MODE_JPEG;
+			break;
+		}
+		cout << type << " is not valid.\n";
+	}
+	cout << endl;
+}
+void readSceneType() {
+	int type = 0;
+
+	cout << "\n1. Phong\n2. Optical\n";
+	while (true) {
+		cout << "Choose a scene type: \n";
+		cin >> type;
+
+		if (type == 1) {
+			scene = new PhongScene();
+			break;
+		}
+		else if (type == 2) {
+			scene = new OpticalScene();
+			break;
+		}
+		cout << type << " is not valid.\n";
+	}
+	cout << endl;
+}
+void readFiles() {
+	string path;
+	while (true) {
+		cout << "Enter the path to a scene file or a directory containing scene files: \n";
+		cin >> path;
+
+		filesystem::path input = path;
+		if (filesystem::is_directory(input)) {
+			for (const auto& entry : filesystem::directory_iterator(input)) {
+				filesystem::path p = entry.path();
+
+				string extension = p.extension().string();
+				if (extension == ".scene") {
+					inputFiles.push_back(p.string().c_str());
+				}
+			}
+			int size = inputFiles.size();
+			if (size > 0) {
+				printf("Found %d scene files in %s. \n", size, path.c_str());
+				break;
+			}
+			printf("No scene files are found in %s. \n", path.c_str());
+		}
+		else if (input.extension().string() == ".scene") {
+			inputFiles.push_back(input.string().c_str());
+			printf("Input file: %s\n", input.string().c_str());
+			break;
+		}
+		printf("%s is not a valid path. \n", path.c_str());
+	}
+}
+void readAntiAliasingLevel() {
+	int level = 0;
+	cout << "Enter the level of anti-aliasing (# subpixels = 2 ^ antiAliasingLevel): \n";
+	cin >> level;
+	scene->setAntiAliasingLevel(level);
+}
+void readSoftShadowLevel() {
+	int level = 0;
+	cout << "Enter the level of soft shadows (# light samples = 2 ^ softShadowLevel): \n";
+	cin >> level;
+	scene->setSoftShadowLevel(level);
+}
+void readThreadNumber() {
+	int num = 0;
+	cout << "Enter the number of threads to use: \n";
+	cin >> num;
+	scene->setNumOfThreads(num);
+}
+
 int main(int argc, char** argv) {
-	if ((argc < 2) || (argc > 3)) {
-		printf("Usage: %s <input scenefile> [output jpegname]\n", argv[0]);
-		exit(0);
-	}
-	if (argc == 3) {
-		scene->mode = MODE_JPEG;
-		scene->filename = argv[2];
-	}
-	else if (argc == 2) {
-		scene->mode = MODE_DISPLAY;
-	}
-	printf("Input file: %s\n", argv[1]);
+	readSceneType();
+
+	readMode();
+
+	readFiles();
+
+	readAntiAliasingLevel();
+
+	readSoftShadowLevel();
+
+	readThreadNumber();
+
+
 
 	glutInit(&argc, argv);
 
-	scene->initializePixels();
 	scene->load(argv[1]);
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_SINGLE);
