@@ -188,7 +188,7 @@ public:
 		while (true) {
 			timer.setCurrentTime(glutGet(GLUT_ELAPSED_TIME));
 			int progress = int((float)numOfCompletedPixels / pixels.size() * 100);
-			printf("\r%d%% (%d / %lu)", progress, (int)numOfCompletedPixels, pixels.size());
+			printf("\r%d%% (%d / %d)", progress, (int)numOfCompletedPixels, pixels.size());
 
 			if (progress == 100) {
 				printf("\n");
@@ -228,7 +228,7 @@ public:
 	}
 
 	void drawPixel(Pixel& pixel) {
-		pixel.color = calculatePixelColor(pixel);
+		pixel.color += calculatePixelColor(pixel);
 
 		numOfCompletedPixels++;
 	}
@@ -271,7 +271,6 @@ protected:
 	vector<Triangle*> triangles;
 	vector<Sphere*> spheres;
 	vector<Light*> lights;
-	vector<Light*> lightSamples;
 	void sampleLights(int numOfSamples);
 };
 
@@ -317,7 +316,6 @@ public:
 	float metallic;
 
 	Material(vec3 normal, vec3 diffuse);
-	virtual ~Material() = default;
 
 	virtual Material* clone() = 0;
 	virtual vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) = 0;
