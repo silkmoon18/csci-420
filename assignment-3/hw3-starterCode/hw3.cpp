@@ -9,7 +9,7 @@
 
 
 
-vector<const char*> inputFiles;
+vector<string> inputFiles;
 Scene* scene;
 
 
@@ -31,58 +31,24 @@ void idle() {
 	//hack to make it only draw once
 	static int once = 0;
 	if (!once) {
-		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+		for (int i = 0; i < inputFiles.size(); i++) {
+			float start = Timer::getInstance()->getCurrentTime();
 
+			scene->clear();
+			scene->load(inputFiles[i].c_str());
+			scene->render();
 
-		scene->render();
-
-
-		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		printf("delta time = %fs\n", std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() * 1e-6);
+			printf("Time cost: %.2fs\n", Timer::getInstance()->getCurrentTime() - start);
+		}
 	}
 	once = 1;
 }
 
-void readMode() {
-	int type = 0;
-
-	cout << "\n1. Single file\n2. Multiple files\n";
-	while (true) {
-		cout << "Choose a process mode: \n";
-		cin >> type;
-		if (type == 1) {
-			char ans;
-			while (true) {
-				cout << "Do you want to display the result? (Y/N) \n";
-				cin >> ans;
-				ans = tolower(ans);
-				if (ans == 'y') {
-					scene->mode = MODE_DISPLAY;
-					break;
-				}
-				else if (ans == 'n') {
-					scene->mode = MODE_JPEG;
-					break;
-				}
-				cout << ans << " is not valid.\n";
-			}
-			cout << endl;
-			break;
-		}
-		else if (type == 2) {
-			scene->mode = MODE_JPEG;
-			break;
-		}
-		cout << type << " is not valid.\n";
-	}
-	cout << endl;
-}
 void readSceneType() {
 	int type = 0;
-
-	cout << "\n1. Phong\n2. Optical\n";
+	cout << "1. Phong\n2. Optical\n";
 	while (true) {
-		cout << "Choose a scene type: \n";
+		cout << "Choose a scene type: ";
 		cin >> type;
 
 		if (type == 1) {
@@ -93,7 +59,7 @@ void readSceneType() {
 			scene = new OpticalScene();
 			break;
 		}
-		cout << type << " is not valid.\n";
+		cout << endl << type << " is not valid.\n";
 	}
 	cout << endl;
 }
@@ -110,11 +76,13 @@ void readFiles() {
 
 				string extension = p.extension().string();
 				if (extension == ".scene") {
-					inputFiles.push_back(p.string().c_str());
+					printf("Found scene: %s\n", p.filename().string().c_str());
+					inputFiles.push_back(p.string());
 				}
 			}
 			int size = inputFiles.size();
 			if (size > 0) {
+				scene->mode = MODE_DISPLAY;
 				printf("Found %d scene files in %s. \n", size, path.c_str());
 				break;
 			}
@@ -122,35 +90,49 @@ void readFiles() {
 		}
 		else if (input.extension().string() == ".scene") {
 			inputFiles.push_back(input.string().c_str());
-			printf("Input file: %s\n", input.string().c_str());
+
+			char ans;
+			while (true) {
+				cout << "Do you want to display the result? (Y/N) ";
+				cin >> ans;
+				ans = tolower(ans);
+				if (ans == 'y') {
+					scene->mode = MODE_DISPLAY;
+					break;
+				}
+				else if (ans == 'n') {
+					scene->mode = MODE_JPEG;
+					break;
+				}
+				cout << ans << " is not valid.\n";
+			}
 			break;
 		}
 		printf("%s is not a valid path. \n", path.c_str());
 	}
+	cout << endl;
 }
 void readAntiAliasingLevel() {
 	int level = 0;
-	cout << "Enter the level of anti-aliasing (# subpixels = 2 ^ antiAliasingLevel): \n";
+	cout << "Enter the level of anti-aliasing (# subpixels = 2 ^ antiAliasingLevel): ";
 	cin >> level;
 	scene->setAntiAliasingLevel(level);
 }
 void readSoftShadowLevel() {
 	int level = 0;
-	cout << "Enter the level of soft shadows (# light samples = 2 ^ softShadowLevel): \n";
+	cout << "Enter the level of soft shadows (# light samples = 2 ^ softShadowLevel): ";
 	cin >> level;
 	scene->setSoftShadowLevel(level);
 }
 void readThreadNumber() {
 	int num = 0;
-	cout << "Enter the number of threads to use: \n";
+	cout << "Enter the number of threads to use: ";
 	cin >> num;
 	scene->setNumOfThreads(num);
 }
 
 int main(int argc, char** argv) {
 	readSceneType();
-
-	readMode();
 
 	readFiles();
 
@@ -160,11 +142,7 @@ int main(int argc, char** argv) {
 
 	readThreadNumber();
 
-
-
 	glutInit(&argc, argv);
-
-	scene->load(argv[1]);
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_SINGLE);
 	glutInitWindowPosition(0, 0);

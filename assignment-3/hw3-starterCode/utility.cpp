@@ -23,8 +23,9 @@ void printProgress(Scene* scene) {
 		info = scene->getProgressInfo();
 		printf("\r%s", info.c_str());
 
+		scene->display();
 		if (info.empty()) {
-			printf("\n");
+			printf("Done\n");
 			break;
 		}
 	}
@@ -41,33 +42,26 @@ void parse_vec3(FILE* file, const char* check, vec3& vec) {
 	fscanf(file, "%s", str);
 	parse_check(check, str);
 	fscanf(file, "%f %f %f", &vec.x, &vec.y, &vec.z);
-	printf("%s %f %f %f\n", check, vec.x, vec.y, vec.z);
 }
 void parse_float(FILE* file, const char* check, float& f) {
 	char str[512];
 	int ret = fscanf(file, "%s", str);
 	ASERT(ret == 1);
-
 	parse_check(check, str);
-
 	ret = fscanf(file, "%f", &f);
 	ASERT(ret == 1);
-
-	printf("%s %f\n", check, f);
 }
 void parse_rad(FILE* file, float* r) {
 	char str[100];
 	fscanf(file, "%s", str);
 	parse_check("rad:", str);
 	fscanf(file, "%f", r);
-	printf("rad: %f\n", *r);
 }
 void parse_shi(FILE* file, float* shi) {
 	char s[100];
 	fscanf(file, "%s", s);
 	parse_check("shi:", s);
 	fscanf(file, "%f", shi);
-	printf("shi: %f\n", *shi);
 }
 
 
@@ -141,12 +135,10 @@ void Scene::render() {
 	sampleLights();
 
 	startTime = Timer::getInstance()->getCurrentTime();
+	printf("Rendering %s... \n", inputFilename);
 	process();
 
-	display();
 	save();
-
-	printf("Done. ");
 }
 void Scene::display() {
 	// display only on display mode
@@ -165,8 +157,11 @@ void Scene::save() {
 	// always save
 	filesystem::path inputPath = string(inputFilename);
 	char outputFilename[100];
-	sprintf(outputFilename, "%s-aa%d-ls%d.jpg",
-			inputPath.stem().string().c_str(), numOfSubpixelsPerSide, numOfSampleLights);
+	sprintf(outputFilename, "%s\\%s-aa%d-ls%d.jpg",
+			inputPath.parent_path().string().c_str(), 
+			inputPath.stem().string().c_str(), 
+			numOfSubpixelsPerSide, 
+			numOfSampleLights);
 
 	printf("Saving JPEG file: %s\n", outputFilename);
 	for (auto& pixel : pixels) {
@@ -181,6 +176,21 @@ void Scene::save() {
 		printf("Error in Saving\n");
 	else
 		printf("File saved Successfully\n");
+}
+void Scene::clear() {
+	for (auto& obj : objects) {
+		delete obj;
+	}
+	objects.clear();
+	spheres.clear();
+	triangles.clear();
+
+	for (auto& l : lights) {
+		delete l;
+	}
+	lights.clear();
+
+	numOfCompletedPixels = 0;
 }
 string Scene::getProgressInfo() {
 	string info;
@@ -260,23 +270,20 @@ void Scene::process() {
 
 
 #pragma region PhongScene
-int PhongScene::load(char* argv) {
+int PhongScene::load(const char* argv) {
 	FILE* file = fopen(argv, "r");
-	inputFilename = argv;
+	inputFilename = (char*)argv;
 	int number_of_objects;
 	char type[50];
 	fscanf(file, "%i", &number_of_objects);
 
-	printf("number of objects: %i\n", number_of_objects);
+	printf("\nNumber of objects: %i\n", number_of_objects);
 
 	parse_vec3(file, "amb:", ambient_light);
 
 	for (int i = 0; i < number_of_objects; i++) {
 		fscanf(file, "%s\n", type);
-		printf("%s\n", type);
 		if (strcasecmp(type, "triangle") == 0) {
-			printf("found triangle\n");
-
 			Triangle* t = parseTriangle(file);
 
 			if (triangles.size() == MAX_TRIANGLES) {
@@ -287,8 +294,6 @@ int PhongScene::load(char* argv) {
 			objects.push_back(t);
 		}
 		else if (strcasecmp(type, "sphere") == 0) {
-			printf("found sphere\n");
-
 			Sphere* s = parseSphere(file);
 
 			if (spheres.size() == MAX_SPHERES) {
@@ -299,8 +304,6 @@ int PhongScene::load(char* argv) {
 			objects.push_back(s);
 		}
 		else if (strcasecmp(type, "light") == 0) {
-			printf("found light\n");
-
 			Light* l = parseLight(file);
 
 			if (lights.size() == MAX_LIGHTS) {
@@ -382,24 +385,21 @@ vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pi
 
 
 #pragma region OpticalScene
-int OpticalScene::load(char* argv) {
+int OpticalScene::load(const char* argv) {
 	FILE* file = fopen(argv, "r");
-	inputFilename = argv;
+	inputFilename = (char*)argv;
 	int number_of_objects;
 	char type[50];
 	fscanf(file, "%i", &number_of_objects);
 
-	printf("number of objects: %i\n", number_of_objects);
+	printf("\nnumber of objects: %i\n", number_of_objects);
 
 	parse_vec3(file, "amb:", ambient_light);
 	parse_vec3(file, "f0:", F0);
 
 	for (int i = 0; i < number_of_objects; i++) {
 		fscanf(file, "%s\n", type);
-		printf("%s\n", type);
 		if (strcasecmp(type, "triangle") == 0) {
-			printf("found triangle\n");
-
 			Triangle* t = parseTriangle(file);
 
 			if (triangles.size() == MAX_TRIANGLES) {
@@ -410,8 +410,6 @@ int OpticalScene::load(char* argv) {
 			objects.push_back(t);
 		}
 		else if (strcasecmp(type, "sphere") == 0) {
-			printf("found sphere\n");
-
 			Sphere* s = parseSphere(file);
 			if (spheres.size() == MAX_SPHERES) {
 				printf("too many spheres, you should increase MAX_SPHERES!\n");
@@ -421,8 +419,6 @@ int OpticalScene::load(char* argv) {
 			objects.push_back(s);
 		}
 		else if (strcasecmp(type, "light") == 0) {
-			printf("found light\n");
-
 			Light* l = parseLight(file);
 
 			if (lights.size() == MAX_LIGHTS) {

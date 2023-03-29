@@ -152,7 +152,7 @@ private:
 
 class Scene {
 public:
-	int mode = MODE_DISPLAY;
+	int mode = MODE_JPEG; // don't display at defualt
 
     vec3 ambient_light;
     vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
@@ -176,9 +176,10 @@ public:
 	void render();
 	void display();
 	void save();
+	void clear();
 	string getProgressInfo();
 
-	virtual int load(char* argv) = 0;
+	virtual int load(const char* argv) = 0;
 
 protected:
 	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
@@ -212,7 +213,7 @@ protected:
 
 class PhongScene : public Scene {
 public:
-	int load(char* argv) override;
+	int load(const char* argv) override;
 
 private:
 	void calculatePixelColor(Pixel& pixel) override;
@@ -226,7 +227,7 @@ private:
 
 class OpticalScene : public Scene {
 public:
-	int load(char* argv) override;
+	int load(const char* argv) override;
 
 private:
 	void calculatePixelColor(Pixel& pixel) override;
