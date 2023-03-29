@@ -164,10 +164,11 @@ void Scene::display() {
 void Scene::save() {
 	// always save
 	filesystem::path inputPath = string(inputFilename);
-	string outputFilename = format("{}-aa{}-ls{}.jpg", 
-								   inputPath.stem().string(), numOfSubpixelsPerSide, numOfSampleLights);
+	char outputFilename[100];
+	sprintf(outputFilename, "%s-aa%d-ls%d.jpg",
+			inputPath.stem().string().c_str(), numOfSubpixelsPerSide, numOfSampleLights);
 
-	printf("Saving JPEG file: %s\n", outputFilename.c_str());
+	printf("Saving JPEG file: %s\n", outputFilename);
 	for (auto& pixel : pixels) {
 		vec3 color = clamp(pixel.color * 255.0f, vec3(0.0f), vec3(255.0f));
 		buffer[pixel.index.y][pixel.index.x][0] = (int)color.x;
@@ -176,7 +177,7 @@ void Scene::save() {
 	}
 
 	ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
-	if (img.save(outputFilename.c_str(), ImageIO::FORMAT_JPEG) != ImageIO::OK)
+	if (img.save(outputFilename, ImageIO::FORMAT_JPEG) != ImageIO::OK)
 		printf("Error in Saving\n");
 	else
 		printf("File saved Successfully\n");
@@ -187,10 +188,14 @@ string Scene::getProgressInfo() {
 	int progress = (float)numOfCompletedPixels / pixels.size() * 100;
 	if (progress < 100) {
 		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
-		int timeRemaining = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
+		int time = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
+		int minutes = time / 60;
+		int seconds = time % 60;
 
-		info = format("\r{}% ({} / {}) {} pixels / s {} remaining",
-					  progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, timeRemaining);
+		char buffer[200];
+		sprintf(buffer, "\r%d%% (%d / %d), speed: %d pixels / s, %d Minutes %d Seconds remaining",
+				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, minutes, seconds);
+		info = string(buffer);
 	}
 
 	return info;
