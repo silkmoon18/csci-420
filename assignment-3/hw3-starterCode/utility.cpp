@@ -157,7 +157,7 @@ void Scene::save() {
 	// always save
 	filesystem::path inputPath = string(inputFilename);
 	char outputFilename[100];
-	sprintf(outputFilename, "%s\\%s-aa%d-ls%d.jpg",
+	sprintf(outputFilename, "%s/%s-aa%d-ls%d.jpg",
 			inputPath.parent_path().string().c_str(), 
 			inputPath.stem().string().c_str(), 
 			numOfSubpixelsPerSide, 
@@ -438,7 +438,6 @@ int OpticalScene::load(const char* argv) {
 }
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	pixel.color = stratifiedSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
-	pixel.color /= numOfSampleLights;
 	pixel.color /= pixel.color + 1.0f;
 }
 Triangle* OpticalScene::parseTriangle(FILE* file) {
