@@ -203,7 +203,7 @@ string Scene::getProgressInfo() {
 		int seconds = time % 60;
 
 		char buffer[200];
-		sprintf(buffer, "\r%d%% (%d / %d), speed: %d pixels / s, %d Minutes %d Seconds remaining",
+		sprintf(buffer, "\r%d%% (%d / %lu), speed: %d pixels / s, %d Minutes %d Seconds remaining",
 				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, minutes, seconds);
 		info = string(buffer);
 	}

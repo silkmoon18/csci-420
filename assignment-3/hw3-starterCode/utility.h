@@ -251,6 +251,7 @@ public:
 	float metallic;
 
 	Material(vec3 normal, vec3 diffuse);
+	virtual ~Material() = default;
 
 	virtual Material* clone() = 0;
 	virtual vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) = 0;
@@ -286,6 +287,8 @@ private:
 
 class Object {
 public:
+	virtual ~Object() = default;
+
 	virtual Material* getMaterial(vec3 position) = 0;
 	virtual float intersects(Ray* ray) = 0;
 };
