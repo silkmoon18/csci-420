@@ -91,24 +91,25 @@ void readFiles() {
 		else if (input.extension().string() == ".scene") {
 			inputFiles.push_back(input.string().c_str());
 
-			char ans;
-			while (true) {
-				cout << "Do you want to display the result? (Y/N) ";
-				cin >> ans;
-				ans = tolower(ans);
-				if (ans == 'y') {
-					scene->mode = MODE_DISPLAY;
-					break;
-				}
-				else if (ans == 'n') {
-					scene->mode = MODE_JPEG;
-					break;
-				}
-				cout << ans << " is not valid.\n";
-			}
 			break;
 		}
 		printf("%s is not a valid path. \n", path.c_str());
+	}
+
+	char ans;
+	while (true) {
+		cout << "Do you want to display the result? (Y/N) ";
+		cin >> ans;
+		ans = tolower(ans);
+		if (ans == 'y') {
+			scene->mode = MODE_DISPLAY;
+			break;
+		}
+		else if (ans == 'n') {
+			scene->mode = MODE_JPEG;
+			break;
+		}
+		cout << ans << " is not valid.\n";
 	}
 	cout << endl;
 }
