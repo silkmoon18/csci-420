@@ -85,20 +85,23 @@ class Ray;
 class Light;
 
 
-int sign(float number);
+
+string secondsToHMS(int seconds);
+void printProgress(Scene * scene);
+void parse_check(const char* expected, char* found);
+void parse_vec3(FILE * file, const char* check, vec3 & vec);
+void parse_float(FILE * file, const char* check, float& f);
+void parse_rad(FILE * file, float* r);
+void parse_shi(FILE * file, float* shi);
+
 int isPositive(float number);
+int sign(float number);
 float getRandom();
 float getRandom(float min, float max);
 vec3 getRandom(vec3 min, vec3 max);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 int compare(float f1, float f2);
 
-void printProgress(Scene* scene);
-void parse_check(const char* expected, char* found);
-void parse_vec3(FILE* file, const char* check, vec3& vec);
-void parse_float(FILE* file, const char* check, float& f);
-void parse_rad(FILE* file, float* r);
-void parse_shi(FILE* file, float* shi);
 
 
 struct ProgressInfo {
@@ -220,8 +223,6 @@ private:
 	Triangle* parseTriangle(FILE* file) override;
 	Sphere* parseSphere(FILE* file) override;
 	Light* parseLight(FILE* file) override;
-
-	vec3 superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition);
 };
 
 
@@ -234,8 +235,6 @@ private:
 	Triangle* parseTriangle(FILE* file) override;
 	Sphere* parseSphere(FILE* file) override;
 	Light* parseLight(FILE* file) override;
-
-	vec3 stratifiedSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition);
 };
 
 

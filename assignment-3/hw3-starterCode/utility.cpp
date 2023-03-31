@@ -8,6 +8,20 @@ uniform_real_distribution<double> distrib(0.0, 1.0 - 1e-8);
 
 
 
+string secondsToHMS(int seconds) {
+	int hour = seconds / 3600;
+	seconds %= 3600;
+
+	int minutes = seconds / 60;
+	seconds %= 60;
+
+	string result;
+	if (hour > 0) result += to_string(hour) + " Hours ";
+	if (minutes > 0) result += to_string(minutes) + " Minutes ";
+	result += to_string(seconds) + " Seconds";
+
+	return result;
+}
 void printProgress(Scene* scene) {
 	string info;
 	float deltaTime = 0.0f;
@@ -198,13 +212,11 @@ string Scene::getProgressInfo() {
 	int progress = (float)numOfCompletedPixels / pixels.size() * 100;
 	if (progress < 100) {
 		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
-		int time = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
-		int minutes = time / 60;
-		int seconds = time % 60;
+		int secondsRemaining = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
 
 		char buffer[200];
-		sprintf(buffer, "\r%d%% (%d / %lu), speed: %d pixels / s, %d Minutes %d Seconds remaining",
-				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, minutes, seconds);
+		sprintf(buffer, "\r%d%% (%d / %lu), speed: %d pixels / s, %s remaining",
+				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, secondsToHMS(secondsRemaining).c_str());
 		info = string(buffer);
 	}
 
@@ -321,7 +333,28 @@ int PhongScene::load(const char* argv) {
 	return 0;
 }
 void PhongScene::calculatePixelColor(Pixel& pixel) {
-	pixel.color = superSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
+	vec3 color = ambient_light;
+
+	float cellSize = pixel.size / numOfSubpixelsPerSide;
+	vec3 startPosition = pixel.position;
+	float offset = 0.5f * cellSize * (numOfSubpixelsPerSide + 1);
+	startPosition -= vec3(offset, offset, 0);
+
+	vec3 cellPosition = startPosition;
+	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+		cellPosition.x += cellSize;
+		cellPosition.y = startPosition.y;
+
+		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+			cellPosition.y += cellSize;
+
+			Ray cameraRay(vec3(0), cellPosition);
+			color += cameraRay.calculateRayColor(this);
+		}
+	}
+	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+
+	pixel.color = color;
 }
 Triangle* PhongScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse, specular;
@@ -357,29 +390,6 @@ Light* PhongScene::parseLight(FILE* file) {
 	parse_vec3(file, "pos:", position);
 	parse_vec3(file, "col:", color);
 	return new Light(position, color);
-}
-vec3 PhongScene::superSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
-	vec3 color = ambient_light;
-
-	float cellSize = pixelSize / numOfSubpixelsPerSide;
-	vec3 startPosition = pixelPosition;
-	float offset = 0.5f * cellSize * (numOfSubpixelsPerSide + 1);
-	startPosition -= vec3(offset, offset, 0);
-
-	vec3 cellPosition = startPosition;
-	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
-		cellPosition.x += cellSize;
-		cellPosition.y = startPosition.y;
-
-		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
-			cellPosition.y += cellSize;
-
-			Ray cameraRay(vec3(0), cellPosition);
-			color += cameraRay.calculateRayColor(this);
-		}
-	}
-	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
-	return color;
 }
 #pragma endregion
 
@@ -437,8 +447,30 @@ int OpticalScene::load(const char* argv) {
 	return 0;
 }
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
-	pixel.color = stratifiedSample(numOfSubpixelsPerSide, pixel.size, pixel.position);
-	pixel.color /= pixel.color + 1.0f;
+	// stratified sampling
+	vec3 color = ambient_light;
+
+	float cellSize = pixel.size / numOfSubpixelsPerSide;
+	vec3 startPosition = pixel.position;
+	float offset = pixel.size * 0.5f;
+	startPosition -= vec3(offset, offset, 0);
+
+	vec3 cellPosition = startPosition;
+	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+		cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
+
+		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+			cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
+
+			Ray cameraRay(vec3(0), cellPosition);
+			color += cameraRay.calculateRayColor(this);
+		}
+	}
+	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+
+	color /= color + 1.0f; // tone mapping
+
+	pixel.color = color;
 }
 Triangle* OpticalScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse;
@@ -480,28 +512,6 @@ Light* OpticalScene::parseLight(FILE* file) {
 	parse_vec3(file, "nrm:", normal);
 	parse_vec3(file, "col:", color);
 	return new Light(position, color, normal, p);
-}
-vec3 OpticalScene::stratifiedSample(int numOfSubpixelsPerSide, float pixelSize, vec3 pixelPosition) {
-	vec3 color = ambient_light;
-
-	float cellSize = pixelSize / numOfSubpixelsPerSide;
-	vec3 startPosition = pixelPosition;
-	float offset = pixelSize * 0.5f;
-	startPosition -= vec3(offset, offset, 0);
-
-	vec3 cellPosition = startPosition;
-	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
-		cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
-
-		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
-			cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
-
-			Ray cameraRay(vec3(0), cellPosition);
-			color += cameraRay.calculateRayColor(this);
-		}
-	}
-	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
-	return color;
 }
 #pragma endregion
 

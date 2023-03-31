@@ -38,7 +38,8 @@ void idle() {
 			scene->load(inputFiles[i].c_str());
 			scene->render();
 
-			printf("Time cost: %.2fs\n", Timer::getInstance()->getCurrentTime() - start);
+			float seconds = Timer::getInstance()->getCurrentTime() - start;
+			printf("Time cost: %s\n", secondsToHMS(seconds).c_str());
 		}
 	}
 	once = 1;
@@ -70,6 +71,11 @@ void readFiles() {
 		cin >> path;
 
 		filesystem::path input = path;
+		if (!filesystem::exists(input)) {
+			printf("%s does not exist. \n", path.c_str());
+			continue;
+		}
+
 		if (filesystem::is_directory(input)) {
 			for (const auto& entry : filesystem::directory_iterator(input)) {
 				filesystem::path p = entry.path();
