@@ -172,9 +172,9 @@ void Scene::save() {
 	filesystem::path inputPath = string(inputFilename);
 	char outputFilename[100];
 	sprintf(outputFilename, "%s/%s-aa%d-ls%d.jpg",
-			inputPath.parent_path().string().c_str(), 
-			inputPath.stem().string().c_str(), 
-			numOfSubpixelsPerSide, 
+			inputPath.parent_path().string().c_str(),
+			inputPath.stem().string().c_str(),
+			numOfSubpixelsPerSide,
 			numOfSampleLights);
 
 	printf("Saving JPEG file: %s\n", outputFilename);
@@ -447,8 +447,11 @@ int OpticalScene::load(const char* argv) {
 	return 0;
 }
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
+	int numOfSampleRays = 1;
+
 	// stratified sampling
 	vec3 color = ambient_light;
+	color = vec3(0);
 
 	float cellSize = pixel.size / numOfSubpixelsPerSide;
 	vec3 startPosition = pixel.position;
@@ -456,17 +459,20 @@ void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	startPosition -= vec3(offset, offset, 0);
 
 	vec3 cellPosition = startPosition;
-	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
-		cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
+	for (int i = 0; i < numOfSampleRays; i++) {
+		for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+			cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
 
-		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
-			cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
+			for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+				cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
 
-			Ray cameraRay(vec3(0), cellPosition);
-			color += cameraRay.calculateRayColor(this);
+				Ray cameraRay(vec3(0), cellPosition);
+				color += cameraRay.calculateRayColor(this);
+			}
 		}
 	}
 	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+	color /= numOfSampleRays;
 
 	color /= color + 1.0f; // tone mapping
 
@@ -551,8 +557,10 @@ vec3 PhongMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	}
 
 	if (scene->isGlobalLightingEnabled) {
-		ray.reflects(position, normal);
+		ray.start = position;
+		ray.direction = normalize(reflect(ray.direction, normal));
 		vec3 reflection = ray.calculateRayColor(scene);
+		float ks = (specular.x + specular.y + specular.z) / 3;
 		color = (1 - ks) * local + ks * reflection;
 	}
 	else {
@@ -625,6 +633,22 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 
 		float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
 		color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
+	}
+
+	if (scene->isGlobalLightingEnabled) {
+		vec3 p;
+		while (true) {
+			p = vec3(getRandom(-1, 1), getRandom(-1, 1), getRandom(-1, 1));
+			if (length(p) >= 1) continue;
+			else break;
+		}
+		//ray.reflects(position, normal);
+		vec3 target = position + normal + p;
+		ray.start = position;
+		ray.direction = normalize(target - position);
+
+		vec3 reflection = ray.calculateRayColor(scene);
+		color += reflection * std::max(dot(normal, ray.direction), 0.0f);
 	}
 	return color;
 }
@@ -842,14 +866,9 @@ bool Ray::checkIfBlocked(const vector<Object*>& objects, vec3 end) {
 	}
 	return false;
 }
-void Ray::reflects(vec3 position, vec3 normal) {
-	if (numOfReflection > MAX_REFLECTION) return;
-	start = position;
-	direction = normalize(reflect(direction, normal));
-	numOfReflection++;
-}
 vec3 Ray::calculateRayColor(Scene* scene) {
-	if (numOfReflection > MAX_REFLECTION) return vec3(0);
+	if (depth > MAX_DEPTH) return vec3(0);
+	depth++;
 
 	vec3 color(0);
 	vec3 position;

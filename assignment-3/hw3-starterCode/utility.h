@@ -35,7 +35,7 @@
 
 #define EPSILON 0.0001f
 #define PI 3.14159265358979323846264338327950288
-#define MAX_REFLECTION 3
+#define MAX_DEPTH 3
 #define MAX_TRIANGLES 20000
 #define MAX_SPHERES 100
 #define MAX_LIGHTS 100
@@ -344,14 +344,13 @@ public:
 
 	Ray(vec3 start, vec3 target);
 
-	void reflects(vec3 position, vec3 normal);
 	vec3 getPosition(float t);
 	Object* getFirstIntersectedObject(const vector<Object*>& objects, vec3& intersectedPosition);
 	bool checkIfBlocked(const vector<Object*>& objects, vec3 target);
 	vec3 calculateRayColor(Scene* scene);
 
 private:
-	int numOfReflection = 0;
+	int depth = 0;
 };
 
 
