@@ -334,6 +334,7 @@ int PhongScene::load(const char* argv) {
 }
 void PhongScene::calculatePixelColor(Pixel& pixel) {
 	vec3 color = ambient_light;
+	vec3 rayColor;
 
 	float cellSize = pixel.size / numOfSubpixelsPerSide;
 	vec3 startPosition = pixel.position;
@@ -349,10 +350,11 @@ void PhongScene::calculatePixelColor(Pixel& pixel) {
 			cellPosition.y += cellSize;
 
 			Ray cameraRay(vec3(0), cellPosition);
-			color += cameraRay.calculateRayColor(this);
+			rayColor += cameraRay.calculateRayColor(this);
 		}
 	}
-	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+	rayColor /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+	color += rayColor;
 
 	pixel.color = color;
 }
@@ -451,7 +453,7 @@ void OpticalScene::calculatePixelColor(Pixel& pixel) {
 
 	// stratified sampling
 	vec3 color = ambient_light;
-	color = vec3(0);
+	vec3 rayColor;
 
 	float cellSize = pixel.size / numOfSubpixelsPerSide;
 	vec3 startPosition = pixel.position;
@@ -467,12 +469,13 @@ void OpticalScene::calculatePixelColor(Pixel& pixel) {
 				cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
 
 				Ray cameraRay(vec3(0), cellPosition);
-				color += cameraRay.calculateRayColor(this);
+				rayColor += cameraRay.calculateRayColor(this);
 			}
 		}
 	}
-	color /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
-	color /= numOfSampleRays;
+	rayColor /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
+	rayColor /= numOfSampleRays;
+	color += rayColor;
 
 	color /= color + 1.0f; // tone mapping
 
@@ -619,21 +622,21 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	vec3 color(0);
 
 	auto lights = scene->getLights();
-	for (int i = 0; i < lights.size(); i++) {
-		vec3 Le(0);
+	auto light = lights[getRandom(0, lights.size())];
+	vec3 Le(0);
 
-		vec3 w_i = normalize(lights[i]->position - position);
-		if (dot(w_i, normal) > 0.0f) {
-			Ray shadowRay(position, position + w_i);
-			if (!shadowRay.checkIfBlocked(scene->getObjects(), lights[i]->position)) {
-				Le = lights[i]->color;
-			}
+	vec3 w_i = normalize(light->position - position);
+	if (dot(w_i, normal) > 0.0f) {
+		Ray shadowRay(position, position + w_i);
+		if (!shadowRay.checkIfBlocked(scene->getObjects(), light->position)) {
+			Le = light->color;
 		}
-		float pdf = pow(distance(position, lights[i]->position), 2) / (abs(dot(lights[i]->normal, w_i)) * lights[i]->area());
-
-		float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
-		color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
 	}
+	float pdf = pow(distance(position, light->position), 2) / (abs(dot(light->normal, w_i)) * light->area());
+
+	float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
+	color += 0.5f * BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
+
 
 	if (scene->isGlobalLightingEnabled) {
 		vec3 p;
@@ -642,13 +645,12 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 			if (length(p) >= 1) continue;
 			else break;
 		}
-		//ray.reflects(position, normal);
 		vec3 target = position + normal + p;
 		ray.start = position;
 		ray.direction = normalize(target - position);
 
 		vec3 reflection = ray.calculateRayColor(scene);
-		color += reflection * std::max(dot(normal, ray.direction), 0.0f);
+		color += 0.5f * reflection * std::max(dot(normal, ray.direction), 0.0f);
 	}
 	return color;
 }
@@ -670,7 +672,6 @@ Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
 
 	return new OpticalMaterial(normal, diffuse, roughness, metallic);
 }
-
 vec3 OpticalMaterial::BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o) {
 	float alpha2 = pow(roughness * roughness, 2);
 

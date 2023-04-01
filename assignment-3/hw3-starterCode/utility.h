@@ -158,8 +158,8 @@ public:
 	int mode = MODE_JPEG; // don't display at defualt
 
     vec3 ambient_light;
-    vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
-	//vec3 backgroundColor = vec3(0);
+    //vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
+	vec3 backgroundColor = vec3(0);
 	vec3 F0;
 
     bool isGlobalLightingEnabled = true;
@@ -228,6 +228,8 @@ private:
 
 class OpticalScene : public Scene {
 public:
+	int numOfSampleRays = 1;
+
 	int load(const char* argv) override;
 
 private:
