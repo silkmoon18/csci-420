@@ -622,35 +622,37 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	vec3 color(0);
 
 	auto lights = scene->getLights();
-	auto light = lights[getRandom(0, lights.size())];
-	vec3 Le(0);
+	for (int i = 0; i < lights.size(); i++) {
+		vec3 Le(0);
 
-	vec3 w_i = normalize(light->position - position);
-	if (dot(w_i, normal) > 0.0f) {
-		Ray shadowRay(position, position + w_i);
-		if (!shadowRay.checkIfBlocked(scene->getObjects(), light->position)) {
-			Le = light->color;
+		vec3 w_i = normalize(lights[i]->position - position);
+		if (dot(w_i, normal) > 0.0f) {
+			Ray shadowRay(position, position + w_i);
+			if (!shadowRay.checkIfBlocked(scene->getObjects(), lights[i]->position)) {
+				Le = lights[i]->color;
+			}
 		}
+		float pdf = pow(distance(position, lights[i]->position), 2) / (abs(dot(lights[i]->normal, w_i)) * lights[i]->area());
+
+		float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
+		color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
 	}
-	float pdf = pow(distance(position, light->position), 2) / (abs(dot(light->normal, w_i)) * light->area());
-
-	float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
-	color += 0.5f * BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
-
 
 	if (scene->isGlobalLightingEnabled) {
-		vec3 p;
-		while (true) {
-			p = vec3(getRandom(-1, 1), getRandom(-1, 1), getRandom(-1, 1));
-			if (length(p) >= 1) continue;
-			else break;
-		}
-		vec3 target = position + normal + p;
+		float r1 = getRandom(); // random number between 0 and 1
+		float r2 = getRandom(); // random number between 0 and 1
+		float phi = 2 * PI * r1;
+		float cos_theta = sqrt(1 - r2);
+		float sin_theta = sqrt(r2);
+		float x = cos(phi) * sin_theta;
+		float y = sin(phi) * sin_theta;
+		float z = sqrt(1 - r2);
+		vec3 dir(x, y, z);
 		ray.start = position;
-		ray.direction = normalize(target - position);
+		ray.direction = dir;
 
 		vec3 reflection = ray.calculateRayColor(scene);
-		color += 0.5f * reflection * std::max(dot(normal, ray.direction), 0.0f);
+		color += reflection * std::max(dot(normal, ray.direction), 0.0f);
 	}
 	return color;
 }
