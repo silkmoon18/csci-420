@@ -182,7 +182,7 @@ public:
 	void drawPixelsThread(int threadIndex);
 
 	virtual int load(const char* argv) = 0;
-	virtual string getOutputFilename() = 0;
+	virtual char* getOutputFilename() = 0;
 
 protected:
 	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
@@ -218,7 +218,7 @@ public:
 	// # light samples = 2 ^ softShadowLevel
 	void setSoftShadowLevel(int softShadowLevel);
 	int load(const char* argv) override;
-	string getOutputFilename() override;
+	char* getOutputFilename() override;
 
 protected:
 	int numOfSampleLights = 1; // 1 means no sample lights
@@ -238,7 +238,7 @@ public:
 
 	void setNumOfSampleRays(int num);
 	int load(const char* argv) override;
-	string getOutputFilename() override;
+	char* getOutputFilename() override;
 
 protected:
 	int numOfSampleRays = 1;
