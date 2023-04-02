@@ -87,7 +87,7 @@ class Light;
 
 
 string secondsToHMS(int seconds);
-void printProgress(Scene * scene, bool displayOnRefresh);
+void printProgress(Scene * scene);
 void parse_check(const char* expected, char* found);
 void parse_vec3(FILE * file, const char* check, vec3 & vec);
 void parse_float(FILE * file, const char* check, float& f);
@@ -111,6 +111,7 @@ struct Pixel {
 	vec3 position;
 	float size = 0.0f;
 	vec3 color;
+	vec3 accumulatedColor;
 };
 
 struct Vertex {
@@ -185,7 +186,6 @@ public:
 	virtual string getProgressInfo() = 0;
 
 protected:
-	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
 	char* inputFilename = NULL; // input scene file
 
 	vector<Object*> objects;
@@ -223,8 +223,9 @@ public:
 
 protected:
 	int numOfSampleLights = 1; // 1 means no sample lights
+	int numOfCompletedSampleLights = 0;
 
-	void sampleLights();
+	vector<Light*> sampleLights();
 	void process() override;
 	void calculatePixelColor(Pixel& pixel) override;
 	Triangle* parseTriangle(FILE* file) override;
@@ -245,7 +246,6 @@ public:
 protected:
 	int numOfSampleRays = 1;
 	int numOfCompletedSampleRays = 0;
-	vec3 colors[HEIGHT][WIDTH];
 
 	void process() override;
 	void calculatePixelColor(Pixel& pixel) override;
@@ -350,7 +350,7 @@ public:
 
 	float area(); 
 	vec3 sample();
-	vector<Light*> getSamples(int numOfSamples);
+	Light* getSample();
 };
 
 

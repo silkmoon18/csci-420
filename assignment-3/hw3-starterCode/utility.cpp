@@ -22,7 +22,7 @@ string secondsToHMS(int seconds) {
 
 	return result;
 }
-void printProgress(Scene* scene, bool displayOnRefresh) {
+void printProgress(Scene* scene) {
 	string info;
 	float deltaTime = 0.0f;
 	while (true) {
@@ -31,7 +31,6 @@ void printProgress(Scene* scene, bool displayOnRefresh) {
 		deltaTime += Timer::getInstance()->getDeltaTime();
 		if (deltaTime < 1.0f) continue;
 
-		if (displayOnRefresh) scene->display();
 		deltaTime = 0.0f;
 
 		printf("\r%s", string(info.length(), ' ').c_str());
@@ -171,7 +170,9 @@ void Scene::save() {
 	// always save
 	char* outputFilename = getOutputFilename();
 
-	printf("Saving JPEG file: %s\n", outputFilename);
+	printf("Saving JPEG file...\n");
+
+	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
 	for (auto& pixel : pixels) {
 		vec3 color = clamp(pixel.color * 255.0f, vec3(0.0f), vec3(255.0f));
 		buffer[pixel.index.y][pixel.index.x][0] = (int)color.x;
@@ -181,9 +182,9 @@ void Scene::save() {
 
 	ImageIO img(WIDTH, HEIGHT, 3, &buffer[0][0][0]);
 	if (img.save(outputFilename, ImageIO::FORMAT_JPEG) != ImageIO::OK)
-		printf("Error in Saving\n");
+		printf("Error in saving file %s\n", outputFilename);
 	else
-		printf("File saved Successfully\n");
+		printf("File saved to %s\n", outputFilename);
 }
 void Scene::clear() {
 	for (auto& obj : objects) {
@@ -198,6 +199,7 @@ void Scene::clear() {
 	}
 	lights.clear();
 
+	pixels.clear();
 	numOfCompletedPixels = 0;
 }
 void Scene::initializePixels() {
@@ -309,40 +311,53 @@ char* PhongScene::getOutputFilename() {
 string PhongScene::getProgressInfo() {
 	string info;
 
-	int progress = (float)numOfCompletedPixels / pixels.size() * 100;
+	int numOfTotalPixels = pixels.size() * numOfSampleLights;
+	int progress = (float)numOfCompletedPixels / numOfTotalPixels * 100;
 	if (progress < 100) {
 		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
-		int secondsRemaining = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
+		int secondsRemaining = std::max(0, int((numOfTotalPixels - numOfCompletedPixels) / speed));
 
 		char buffer[200];
-		sprintf(buffer, "\r%d%% (pixels: %d / %lu), speed: %d pixels / s, %s remaining",
-				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, secondsToHMS(secondsRemaining).c_str());
+		sprintf(buffer, "\r%d%% (pixels: %d / %d, light samples: %d / %d), speed: %d pixels / s, %s remaining",
+				progress,
+				(int)numOfCompletedPixels, numOfTotalPixels,
+				numOfCompletedSampleLights, numOfSampleLights,
+				(int)speed, secondsToHMS(secondsRemaining).c_str());
 		info = string(buffer);
 	}
 
 	return info;
 }
-void PhongScene::sampleLights() {
+vector<Light*> PhongScene::sampleLights() {
 	vector<Light*> lightSamples;
 	for (int i = 0; i < lights.size(); i++) {
-		auto samples = lights[i]->getSamples(numOfSampleLights);
-		for (auto& s : samples) {
-			lightSamples.push_back(s);
-		}
+		lightSamples.push_back(lights[i]->getSample());
 	}
-	lights = lightSamples;
+	return lightSamples;
 }
 void PhongScene::process() {
-	thread printInfo(printProgress, this, true);
-	printInfo.detach();
+	thread printInfo(printProgress, this);
 
 	vector<thread> threads;
-	for (int i = 0; i < numOfThreads; i++) {
-		threads.emplace_back(&Scene::drawPixelsThread, this, i);
+	for (int i = 0; i < numOfSampleLights; i++) {
+		lights = sampleLights();
+
+		for (int j = 0; j < numOfThreads; j++) {
+			threads.emplace_back(&Scene::drawPixelsThread, this, j);
+		}
+		for (auto& thread : threads) {
+			thread.join();
+		}
+		threads.clear();
+		numOfCompletedSampleLights++;
+
+		for (auto& pixel : pixels) {
+			pixel.color = pixel.accumulatedColor / float(i + 1);
+		}
+		display();
 	}
-	for (auto& thread : threads) {
-		thread.join();
-	}
+
+	printInfo.join();
 }
 void PhongScene::calculatePixelColor(Pixel& pixel) {
 	vec3 color = ambient_light;
@@ -368,7 +383,7 @@ void PhongScene::calculatePixelColor(Pixel& pixel) {
 	rayColor /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
 	color += rayColor;
 
-	pixel.color = color;
+	pixel.accumulatedColor += color;
 }
 Triangle* PhongScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse, specular;
@@ -486,7 +501,7 @@ string OpticalScene::getProgressInfo() {
 		int secondsRemaining = std::max(0, int((numOfTotalPixels - numOfCompletedPixels) / speed));
 
 		char buffer[200];
-		sprintf(buffer, "\r%d%% (pixels: %d / %d, sample rays: %d / %d), speed: %d pixels / s, %s remaining",
+		sprintf(buffer, "\r%d%% (pixels: %d / %d, ray samples: %d / %d), speed: %d pixels / s, %s remaining",
 				progress,
 				(int)numOfCompletedPixels, numOfTotalPixels,
 				numOfCompletedSampleRays, numOfSampleRays,
@@ -497,13 +512,12 @@ string OpticalScene::getProgressInfo() {
 	return info;
 }
 void OpticalScene::process() {
-	thread printInfo(printProgress, this, false);
-	printInfo.detach();
+	thread printInfo(printProgress, this);
 
 	vector<thread> threads;
 	for (int i = 0; i < numOfSampleRays; i++) {
-		for (int i = 0; i < numOfThreads; i++) {
-			threads.emplace_back(&Scene::drawPixelsThread, this, i);
+		for (int j = 0; j < numOfThreads; j++) {
+			threads.emplace_back(&Scene::drawPixelsThread, this, j);
 		}
 		for (auto& thread : threads) {
 			thread.join();
@@ -513,11 +527,12 @@ void OpticalScene::process() {
 		numOfCompletedSampleRays++;
 
 		for (auto& pixel : pixels) {
-			pixel.color = colors[pixel.index.y][pixel.index.x] / float(i + 1);
+			pixel.color = pixel.accumulatedColor / float(i + 1);
 			pixel.color /= pixel.color + 1.0f;
 		}
 		display();
 	}
+	printInfo.join();
 }
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	// stratified sampling
@@ -544,7 +559,7 @@ void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	rayColor /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
 	color += rayColor;
 
-	colors[pixel.index.y][pixel.index.x] += color;
+	pixel.accumulatedColor += color;
 }
 Triangle* OpticalScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse;
@@ -881,36 +896,25 @@ vec3 Light::sample() {
 	}
 	return pos;
 }
-vector<Light*> Light::getSamples(int numOfSamples) {
-	vector<Light*> samples;
-
-	if (numOfSamples <= 1) {
-		samples.push_back(this);
+Light* Light::getSample() {
+	vec3 pos;
+	float U1 = getRandom();
+	float U2 = getRandom();
+	if (p.size() < 3) {
+		float U3 = getRandom();
+		U1 -= 0.5f;
+		U2 -= 0.5f;
+		U3 -= 0.5f;
+		pos = position + vec3(U1, U2, U3);
 	}
 	else {
-		for (int j = 0; j < numOfSamples; j++) {
-			vec3 pos;
-			float U1 = getRandom();
-			float U2 = getRandom();
-			if (p.size() < 3) {
-				float U3 = getRandom();
-				U1 -= 0.5f;
-				U2 -= 0.5f;
-				U3 -= 0.5f;
-				pos = position + vec3(U1, U2, U3);
-			}
-			else {
-				vec3 p0 = p[0];
-				vec3 p1 = p[1];
-				vec3 p2 = p[2];
-				vec3 p3 = p[3];
-				pos = (1 - U1) * (p0 * (1 - U2) + p1 * U2) + U1 * (p2 * (1 - U2) + p3 * U2);
-			}
-			Light* sample = new Light(pos, color / (float)numOfSamples, normal, p);
-			samples.push_back(sample);
-		}
+		vec3 p0 = p[0];
+		vec3 p1 = p[1];
+		vec3 p2 = p[2];
+		vec3 p3 = p[3];
+		pos = (1 - U1) * (p0 * (1 - U2) + p1 * U2) + U1 * (p2 * (1 - U2) + p3 * U2);
 	}
-	return samples;
+	return new Light(pos, color, normal, p);
 }
 #pragma endregion
 
