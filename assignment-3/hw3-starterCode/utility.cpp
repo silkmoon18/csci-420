@@ -168,7 +168,7 @@ void Scene::display() {
 }
 void Scene::save() {
 	// always save
-	char* outputFilename = getOutputFilename();
+	const char* outputFilename = getOutputFilename().c_str();
 
 	printf("Saving JPEG file: %s\n", outputFilename);
 	for (auto& pixel : pixels) {
@@ -311,7 +311,7 @@ int PhongScene::load(const char* argv) {
 
 	return 0;
 }
-char* PhongScene::getOutputFilename() {
+string PhongScene::getOutputFilename() {
 	filesystem::path inputPath = string(inputFilename);
 	char filename[100];
 	sprintf(filename, "%s/%s-phong-ls%d-aa%d.jpg",
@@ -319,7 +319,7 @@ char* PhongScene::getOutputFilename() {
 			inputPath.stem().string().c_str(),
 			numOfSampleLights,
 			numOfSubpixelsPerSide);
-	return filename;
+	return string(filename);
 }
 void PhongScene::sampleLights() {
 	vector<Light*> lightSamples;
@@ -463,7 +463,7 @@ int OpticalScene::load(const char* argv) {
 
 	return 0;
 }
-char* OpticalScene::getOutputFilename() {
+string OpticalScene::getOutputFilename() {
 	filesystem::path inputPath = string(inputFilename);
 	char filename[100];
 	sprintf(filename, "%s/%s-phong-rs%d-aa%d.jpg",
@@ -471,7 +471,7 @@ char* OpticalScene::getOutputFilename() {
 			inputPath.stem().string().c_str(),
 			numOfSampleRays,
 			numOfSubpixelsPerSide);
-	return filename;
+	return string(filename);
 }
 void OpticalScene::process() {
 	vector<thread> threads;
