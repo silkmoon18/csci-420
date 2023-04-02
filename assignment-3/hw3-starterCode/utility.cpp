@@ -622,24 +622,27 @@ Material* OpticalMaterial::clone() {
 vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	vec3 color(0);
 
+	float U1 = getRandom();
 	auto lights = scene->getLights();
-	for (auto& light : lights) {
-		vec3 Le(0);
-		vec3 lightPosition = light->sample();
+	int n = lights.size(); // #lights
+	int sampledLightID = (int)std::min((int)(n * U1), n - 1);
+	auto& light = lights[sampledLightID];
+	vec3 Le(0);
+	vec3 lightPosition = light->sample();
 
-		vec3 w_i = normalize(lightPosition - position);
-		if (dot(w_i, normal) > 0.0f) {
-			Ray shadowRay(position, position + w_i);
-			if (!shadowRay.checkIfBlocked(scene->getObjects(), lightPosition)) {
-				Le = light->color;
-			}
+	vec3 w_i = normalize(lightPosition - position);
+	if (dot(w_i, normal) > 0.0f) {
+		Ray shadowRay(position, position + w_i);
+		if (!shadowRay.checkIfBlocked(scene->getObjects(), lightPosition)) {
+			Le = light->color;
 		}
-		float pdf = pow(distance(position, lightPosition), 2) / (abs(dot(light->normal, w_i)) * light->area());
-
-		float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
-		color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
-
 	}
+	float pdf = pow(distance(position, lightPosition), 2) / (abs(dot(light->normal, w_i)) * light->area());
+
+	float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
+	color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
+
+
 
 	//if (scene->isGlobalLightingEnabled) {
 
