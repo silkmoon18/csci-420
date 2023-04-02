@@ -22,7 +22,7 @@ string secondsToHMS(int seconds) {
 
 	return result;
 }
-void printProgress(Scene* scene, bool display) {
+void printProgress(Scene* scene, bool displayOnRefresh) {
 	string info;
 	float deltaTime = 0.0f;
 	while (true) {
@@ -31,7 +31,7 @@ void printProgress(Scene* scene, bool display) {
 		deltaTime += Timer::getInstance()->getDeltaTime();
 		if (deltaTime < 1.0f) continue;
 
-		if (display) scene->display();
+		if (displayOnRefresh) scene->display();
 		deltaTime = 0.0f;
 
 		printf("\r%s", string(info.length(), ' ').c_str());
@@ -39,7 +39,10 @@ void printProgress(Scene* scene, bool display) {
 		printf("\r%s", info.c_str());
 		fflush(stdout);
 
-		if (info.empty()) break;
+		if (info.empty()) {
+			printf("Done. \n");
+			break;
+		}
 	}
 }
 void parse_check(const char* expected, char* found) {
@@ -148,7 +151,6 @@ void Scene::render() {
 	startTime = Timer::getInstance()->getCurrentTime();
 	printf("Rendering %s... \n", inputFilename);
 	process();
-	printf("Done\n");
 
 	save();
 }
@@ -331,11 +333,13 @@ void PhongScene::sampleLights() {
 	lights = lightSamples;
 }
 void PhongScene::process() {
+	thread printProgress(printProgress, this, true);
+	printProgress.detach();
+
 	vector<thread> threads;
 	for (int i = 0; i < numOfThreads; i++) {
 		threads.emplace_back(&Scene::drawPixelsThread, this, i);
 	}
-	printProgress(this, true);
 	for (auto& thread : threads) {
 		thread.join();
 	}
@@ -483,9 +487,9 @@ string OpticalScene::getProgressInfo() {
 
 		char buffer[200];
 		sprintf(buffer, "\r%d%% (pixels: %d / %lu, sample rays: %d / %d), speed: %d pixels / s, %s remaining",
-				progress, 
-				(int)numOfCompletedPixels, numOfTotalPixels, 
-				numOfCompletedSampleRays, numOfSampleRays, 
+				progress,
+				(int)numOfCompletedPixels, numOfTotalPixels,
+				numOfCompletedSampleRays, numOfSampleRays,
 				(int)speed, secondsToHMS(secondsRemaining).c_str());
 		info = string(buffer);
 	}
@@ -493,18 +497,19 @@ string OpticalScene::getProgressInfo() {
 	return info;
 }
 void OpticalScene::process() {
-	int numOfTotalPixels = numOfSampleRays * pixels.size();
+	thread printProgress(printProgress, this, false);
+	printProgress.detach();
+
 	vector<thread> threads;
 	for (int i = 0; i < numOfSampleRays; i++) {
 		for (int i = 0; i < numOfThreads; i++) {
 			threads.emplace_back(&Scene::drawPixelsThread, this, i);
 		}
-		printProgress(this, false);
-
 		for (auto& thread : threads) {
 			thread.join();
 		}
 		threads.clear();
+
 		numOfCompletedSampleRays++;
 
 		for (auto& pixel : pixels) {

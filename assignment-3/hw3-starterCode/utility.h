@@ -87,7 +87,7 @@ class Light;
 
 
 string secondsToHMS(int seconds);
-void printProgress(Scene * scene, bool display);
+void printProgress(Scene * scene, bool displayOnRefresh);
 void parse_check(const char* expected, char* found);
 void parse_vec3(FILE * file, const char* check, vec3 & vec);
 void parse_float(FILE * file, const char* check, float& f);
