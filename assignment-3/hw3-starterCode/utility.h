@@ -228,7 +228,7 @@ private:
 
 class OpticalScene : public Scene {
 public:
-	int numOfSampleRays = 10;
+	int numOfSampleRays = 1;
 
 	int load(const char* argv) override;
 

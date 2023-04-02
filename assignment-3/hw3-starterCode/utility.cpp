@@ -449,26 +449,24 @@ int OpticalScene::load(const char* argv) {
 	return 0;
 }
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
-	int numOfSampleRays = 1;
-
 	// stratified sampling
 	vec3 color = ambient_light;
 	vec3 rayColor;
 
-	float cellSize = pixel.size / numOfSubpixelsPerSide;
+	float subcellSize = pixel.size / numOfSubpixelsPerSide;
 	vec3 startPosition = pixel.position;
 	float offset = pixel.size * 0.5f;
 	startPosition -= vec3(offset, offset, 0);
 
-	vec3 cellPosition = startPosition;
+	vec3 subcellPosition = startPosition;
 	for (int i = 0; i < numOfSampleRays; i++) {
 		for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
-			cellPosition.x = startPosition.x + x * cellSize + getRandom(0, cellSize);
+			subcellPosition.x = startPosition.x + x * subcellSize + getRandom(0, subcellSize);
 
 			for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
-				cellPosition.y = startPosition.y + y * cellSize + getRandom(0, cellSize);
+				subcellPosition.y = startPosition.y + y * subcellSize + getRandom(0, subcellSize);
 
-				Ray cameraRay(vec3(0), cellPosition);
+				Ray cameraRay(vec3(0), subcellPosition);
 				rayColor += cameraRay.calculateRayColor(this);
 			}
 		}
@@ -639,15 +637,23 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	}
 
 	if (scene->isGlobalLightingEnabled) {
+
+		vec3 w = (dot(normal, ray.direction) < 0) ? normal : -normal;
+		vec3 u = normalize(cross((abs(w.x) > 0.1) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), w));
+		vec3 v = cross(w, u);
+
 		float r1 = getRandom(); // random number between 0 and 1
 		float r2 = getRandom(); // random number between 0 and 1
-		float phi = 2 * PI * r1;
-		float cos_theta = sqrt(1 - r2);
-		float sin_theta = sqrt(r2);
-		float x = cos(phi) * sin_theta;
-		float y = sin(phi) * sin_theta;
-		float z = sqrt(1 - r2);
-		vec3 dir(x, y, z);
+		// Compute the angle around the normal
+		float theta = 2 * PI * r1;
+
+		float cos_theta = sqrt(1.0 - r1);
+		float sin_theta = sqrt(r1);
+		float phi = 2.0 * PI * r2;
+		vec3 d = vec3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
+
+		vec3 dir = normalize(d.x * u + d.y * v + d.z * w);
+
 		ray.start = position;
 		ray.direction = dir;
 

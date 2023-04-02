@@ -132,9 +132,8 @@ void readSoftShadowLevel() {
 	scene->setSoftShadowLevel(level);
 }
 void readThreadNumber() {
-	int num = 0;
-	cout << "Enter the number of threads to use: ";
-	cin >> num;
+	int num = thread::hardware_concurrency();
+	cout << "Using " << num << " threads for rendering. ";
 	scene->setNumOfThreads(num);
 }
 
