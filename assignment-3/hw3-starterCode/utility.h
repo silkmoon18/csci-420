@@ -333,7 +333,8 @@ public:
 
 	Light(vec3 position, vec3 color, vec3 normal = vec3(0), vector<vec3> p = vector<vec3>());
 
-	float area();
+	float area(); 
+	vec3 sample();
 	vector<Light*> getSamples(int numOfSamples);
 };
 

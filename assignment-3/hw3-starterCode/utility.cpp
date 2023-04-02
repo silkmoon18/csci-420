@@ -134,7 +134,9 @@ float Timer::getCurrentTime() {
 const vector<Object*>& Scene::getObjects() { return objects; }
 const vector<Triangle*>& Scene::getTriangles() { return triangles; }
 const vector<Sphere*>& Scene::getSpheres() { return spheres; }
-const vector<Light*>& Scene::getLights() { return lights; }
+const vector<Light*>& Scene::getLights() {
+	return lights;
+}
 void Scene::setAntiAliasingLevel(int antiAliasingLevel) {
 	numOfSubpixelsPerSide = std::max(0, (int)pow(2, std::max(0, antiAliasingLevel)));
 }
@@ -146,7 +148,7 @@ void Scene::setNumOfThreads(int num) {
 }
 void Scene::render() {
 	initializePixels();
-	sampleLights();
+	//sampleLights();
 
 	startTime = Timer::getInstance()->getCurrentTime();
 	printf("Rendering %s... \n", inputFilename);
@@ -450,7 +452,8 @@ int OpticalScene::load(const char* argv) {
 }
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	// stratified sampling
-	vec3 color = ambient_light;
+	//vec3 color = ambient_light;
+	vec3 color;
 	vec3 rayColor;
 
 	float subcellSize = pixel.size / numOfSubpixelsPerSide;
@@ -620,46 +623,48 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	vec3 color(0);
 
 	auto lights = scene->getLights();
-	for (int i = 0; i < lights.size(); i++) {
+	for (auto& light : lights) {
 		vec3 Le(0);
+		vec3 lightPosition = light->sample();
 
-		vec3 w_i = normalize(lights[i]->position - position);
+		vec3 w_i = normalize(lightPosition - position);
 		if (dot(w_i, normal) > 0.0f) {
 			Ray shadowRay(position, position + w_i);
-			if (!shadowRay.checkIfBlocked(scene->getObjects(), lights[i]->position)) {
-				Le = lights[i]->color;
+			if (!shadowRay.checkIfBlocked(scene->getObjects(), lightPosition)) {
+				Le = light->color;
 			}
 		}
-		float pdf = pow(distance(position, lights[i]->position), 2) / (abs(dot(lights[i]->normal, w_i)) * lights[i]->area());
+		float pdf = pow(distance(position, lightPosition), 2) / (abs(dot(light->normal, w_i)) * light->area());
 
 		float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
 		color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
+
 	}
 
-	if (scene->isGlobalLightingEnabled) {
+	//if (scene->isGlobalLightingEnabled) {
 
-		vec3 w = (dot(normal, ray.direction) < 0) ? normal : -normal;
-		vec3 u = normalize(cross((abs(w.x) > 0.1) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), w));
-		vec3 v = cross(w, u);
+	//	vec3 w = (dot(normal, ray.direction) < 0) ? normal : -normal;
+	//	vec3 u = normalize(cross((abs(w.x) > 0.1) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), w));
+	//	vec3 v = cross(w, u);
 
-		float r1 = getRandom(); // random number between 0 and 1
-		float r2 = getRandom(); // random number between 0 and 1
-		// Compute the angle around the normal
-		float theta = 2 * PI * r1;
+	//	float r1 = getRandom(); // random number between 0 and 1
+	//	float r2 = getRandom(); // random number between 0 and 1
+	//	// Compute the angle around the normal
+	//	float theta = 2 * PI * r1;
 
-		float cos_theta = sqrt(1.0 - r1);
-		float sin_theta = sqrt(r1);
-		float phi = 2.0 * PI * r2;
-		vec3 d = vec3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
+	//	float cos_theta = sqrt(1.0 - r1);
+	//	float sin_theta = sqrt(r1);
+	//	float phi = 2.0 * PI * r2;
+	//	vec3 d = vec3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
 
-		vec3 dir = normalize(d.x * u + d.y * v + d.z * w);
+	//	vec3 dir = normalize(d.x * u + d.y * v + d.z * w);
 
-		ray.start = position;
-		ray.direction = dir;
+	//	ray.start = position;
+	//	ray.direction = dir;
 
-		vec3 reflection = ray.calculateRayColor(scene);
-		color += reflection * std::max(dot(normal, ray.direction), 0.0f);
-	}
+	//	vec3 reflection = ray.calculateRayColor(scene);
+	//	color += reflection * std::max(dot(normal, ray.direction), 0.0f);
+	//}
 	return color;
 }
 Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
@@ -808,6 +813,26 @@ Light::Light(vec3 position, vec3 color, vec3 normal, vector<vec3> p) {
 float Light::area() {
 	if (p.size() < 4) return 0;
 	return distance(p[1], p[0]) * distance(p[0], p[2]);
+}
+vec3 Light::sample() {
+	vec3 pos;
+	float U1 = getRandom();
+	float U2 = getRandom();
+	if (p.size() < 3) {
+		float U3 = getRandom();
+		U1 -= 0.5f;
+		U2 -= 0.5f;
+		U3 -= 0.5f;
+		pos = position + vec3(U1, U2, U3);
+	}
+	else {
+		vec3 p0 = p[0];
+		vec3 p1 = p[1];
+		vec3 p2 = p[2];
+		vec3 p3 = p[3];
+		pos = (1 - U1) * (p0 * (1 - U2) + p1 * U2) + U1 * (p2 * (1 - U2) + p3 * U2);
+	}
+	return pos;
 }
 vector<Light*> Light::getSamples(int numOfSamples) {
 	vector<Light*> samples;
