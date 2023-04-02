@@ -179,7 +179,7 @@ public:
 	void save();
 	void clear();
 	string getProgressInfo();
-	void drawPixels(int threadIndex);
+	void drawPixelsThread(int threadIndex);
 
 	virtual int load(const char* argv) = 0;
 	virtual char* getOutputFilename() = 0;

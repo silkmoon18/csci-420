@@ -31,18 +31,16 @@ void printProgress(Scene* scene, bool display) {
 		deltaTime += Timer::getInstance()->getDeltaTime();
 		if (deltaTime < 1.0f) continue;
 
+		if (display) scene->display();
+
 		deltaTime = 0.0f;
 		printf("\r%s", string(info.length(), ' ').c_str());
 
 		info = scene->getProgressInfo();
 		printf("\r%s", info.c_str());
 
-		if (display) scene->display();
-
-		if (info.empty()) {
-			printf("Done\n");
-			break;
-		}
+		if (info.empty()) break;
+		
 	}
 }
 void parse_check(const char* expected, char* found) {
@@ -151,6 +149,7 @@ void Scene::render() {
 	startTime = Timer::getInstance()->getCurrentTime();
 	printf("Rendering %s... \n", inputFilename);
 	process();
+	printf("Done\n");
 
 	save();
 }
@@ -242,7 +241,7 @@ void Scene::initializePixels() {
 		}
 	}
 }
-void Scene::drawPixels(int threadIndex) {
+void Scene::drawPixelsThread(int threadIndex) {
 	int pixelsPerThread = pixels.size() / numOfThreads;
 	int start = threadIndex * pixelsPerThread;
 	int end = (threadIndex + 1) * pixelsPerThread;
@@ -335,7 +334,7 @@ void PhongScene::sampleLights() {
 void PhongScene::process() {
 	vector<thread> threads;
 	for (int i = 0; i < numOfThreads; i++) {
-		threads.emplace_back(&Scene::drawPixels, this, i);
+		threads.emplace_back(&Scene::drawPixelsThread, this, i);
 	}
 	printProgress(this, true);
 	for (auto& thread : threads) {
@@ -479,13 +478,14 @@ void OpticalScene::process() {
 	for (int i = 0; i < numOfSampleRays; i++) {
 		numOfCompletedPixels = 0;
 		for (int i = 0; i < numOfThreads; i++) {
-			threads.emplace_back(&Scene::drawPixels, this, i);
+			threads.emplace_back(&Scene::drawPixelsThread, this, i);
 		}
 		printProgress(this, false);
 		for (auto& thread : threads) {
 			thread.join();
 		}
 		threads.clear();
+		printf("Done sample %d\n", i + 1);
 
 		for (auto& pixel : pixels) {
 			pixel.color = colors[pixel.index.y][pixel.index.x] / float(i + 1);
@@ -518,8 +518,6 @@ void OpticalScene::calculatePixelColor(Pixel& pixel) {
 
 	rayColor /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
 	color += rayColor;
-
-	//color /= color + 1.0f; // tone mapping
 
 	colors[pixel.index.y][pixel.index.x] += color;
 }
@@ -683,32 +681,12 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
 	float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
 	color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
 
-
-
-	//if (scene->isGlobalLightingEnabled) {
-
-	//	vec3 w = (dot(normal, ray.direction) < 0) ? normal : -normal;
-	//	vec3 u = normalize(cross((abs(w.x) > 0.1) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), w));
-	//	vec3 v = cross(w, u);
-
-	//	float r1 = getRandom(); // random number between 0 and 1
-	//	float r2 = getRandom(); // random number between 0 and 1
-	//	// Compute the angle around the normal
-	//	float theta = 2 * PI * r1;
-
-	//	float cos_theta = sqrt(1.0 - r1);
-	//	float sin_theta = sqrt(r1);
-	//	float phi = 2.0 * PI * r2;
-	//	vec3 d = vec3(cos(phi) * sin_theta, sin(phi) * sin_theta, cos_theta);
-
-	//	vec3 dir = normalize(d.x * u + d.y * v + d.z * w);
-
-	//	ray.start = position;
-	//	ray.direction = dir;
-
-	//	vec3 reflection = ray.calculateRayColor(scene);
-	//	color += reflection * std::max(dot(normal, ray.direction), 0.0f);
-	//}
+	if (scene->isGlobalLightingEnabled) {
+		ray.start = position;
+		ray.direction = normalize(reflect(ray.direction, normal));
+		vec3 reflection = ray.calculateRayColor(scene);
+		color += reflection * std::max(dot(normal, ray.direction), 0.0f);
+	}
 	return color;
 }
 Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
