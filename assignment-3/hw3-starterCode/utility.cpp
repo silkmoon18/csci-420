@@ -22,7 +22,7 @@ string secondsToHMS(int seconds) {
 
 	return result;
 }
-void printProgress(Scene* scene) {
+void printProgress(Scene* scene, bool display) {
 	string info;
 	float deltaTime = 0.0f;
 	while (true) {
@@ -37,7 +37,8 @@ void printProgress(Scene* scene) {
 		info = scene->getProgressInfo();
 		printf("\r%s", info.c_str());
 
-		scene->display();
+		if (display) scene->display();
+
 		if (info.empty()) {
 			printf("Done\n");
 			break;
@@ -140,9 +141,6 @@ const vector<Light*>& Scene::getLights() {
 void Scene::setAntiAliasingLevel(int antiAliasingLevel) {
 	numOfSubpixelsPerSide = std::max(0, (int)pow(2, std::max(0, antiAliasingLevel)));
 }
-void Scene::setSoftShadowLevel(int softShadowLevel) {
-	numOfSampleLights = std::max(1, (int)pow(2, std::max(0, softShadowLevel)));
-}
 void Scene::setNumOfThreads(int num) {
 	numOfThreads = std::max(1, num);
 }
@@ -171,13 +169,7 @@ void Scene::display() {
 }
 void Scene::save() {
 	// always save
-	filesystem::path inputPath = string(inputFilename);
-	char outputFilename[100];
-	sprintf(outputFilename, "%s/%s-aa%d-ls%d.jpg",
-			inputPath.parent_path().string().c_str(),
-			inputPath.stem().string().c_str(),
-			numOfSubpixelsPerSide,
-			numOfSampleLights);
+	char* outputFilename = getOutputFilename();
 
 	printf("Saving JPEG file: %s\n", outputFilename);
 	for (auto& pixel : pixels) {
@@ -224,16 +216,6 @@ string Scene::getProgressInfo() {
 
 	return info;
 }
-void Scene::sampleLights() {
-	vector<Light*> lightSamples;
-	for (int i = 0; i < lights.size(); i++) {
-		auto samples = lights[i]->getSamples(numOfSampleLights);
-		for (auto& s : samples) {
-			lightSamples.push_back(s);
-		}
-	}
-	lights = lightSamples;
-}
 void Scene::initializePixels() {
 	vec3 startPosition;
 	startPosition.z = -1;
@@ -270,20 +252,16 @@ void Scene::drawPixels(int threadIndex) {
 		numOfCompletedPixels++;
 	}
 }
-void Scene::process() {
-	vector<thread> threads;
-	for (int i = 0; i < numOfThreads; i++) {
-		threads.emplace_back(&Scene::drawPixels, this, i);
-	}
-	printProgress(this);
-	for (auto& thread : threads) {
-		thread.join();
-	}
-}
 #pragma endregion
 
 
 #pragma region PhongScene
+PhongScene::PhongScene(int softShadowLevel) {
+	setSoftShadowLevel(softShadowLevel);
+}
+void PhongScene::setSoftShadowLevel(int softShadowLevel) {
+	numOfSampleLights = std::max(1, (int)pow(2, std::max(0, softShadowLevel)));
+}
 int PhongScene::load(const char* argv) {
 	FILE* file = fopen(argv, "r");
 	inputFilename = (char*)argv;
@@ -333,6 +311,36 @@ int PhongScene::load(const char* argv) {
 	}
 
 	return 0;
+}
+char* PhongScene::getOutputFilename() {
+	filesystem::path inputPath = string(inputFilename);
+	char filename[100];
+	sprintf(filename, "%s/%s-phong-ls%d-aa%d.jpg",
+			inputPath.parent_path().string().c_str(),
+			inputPath.stem().string().c_str(),
+			numOfSampleLights,
+			numOfSubpixelsPerSide);
+	return filename;
+}
+void PhongScene::sampleLights() {
+	vector<Light*> lightSamples;
+	for (int i = 0; i < lights.size(); i++) {
+		auto samples = lights[i]->getSamples(numOfSampleLights);
+		for (auto& s : samples) {
+			lightSamples.push_back(s);
+		}
+	}
+	lights = lightSamples;
+}
+void PhongScene::process() {
+	vector<thread> threads;
+	for (int i = 0; i < numOfThreads; i++) {
+		threads.emplace_back(&Scene::drawPixels, this, i);
+	}
+	printProgress(this, true);
+	for (auto& thread : threads) {
+		thread.join();
+	}
 }
 void PhongScene::calculatePixelColor(Pixel& pixel) {
 	vec3 color = ambient_light;
@@ -399,6 +407,12 @@ Light* PhongScene::parseLight(FILE* file) {
 
 
 #pragma region OpticalScene
+OpticalScene::OpticalScene(int numOfSampleRays) {
+	setNumOfSampleRays(numOfSampleRays);
+}
+void OpticalScene::setNumOfSampleRays(int num) {
+	numOfSampleRays = std::max(1, num);
+}
 int OpticalScene::load(const char* argv) {
 	FILE* file = fopen(argv, "r");
 	inputFilename = (char*)argv;
@@ -450,10 +464,39 @@ int OpticalScene::load(const char* argv) {
 
 	return 0;
 }
+char* OpticalScene::getOutputFilename() {
+	filesystem::path inputPath = string(inputFilename);
+	char filename[100];
+	sprintf(filename, "%s/%s-phong-rs%d-aa%d.jpg",
+			inputPath.parent_path().string().c_str(),
+			inputPath.stem().string().c_str(),
+			numOfSampleRays,
+			numOfSubpixelsPerSide);
+	return filename;
+}
+void OpticalScene::process() {
+	vector<thread> threads;
+	for (int i = 0; i < numOfSampleRays; i++) {
+		numOfCompletedPixels = 0;
+		for (int i = 0; i < numOfThreads; i++) {
+			threads.emplace_back(&Scene::drawPixels, this, i);
+		}
+		printProgress(this, false);
+		for (auto& thread : threads) {
+			thread.join();
+		}
+		threads.clear();
+
+		for (auto& pixel : pixels) {
+			pixel.color = colors[pixel.index.y][pixel.index.x] / float(i + 1);
+			pixel.color /= pixel.color + 1.0f;
+		}
+		display();
+	}
+}
 void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	// stratified sampling
-	//vec3 color = ambient_light;
-	vec3 color;
+	vec3 color = ambient_light;
 	vec3 rayColor;
 
 	float subcellSize = pixel.size / numOfSubpixelsPerSide;
@@ -462,25 +505,23 @@ void OpticalScene::calculatePixelColor(Pixel& pixel) {
 	startPosition -= vec3(offset, offset, 0);
 
 	vec3 subcellPosition = startPosition;
-	for (int i = 0; i < numOfSampleRays; i++) {
-		for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
-			subcellPosition.x = startPosition.x + x * subcellSize + getRandom(0, subcellSize);
+	for (unsigned int x = 0; x < numOfSubpixelsPerSide; x++) {
+		subcellPosition.x = startPosition.x + x * subcellSize + getRandom(0, subcellSize);
 
-			for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
-				subcellPosition.y = startPosition.y + y * subcellSize + getRandom(0, subcellSize);
+		for (unsigned int y = 0; y < numOfSubpixelsPerSide; y++) {
+			subcellPosition.y = startPosition.y + y * subcellSize + getRandom(0, subcellSize);
 
-				Ray cameraRay(vec3(0), subcellPosition);
-				rayColor += cameraRay.calculateRayColor(this);
-			}
+			Ray cameraRay(vec3(0), subcellPosition);
+			rayColor += cameraRay.calculateRayColor(this);
 		}
 	}
+
 	rayColor /= numOfSubpixelsPerSide * numOfSubpixelsPerSide;
-	rayColor /= numOfSampleRays;
 	color += rayColor;
 
-	color /= color + 1.0f; // tone mapping
+	//color /= color + 1.0f; // tone mapping
 
-	pixel.color = color;
+	colors[pixel.index.y][pixel.index.x] += color;
 }
 Triangle* OpticalScene::parseTriangle(FILE* file) {
 	vec3 position, normal, diffuse;

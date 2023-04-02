@@ -53,11 +53,17 @@ void readSceneType() {
 		cin >> type;
 
 		if (type == 1) {
-			scene = new PhongScene();
+			int level = 0;
+			cout << "Enter the level of soft shadows (# light samples = 2 ^ softShadowLevel): ";
+			cin >> level;
+			scene = new PhongScene(level);
 			break;
 		}
 		else if (type == 2) {
-			scene = new OpticalScene();
+			int num = 0;
+			cout << "Enter the number of sample rays per pixel: ";
+			cin >> num;
+			scene = new OpticalScene(num);
 			break;
 		}
 		cout << endl << type << " is not valid.\n";
@@ -125,12 +131,6 @@ void readAntiAliasingLevel() {
 	cin >> level;
 	scene->setAntiAliasingLevel(level);
 }
-void readSoftShadowLevel() {
-	int level = 0;
-	cout << "Enter the level of soft shadows (# light samples = 2 ^ softShadowLevel): ";
-	cin >> level;
-	scene->setSoftShadowLevel(level);
-}
 void readThreadNumber() {
 	int num = thread::hardware_concurrency();
 	cout << "Using " << num << " threads for rendering. ";
@@ -143,8 +143,6 @@ int main(int argc, char** argv) {
 	readFiles();
 
 	readAntiAliasingLevel();
-
-	readSoftShadowLevel();
 
 	readThreadNumber();
 

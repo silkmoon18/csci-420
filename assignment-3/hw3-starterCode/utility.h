@@ -87,7 +87,7 @@ class Light;
 
 
 string secondsToHMS(int seconds);
-void printProgress(Scene * scene);
+void printProgress(Scene * scene, bool display);
 void parse_check(const char* expected, char* found);
 void parse_vec3(FILE * file, const char* check, vec3 & vec);
 void parse_float(FILE * file, const char* check, float& f);
@@ -172,8 +172,6 @@ public:
 
 	// # subpixels = 2 ^ antiAliasingLevel
 	void setAntiAliasingLevel(int antiAliasingLevel);
-	// # light samples = 2 ^ softShadowLevel
-	void setSoftShadowLevel(int softShadowLevel);
 	void setNumOfThreads(int num);
 
 	void render();
@@ -181,8 +179,10 @@ public:
 	void save();
 	void clear();
 	string getProgressInfo();
+	void drawPixels(int threadIndex);
 
 	virtual int load(const char* argv) = 0;
+	virtual char* getOutputFilename() = 0;
 
 protected:
 	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
@@ -197,16 +197,13 @@ protected:
 	atomic_int numOfCompletedPixels = 0;
 
 	int numOfSubpixelsPerSide = 1; // 1 means no anti-aliasing
-	int numOfSampleLights = 1; // 1 means no sample lights
 
 	int numOfThreads = 32;
 	float startTime = 0.0f;
 
-	void sampleLights();
 	void initializePixels();
-	void drawPixels(int threadIndex);
-	void process();
 
+	virtual void process() = 0;
 	virtual void calculatePixelColor(Pixel& pixel) = 0;
 	virtual Triangle* parseTriangle(FILE* file) = 0;
 	virtual Sphere* parseSphere(FILE* file) = 0;
@@ -216,9 +213,18 @@ protected:
 
 class PhongScene : public Scene {
 public:
-	int load(const char* argv) override;
+	PhongScene(int softShadowLevel);
 
-private:
+	// # light samples = 2 ^ softShadowLevel
+	void setSoftShadowLevel(int softShadowLevel);
+	int load(const char* argv) override;
+	char* getOutputFilename() override;
+
+protected:
+	int numOfSampleLights = 1; // 1 means no sample lights
+
+	void sampleLights();
+	void process() override;
 	void calculatePixelColor(Pixel& pixel) override;
 	Triangle* parseTriangle(FILE* file) override;
 	Sphere* parseSphere(FILE* file) override;
@@ -228,11 +234,17 @@ private:
 
 class OpticalScene : public Scene {
 public:
-	int numOfSampleRays = 1;
+	OpticalScene(int numOfSampleRays);
 
+	void setNumOfSampleRays(int num);
 	int load(const char* argv) override;
+	char* getOutputFilename() override;
 
-private:
+protected:
+	int numOfSampleRays = 1;
+	vec3 colors[HEIGHT][WIDTH];
+
+	void process() override;
 	void calculatePixelColor(Pixel& pixel) override;
 	Triangle* parseTriangle(FILE* file) override;
 	Sphere* parseSphere(FILE* file) override;
