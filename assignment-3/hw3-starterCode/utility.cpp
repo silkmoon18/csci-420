@@ -333,8 +333,8 @@ void PhongScene::sampleLights() {
 	lights = lightSamples;
 }
 void PhongScene::process() {
-	thread printProgress(printProgress, this, true);
-	printProgress.detach();
+	thread printInfo(printProgress, this, true);
+	printInfo.detach();
 
 	vector<thread> threads;
 	for (int i = 0; i < numOfThreads; i++) {
@@ -486,7 +486,7 @@ string OpticalScene::getProgressInfo() {
 		int secondsRemaining = std::max(0, int((numOfTotalPixels - numOfCompletedPixels) / speed));
 
 		char buffer[200];
-		sprintf(buffer, "\r%d%% (pixels: %d / %lu, sample rays: %d / %d), speed: %d pixels / s, %s remaining",
+		sprintf(buffer, "\r%d%% (pixels: %d / %d, sample rays: %d / %d), speed: %d pixels / s, %s remaining",
 				progress,
 				(int)numOfCompletedPixels, numOfTotalPixels,
 				numOfCompletedSampleRays, numOfSampleRays,
@@ -497,8 +497,8 @@ string OpticalScene::getProgressInfo() {
 	return info;
 }
 void OpticalScene::process() {
-	thread printProgress(printProgress, this, false);
-	printProgress.detach();
+	thread printInfo(printProgress, this, false);
+	printInfo.detach();
 
 	vector<thread> threads;
 	for (int i = 0; i < numOfSampleRays; i++) {
