@@ -32,15 +32,14 @@ void printProgress(Scene* scene, bool display) {
 		if (deltaTime < 1.0f) continue;
 
 		if (display) scene->display();
-
 		deltaTime = 0.0f;
-		printf("\r%s", string(info.length(), ' ').c_str());
 
+		printf("\r%s", string(info.length(), ' ').c_str());
 		info = scene->getProgressInfo();
 		printf("\r%s", info.c_str());
+		fflush(stdout);
 
 		if (info.empty()) break;
-		
 	}
 }
 void parse_check(const char* expected, char* found) {
@@ -199,22 +198,6 @@ void Scene::clear() {
 
 	numOfCompletedPixels = 0;
 }
-string Scene::getProgressInfo() {
-	string info;
-
-	int progress = (float)numOfCompletedPixels / pixels.size() * 100;
-	if (progress < 100) {
-		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
-		int secondsRemaining = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
-
-		char buffer[200];
-		sprintf(buffer, "\r%d%% (%d / %lu), speed: %d pixels / s, %s remaining",
-				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, secondsToHMS(secondsRemaining).c_str());
-		info = string(buffer);
-	}
-
-	return info;
-}
 void Scene::initializePixels() {
 	vec3 startPosition;
 	startPosition.z = -1;
@@ -321,6 +304,22 @@ char* PhongScene::getOutputFilename() {
 			numOfSubpixelsPerSide);
 	return filename;
 }
+string PhongScene::getProgressInfo() {
+	string info;
+
+	int progress = (float)numOfCompletedPixels / pixels.size() * 100;
+	if (progress < 100) {
+		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
+		int secondsRemaining = std::max(0, int((pixels.size() - numOfCompletedPixels) / speed));
+
+		char buffer[200];
+		sprintf(buffer, "\r%d%% (pixels: %d / %lu), speed: %d pixels / s, %s remaining",
+				progress, (int)numOfCompletedPixels, pixels.size(), (int)speed, secondsToHMS(secondsRemaining).c_str());
+		info = string(buffer);
+	}
+
+	return info;
+}
 void PhongScene::sampleLights() {
 	vector<Light*> lightSamples;
 	for (int i = 0; i < lights.size(); i++) {
@@ -419,6 +418,7 @@ int OpticalScene::load(const char* argv) {
 	char type[50];
 	fscanf(file, "%i", &number_of_objects);
 
+	fflush(stdout);
 	printf("\nnumber of objects: %i\n", number_of_objects);
 
 	parse_vec3(file, "amb:", ambient_light);
@@ -459,33 +459,53 @@ int OpticalScene::load(const char* argv) {
 			exit(0);
 		}
 	}
-	//lights = sampleLights();
 
 	return 0;
 }
 char* OpticalScene::getOutputFilename() {
 	filesystem::path inputPath = string(inputFilename);
 	char* filename = new char[100];
-	sprintf(filename, "%s/%s-phong-rs%d-aa%d.jpg",
+	sprintf(filename, "%s/%s-optical-rs%d-aa%d.jpg",
 			inputPath.parent_path().string().c_str(),
 			inputPath.stem().string().c_str(),
 			numOfSampleRays,
 			numOfSubpixelsPerSide);
 	return &filename[0];
 }
+string OpticalScene::getProgressInfo() {
+	string info;
+
+	int numOfTotalPixels = pixels.size() * numOfSampleRays;
+	int progress = (float)numOfCompletedPixels / numOfTotalPixels * 100;
+	if (progress < 100) {
+		float speed = numOfCompletedPixels / (Timer::getInstance()->getCurrentTime() - startTime);
+		int secondsRemaining = std::max(0, int((numOfTotalPixels - numOfCompletedPixels) / speed));
+
+		char buffer[200];
+		sprintf(buffer, "\r%d%% (pixels: %d / %lu, sample rays: %d / %d), speed: %d pixels / s, %s remaining",
+				progress, 
+				(int)numOfCompletedPixels, numOfTotalPixels, 
+				numOfCompletedSampleRays, numOfSampleRays, 
+				(int)speed, secondsToHMS(secondsRemaining).c_str());
+		info = string(buffer);
+	}
+
+	return info;
+}
 void OpticalScene::process() {
+	int numOfTotalPixels = numOfSampleRays * pixels.size();
 	vector<thread> threads;
 	for (int i = 0; i < numOfSampleRays; i++) {
-		numOfCompletedPixels = 0;
 		for (int i = 0; i < numOfThreads; i++) {
 			threads.emplace_back(&Scene::drawPixelsThread, this, i);
 		}
 		printProgress(this, false);
+
 		for (auto& thread : threads) {
 			thread.join();
 		}
 		threads.clear();
-		printf("Done sample %d\n", i + 1);
+		numOfCompletedSampleRays++;
 
 		for (auto& pixel : pixels) {
 			pixel.color = colors[pixel.index.y][pixel.index.x] / float(i + 1);

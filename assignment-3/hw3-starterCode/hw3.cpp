@@ -146,6 +146,8 @@ int main(int argc, char** argv) {
 
 	readThreadNumber();
 
+	cout << endl;
+
 	glutInit(&argc, argv);
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_SINGLE);

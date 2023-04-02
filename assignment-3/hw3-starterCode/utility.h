@@ -158,8 +158,8 @@ public:
 	int mode = MODE_JPEG; // don't display at defualt
 
     vec3 ambient_light;
-    //vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
-	vec3 backgroundColor = vec3(0);
+    vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
+	//vec3 backgroundColor = vec3(0);
 	vec3 F0;
 
     bool isGlobalLightingEnabled = true;
@@ -178,11 +178,11 @@ public:
 	void display();
 	void save();
 	void clear();
-	string getProgressInfo();
 	void drawPixelsThread(int threadIndex);
 
 	virtual int load(const char* argv) = 0;
 	virtual char* getOutputFilename() = 0;
+	virtual string getProgressInfo() = 0;
 
 protected:
 	unsigned char buffer[HEIGHT][WIDTH][3]; // rgb in (0, 255)
@@ -219,6 +219,7 @@ public:
 	void setSoftShadowLevel(int softShadowLevel);
 	int load(const char* argv) override;
 	char* getOutputFilename() override;
+	string getProgressInfo() override;
 
 protected:
 	int numOfSampleLights = 1; // 1 means no sample lights
@@ -239,9 +240,11 @@ public:
 	void setNumOfSampleRays(int num);
 	int load(const char* argv) override;
 	char* getOutputFilename() override;
+	string getProgressInfo() override;
 
 protected:
 	int numOfSampleRays = 1;
+	int numOfCompletedSampleRays = 0;
 	vec3 colors[HEIGHT][WIDTH];
 
 	void process() override;
