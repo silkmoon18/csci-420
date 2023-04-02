@@ -313,13 +313,13 @@ int PhongScene::load(const char* argv) {
 }
 char* PhongScene::getOutputFilename() {
 	filesystem::path inputPath = string(inputFilename);
-	char filename[100];
+	char* filename = new char[100];
 	sprintf(filename, "%s/%s-phong-ls%d-aa%d.jpg",
 			inputPath.parent_path().string().c_str(),
 			inputPath.stem().string().c_str(),
 			numOfSampleLights,
 			numOfSubpixelsPerSide);
-	return &filename[0];
+	return filename;
 }
 void PhongScene::sampleLights() {
 	vector<Light*> lightSamples;
@@ -465,7 +465,7 @@ int OpticalScene::load(const char* argv) {
 }
 char* OpticalScene::getOutputFilename() {
 	filesystem::path inputPath = string(inputFilename);
-	char filename[100];
+	char* filename = new char[100];
 	sprintf(filename, "%s/%s-phong-rs%d-aa%d.jpg",
 			inputPath.parent_path().string().c_str(),
 			inputPath.stem().string().c_str(),
