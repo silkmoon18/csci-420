@@ -144,7 +144,6 @@ void Scene::setNumOfThreads(int num) {
 }
 void Scene::render() {
     initializePixels();
-    // sampleLights();
 
     startTime = Timer::getInstance()->getCurrentTime();
     printf("Rendering %s... \n", inputFilename);
@@ -296,6 +295,10 @@ int PhongScene::load(const char* argv) {
     }
 
     return 0;
+}
+void PhongScene::clear() {
+    Scene::clear();
+    numOfCompletedSampleLights = 0;
 }
 char* PhongScene::getOutputFilename() {
     filesystem::path inputPath = string(inputFilename);
@@ -470,6 +473,10 @@ int OpticalScene::load(const char* argv) {
 
     return 0;
 }
+void OpticalScene::clear() {
+    Scene::clear();
+    numOfCompletedSampleRays = 0;
+}
 char* OpticalScene::getOutputFilename() {
     filesystem::path inputPath = string(inputFilename);
     char* filename = new char[100];
@@ -622,6 +629,7 @@ vec3 PhongMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
     auto lights = scene->getLights();
     for (int i = 0; i < lights.size(); i++) {
         vec3 lightPosition = lights[i]->samplePosition();
+        lightPosition = lights[i]->position;
         Ray shadowRay(position, lightPosition);
         if (shadowRay.checkIfBlocked(scene->getObjects(), lightPosition))
             continue;

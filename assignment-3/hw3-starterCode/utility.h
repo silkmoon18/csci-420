@@ -171,8 +171,8 @@ public:
     void render();
     void display();
     void save();
-    void clear();
     void drawPixelsThread(int threadIndex);
+    virtual void clear();
 
     virtual int load(const char* argv) = 0;
     virtual char* getOutputFilename() = 0;
@@ -210,6 +210,7 @@ public:
     // # light samples = 2 ^ softShadowLevel
     void setSoftShadowLevel(int softShadowLevel);
     int load(const char* argv) override;
+	void clear() override;
     char* getOutputFilename() override;
     string getProgressInfo() override;
 
@@ -230,6 +231,7 @@ public:
 
     void setNumOfSampleRays(int num);
     int load(const char* argv) override;
+	void clear() override;
     char* getOutputFilename() override;
     string getProgressInfo() override;
 
