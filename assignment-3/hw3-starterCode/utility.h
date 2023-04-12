@@ -9,8 +9,8 @@
 #include <GL/gl.h>
 #include <GL/glut.h>
 #elif defined(__APPLE__)
-#include <OpenGL/gl.h>
 #include <GLUT/glut.h>
+#include <OpenGL/gl.h>
 #endif
 
 #include <stdio.h>
@@ -20,18 +20,16 @@
 #define strcasecmp _stricmp
 #endif
 
-#include <imageIO.h>
-#include <glm/glm.hpp>
-#include <glm/gtx/vector_angle.hpp>
-#include <iostream>
-#include <vector>
-#include <random>
-#include <thread>
-#include <string> 
 #include <chrono>
 #include <filesystem>
-
-
+#include <glm/glm.hpp>
+#include <glm/gtx/vector_angle.hpp>
+#include <imageIO.h>
+#include <iostream>
+#include <random>
+#include <string>
+#include <thread>
+#include <vector>
 
 #define EPSILON 0.0001f
 #define PI 3.14159265358979323846264338327950288
@@ -49,13 +47,13 @@
 #define ASPECT_RATIO (WIDTH / (double)HEIGHT)
 #define FOV 60.0
 
-#define ASERT(cond)                                                      \
-  do {                                                                   \
-    if ((cond) == false) {                                               \
-      std::cerr << #cond << " failed at line " << __LINE__ << std::endl; \
-      exit(1);                                                           \
-    }                                                                    \
-  } while (0)
+#define ASERT(cond)                                                            \
+    do {                                                                       \
+        if ((cond) == false) {                                                 \
+            std::cerr << #cond << " failed at line " << __LINE__ << std::endl; \
+            exit(1);                                                           \
+        }                                                                      \
+    } while (0)
 
 using namespace std;
 using namespace glm;
@@ -64,7 +62,8 @@ struct ProgressInfo;
 struct Pixel;
 struct Vertex;
 
-template<class T> class Singleton;
+template <class T>
+class Singleton;
 
 class Timer;
 
@@ -84,15 +83,13 @@ class Ray;
 
 class Light;
 
-
-
 string secondsToHMS(int seconds);
-void printProgress(Scene * scene);
+void printProgress(Scene* scene);
 void parse_check(const char* expected, char* found);
-void parse_vec3(FILE * file, const char* check, vec3 & vec);
-void parse_float(FILE * file, const char* check, float& f);
-void parse_rad(FILE * file, float* r);
-void parse_shi(FILE * file, float* shi);
+void parse_vec3(FILE* file, const char* check, vec3& vec);
+void parse_float(FILE* file, const char* check, float& f);
+void parse_rad(FILE* file, float* r);
+void parse_shi(FILE* file, float* shi);
 
 int isPositive(float number);
 int sign(float number);
@@ -102,275 +99,256 @@ vec3 getRandom(vec3 min, vec3 max);
 float calculateArea(vec3 a, vec3 b, vec3 c);
 int compare(float f1, float f2);
 
-
-
 struct ProgressInfo {
 };
 struct Pixel {
-	ivec2 index;
-	vec3 position;
-	float size = 0.0f;
-	vec3 color;
-	vec3 accumulatedColor;
+    ivec2 index;
+    vec3 position;
+    float size = 0.0f;
+    vec3 color;
+    vec3 accumulatedColor;
 };
 
 struct Vertex {
-	vec3 position;
-	Material* material = nullptr;
+    vec3 position;
+    Material* material = nullptr;
 };
 
-
-
-template<class T>
+template <class T>
 class Singleton {
 protected:
-	static inline T* instance = nullptr;
+    static inline T* instance = nullptr;
 
-	Singleton() noexcept = default;
-	Singleton(const Singleton&) = delete;
-	Singleton& operator=(const Singleton&) = delete;
-	virtual ~Singleton() = default;
+    Singleton() noexcept = default;
+    Singleton(const Singleton&) = delete;
+    Singleton& operator=(const Singleton&) = delete;
+    virtual ~Singleton() = default;
 
 public:
-	static T* getInstance() {
-		if (!instance) {
-			instance = new T();
-		}
-		return instance;
-	}
+    static T* getInstance() {
+        if (!instance) {
+            instance = new T();
+        }
+        return instance;
+    }
 };
 
 class Timer : public Singleton<Timer> {
 public:
-	// Get time in seconds between this and previous frame
-	float getDeltaTime();
-	// Get current time in seconds
-	float getCurrentTime();
-	// Update the current time
-	void update();
+    // Get time in seconds between this and previous frame
+    float getDeltaTime();
+    // Get current time in seconds
+    float getCurrentTime();
+    // Update the current time
+    void update();
 
 private:
-	float previousTime = 0.0f; // in s
-	float deltaTime = 0.0f; // in s
+    float previousTime = 0.0f; // in s
+    float deltaTime = 0.0f; // in s
 };
 
 class Scene {
 public:
-	int mode = MODE_JPEG; // don't display at defualt
+    int mode = MODE_JPEG; // don't display at defualt
 
     vec3 ambient_light;
     vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
-	//vec3 backgroundColor = vec3(0);
-	vec3 F0;
+    // vec3 backgroundColor = vec3(0);
+    vec3 F0;
 
     bool isGlobalLightingEnabled = true;
     bool isAntiAliasingEnabled = false;
 
-	const vector<Object*>& getObjects();
-	const vector<Triangle*>& getTriangles();
-	const vector<Sphere*>& getSpheres();
-	const vector<Light*>& getLights();
+    const vector<Object*>& getObjects();
+    const vector<Triangle*>& getTriangles();
+    const vector<Sphere*>& getSpheres();
+    const vector<Light*>& getLights();
 
-	// # subpixels = 2 ^ antiAliasingLevel
-	void setAntiAliasingLevel(int antiAliasingLevel);
-	void setNumOfThreads(int num);
+    // # subpixels = 2 ^ antiAliasingLevel
+    void setAntiAliasingLevel(int antiAliasingLevel);
+    void setNumOfThreads(int num);
 
-	void render();
-	void display();
-	void save();
-	void clear();
-	void drawPixelsThread(int threadIndex);
+    void render();
+    void display();
+    void save();
+    void clear();
+    void drawPixelsThread(int threadIndex);
 
-	virtual int load(const char* argv) = 0;
-	virtual char* getOutputFilename() = 0;
-	virtual string getProgressInfo() = 0;
+    virtual int load(const char* argv) = 0;
+    virtual char* getOutputFilename() = 0;
+    virtual string getProgressInfo() = 0;
 
 protected:
-	char* inputFilename = NULL; // input scene file
+    char* inputFilename = NULL; // input scene file
 
-	vector<Object*> objects;
-	vector<Triangle*> triangles;
-	vector<Sphere*> spheres;
-	vector<Light*> lights;
+    vector<Object*> objects;
+    vector<Triangle*> triangles;
+    vector<Sphere*> spheres;
+    vector<Light*> lights;
 
-	vector<Pixel> pixels;
-	atomic_int numOfCompletedPixels = 0;
+    vector<Pixel> pixels;
+    atomic_int numOfCompletedPixels = 0;
 
-	int numOfSubpixelsPerSide = 1; // 1 means no anti-aliasing
+    int numOfSubpixelsPerSide = 1; // 1 means no anti-aliasing
 
-	int numOfThreads = 32;
-	float startTime = 0.0f;
+    int numOfThreads = 32;
+    float startTime = 0.0f;
 
-	void initializePixels();
+    void initializePixels();
 
-	virtual void process() = 0;
-	virtual void calculatePixelColor(Pixel& pixel) = 0;
-	virtual Triangle* parseTriangle(FILE* file) = 0;
-	virtual Sphere* parseSphere(FILE* file) = 0;
-	virtual Light* parseLight(FILE* file) = 0;
+    virtual void process() = 0;
+    virtual void calculatePixelColor(Pixel& pixel) = 0;
+    virtual Triangle* parseTriangle(FILE* file) = 0;
+    virtual Sphere* parseSphere(FILE* file) = 0;
+    virtual Light* parseLight(FILE* file) = 0;
 };
-
 
 class PhongScene : public Scene {
 public:
-	PhongScene(int softShadowLevel);
+    PhongScene(int softShadowLevel);
 
-	// # light samples = 2 ^ softShadowLevel
-	void setSoftShadowLevel(int softShadowLevel);
-	int load(const char* argv) override;
-	char* getOutputFilename() override;
-	string getProgressInfo() override;
+    // # light samples = 2 ^ softShadowLevel
+    void setSoftShadowLevel(int softShadowLevel);
+    int load(const char* argv) override;
+    char* getOutputFilename() override;
+    string getProgressInfo() override;
 
 protected:
-	int numOfSampleLights = 1; // 1 means no sample lights
-	int numOfCompletedSampleLights = 0;
+    int numOfSampleLights = 1; // 1 means no sample lights
+    int numOfCompletedSampleLights = 0;
 
-	vector<Light*> sampleLights();
-	void process() override;
-	void calculatePixelColor(Pixel& pixel) override;
-	Triangle* parseTriangle(FILE* file) override;
-	Sphere* parseSphere(FILE* file) override;
-	Light* parseLight(FILE* file) override;
+    void process() override;
+    void calculatePixelColor(Pixel& pixel) override;
+    Triangle* parseTriangle(FILE* file) override;
+    Sphere* parseSphere(FILE* file) override;
+    Light* parseLight(FILE* file) override;
 };
-
 
 class OpticalScene : public Scene {
 public:
-	OpticalScene(int numOfSampleRays);
+    OpticalScene(int numOfSampleRays);
 
-	void setNumOfSampleRays(int num);
-	int load(const char* argv) override;
-	char* getOutputFilename() override;
-	string getProgressInfo() override;
+    void setNumOfSampleRays(int num);
+    int load(const char* argv) override;
+    char* getOutputFilename() override;
+    string getProgressInfo() override;
 
 protected:
-	int numOfSampleRays = 1;
-	int numOfCompletedSampleRays = 0;
+    int numOfSampleRays = 1;
+    int numOfCompletedSampleRays = 0;
 
-	void process() override;
-	void calculatePixelColor(Pixel& pixel) override;
-	Triangle* parseTriangle(FILE* file) override;
-	Sphere* parseSphere(FILE* file) override;
-	Light* parseLight(FILE* file) override;
+    void process() override;
+    void calculatePixelColor(Pixel& pixel) override;
+    Triangle* parseTriangle(FILE* file) override;
+    Sphere* parseSphere(FILE* file) override;
+    Light* parseLight(FILE* file) override;
 };
-
 
 class Material {
 public:
-	vec3 normal;
-	vec3 diffuse;
+    vec3 normal;
+    vec3 diffuse;
 
-	vec3 specular;
-	float shininess;
+    vec3 specular;
+    float shininess;
 
-	float roughness;
-	float metallic;
+    float roughness;
+    float metallic;
 
-	Material(vec3 normal, vec3 diffuse);
-	virtual ~Material() = default;
+    Material(vec3 normal, vec3 diffuse);
+    virtual ~Material() = default;
 
-	virtual Material* clone() = 0;
-	virtual vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) = 0;
-	virtual Material* interpolates(Material* m1, Material* m2, vec3 bary) = 0;
+    virtual Material* clone() = 0;
+    virtual vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) = 0;
+    virtual Material* interpolates(Material* m1, Material* m2, vec3 bary) = 0;
 };
-
 
 class PhongMaterial : public Material {
 public:
-	PhongMaterial(vec3 normal, vec3 diffuse, vec3 specular, float shininess);
+    PhongMaterial(vec3 normal, vec3 diffuse, vec3 specular, float shininess);
 
-	Material* clone() override;
-	vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override; 
-	Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
+    Material* clone() override;
+    vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override;
+    Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
 
 private:
-	vec3 calculatePhongShading(vec3 position, Light* light);
+    vec3 calculatePhongShading(vec3 position, vec3 lightPosition, vec3 lightColor);
 };
-
 
 class OpticalMaterial : public Material {
 public:
-	OpticalMaterial(vec3 normal, vec3 diffuse, float roughness, float metallic);
+    OpticalMaterial(vec3 normal, vec3 diffuse, float roughness, float metallic);
 
-	Material* clone() override;
-	vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override;
-	Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
+    Material* clone() override;
+    vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) override;
+    Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
 
 private:
-	vec3 BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o);
+    vec3 BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o);
 };
-
 
 class Object {
 public:
-	virtual ~Object() = default;
+    virtual ~Object() = default;
 
-	virtual Material* getMaterial(vec3 position) = 0;
-	virtual float intersects(Ray* ray) = 0;
+    virtual Material* getMaterial(vec3 position) = 0;
+    virtual float intersects(Ray* ray) = 0;
 };
-
 
 class Triangle : public Object {
 public:
-	Triangle(vector<Vertex> vertices);
+    Triangle(vector<Vertex> vertices);
 
-	vector<Vertex> getVertices();
-	Material* getMaterial(vec3 position) override;
-	float intersects(Ray* ray) override;
+    vector<Vertex> getVertices();
+    Material* getMaterial(vec3 position) override;
+    float intersects(Ray* ray) override;
 
 private:
-	vector<Vertex> vertices;
+    vector<Vertex> vertices;
 
-	vec3 getBarycentricCoords(vec3 p);
+    vec3 getBarycentricCoords(vec3 p);
 };
-
 
 class Sphere : public Object {
 public:
-	Sphere(vec3 position, float radius, Material* material);
+    Sphere(vec3 position, float radius, Material* material);
 
-	Material* getMaterial(vec3 position) override;
-	float intersects(Ray* ray) override;
+    Material* getMaterial(vec3 position) override;
+    float intersects(Ray* ray) override;
 
 private:
-	vec3 position;
-	float radius;
-	Material* baseMaterial;
+    vec3 position;
+    float radius;
+    Material* baseMaterial;
 };
-
 
 class Light {
 public:
-	vec3 position;
-	vec3 color;
-	vec3 normal;
-	vector<vec3> p;
+    vec3 position;
+    vec3 color;
+    vec3 normal;
+    vector<vec3> p;
 
-	Light(vec3 position, vec3 color, vec3 normal = vec3(0), vector<vec3> p = vector<vec3>());
+    Light(vec3 position, vec3 color, vec3 normal = vec3(0), vector<vec3> p = vector<vec3>());
 
-	float area(); 
-	vec3 sample();
-	Light* getSample();
+    float area();
+    vec3 samplePosition();
 };
-
-
 
 class Ray {
 public:
-	vec3 start;
-	vec3 direction;
+    vec3 start;
+    vec3 direction;
 
-	Ray(vec3 start, vec3 target);
+    Ray(vec3 start, vec3 target);
 
-	vec3 getPosition(float t);
-	Object* getFirstIntersectedObject(const vector<Object*>& objects, vec3& intersectedPosition);
-	bool checkIfBlocked(const vector<Object*>& objects, vec3 target);
-	vec3 calculateRayColor(Scene* scene);
+    vec3 getPosition(float t);
+    Object* getFirstIntersectedObject(const vector<Object*>& objects, vec3& intersectedPosition);
+    bool checkIfBlocked(const vector<Object*>& objects, vec3 target);
+    vec3 calculateRayColor(Scene* scene);
 
 private:
-	int depth = 0;
+    int depth = 0;
 };
-
-
 
 #endif
