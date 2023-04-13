@@ -64,40 +64,34 @@ struct Vertex;
 
 template <class T>
 class Singleton;
-
 class Timer;
-
 class Scene;
 class PhongScene;
 class OpticalScene;
-
 class Material;
 class PhongMaterial;
 class OpticalMaterial;
-
 class Object;
 class Triangle;
 class Sphere;
-
 class Ray;
-
 class Light;
 
-string secondsToHMS(int seconds);
-void printProgress(Scene* scene);
+string secondsToHMS(int seconds); // convert seconds to hour, minutes and seconds
+void printProgress(Scene* scene); // print progress of a scene
 void parse_check(const char* expected, char* found);
 void parse_vec3(FILE* file, const char* check, vec3& vec);
 void parse_float(FILE* file, const char* check, float& f);
 void parse_rad(FILE* file, float* r);
 void parse_shi(FILE* file, float* shi);
 
-int isPositive(float number);
-int sign(float number);
-float getRandom();
-float getRandom(float min, float max);
-vec3 getRandom(vec3 min, vec3 max);
-float calculateArea(vec3 a, vec3 b, vec3 c);
-int compare(float f1, float f2);
+int isPositive(float number); // check if the number is positive
+int sign(float number); // get sign of the number
+float getRandom(); // get a random (0, 1)
+float getRandom(float min, float max); // get a random (min, max)
+vec3 getRandom(vec3 min, vec3 max); // get a random vec3 (min, max)
+float calculateArea(vec3 a, vec3 b, vec3 c); // calculate area of the triangle with three points
+int compare(float f1, float f2); // compare f1 and f2
 
 struct ProgressInfo {
 };
@@ -105,8 +99,8 @@ struct Pixel {
     ivec2 index;
     vec3 position;
     float size = 0.0f;
-    vec3 color;
-    vec3 accumulatedColor;
+    vec3 color; // final color
+    vec3 accumulatedColor; // added color when sampling
 };
 
 struct Vertex {
@@ -153,30 +147,27 @@ public:
 
     vec3 ambient_light;
     vec3 backgroundColor = vec3(0.93f, 0.93f, 0.95f);
-    // vec3 backgroundColor = vec3(0);
     vec3 F0;
 
     bool isGlobalLightingEnabled = true;
-    bool isAntiAliasingEnabled = false;
 
     const vector<Object*>& getObjects();
     const vector<Triangle*>& getTriangles();
     const vector<Sphere*>& getSpheres();
     const vector<Light*>& getLights();
 
-    // # subpixels = 2 ^ antiAliasingLevel
-    void setAntiAliasingLevel(int antiAliasingLevel);
+    void setAntiAliasingLevel(int antiAliasingLevel); // # subpixels = 2 ^ antiAliasingLevel
     void setNumOfThreads(int num);
 
-    void render();
-    void display();
-    void save();
-    void drawPixelsThread(int threadIndex);
-    virtual void clear();
+    void render(); // start rendering the image
+    void display(); // display image
+    void save(); // save image
+    void drawPixelsThread(int threadIndex); // thread to draw pixels
+    virtual void clear(); // clear everything
 
-    virtual int load(const char* argv) = 0;
-    virtual char* getOutputFilename() = 0;
-    virtual string getProgressInfo() = 0;
+    virtual int load(const char* argv) = 0; // load a scene file
+    virtual char* getOutputFilename() = 0; // get output filename
+    virtual string getProgressInfo() = 0; // get current progress info
 
 protected:
     char* inputFilename = NULL; // input scene file
@@ -207,8 +198,7 @@ class PhongScene : public Scene {
 public:
     PhongScene(int softShadowLevel);
 
-    // # light samples = 2 ^ softShadowLevel
-    void setSoftShadowLevel(int softShadowLevel);
+    void setSoftShadowLevel(int softShadowLevel); // # light samples = 2 ^ softShadowLevel
     int load(const char* argv) override;
 	void clear() override;
     char* getOutputFilename() override;
@@ -262,7 +252,7 @@ public:
 
     virtual Material* clone() = 0;
     virtual vec3 calculateLighting(Scene* scene, Ray& ray, vec3 position) = 0;
-    virtual Material* interpolates(Material* m1, Material* m2, vec3 bary) = 0;
+    virtual Material* interpolates(Material* m1, Material* m2, vec3 bary) = 0; // interpolates a triangle material
 };
 
 class PhongMaterial : public Material {
@@ -294,7 +284,7 @@ public:
     virtual ~Object() = default;
 
     virtual Material* getMaterial(vec3 position) = 0;
-    virtual float intersects(Ray* ray) = 0;
+    virtual float intersects(Ray* ray) = 0; // get intersection param t
 };
 
 class Triangle : public Object {
@@ -321,7 +311,7 @@ public:
 private:
     vec3 position;
     float radius;
-    Material* baseMaterial;
+    Material* baseMaterial; // base material with normal = vec3(0)
 };
 
 class Light {
@@ -333,8 +323,8 @@ public:
 
     Light(vec3 position, vec3 color, vec3 normal = vec3(0), vector<vec3> p = vector<vec3>());
 
-    float area();
-    vec3 samplePosition();
+    float area(); // get light area, 0 if point light
+    vec3 samplePosition(); // sample light position
 };
 
 class Ray {
@@ -350,7 +340,7 @@ public:
     vec3 calculateRayColor(Scene* scene);
 
 private:
-    int depth = 0;
+    int depth = 0; // num of reflected times
 };
 
 #endif

@@ -136,11 +136,8 @@ void readThreadNumber() {
 
 int main(int argc, char** argv) {
     readSceneType();
-
     readFiles();
-
     readAntiAliasingLevel();
-
     readThreadNumber();
 
     cout << endl;
