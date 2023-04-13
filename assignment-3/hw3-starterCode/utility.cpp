@@ -715,7 +715,7 @@ vec3 OpticalMaterial::calculateLighting(Scene* scene, Ray& ray, vec3 position) {
     float pdf = pow(distance(position, lightPosition), 2) / (abs(dot(light->normal, w_i)) * light->area());
 
     float f0 = (scene->F0.x + scene->F0.y + scene->F0.z) / 3;
-    color += BRDF(f0, Le, normal, pdf, position, w_i, -ray.direction);
+    color += calculateBrdfShading(f0, Le, normal, pdf, position, w_i, -ray.direction);
 
     if (scene->isGlobalLightingEnabled) {
         ray.start = position;
@@ -743,7 +743,7 @@ Material* OpticalMaterial::interpolates(Material* m1, Material* m2, vec3 bary) {
 
     return new OpticalMaterial(normal, diffuse, roughness, metallic);
 }
-vec3 OpticalMaterial::BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o) {
+vec3 OpticalMaterial::calculateBrdfShading(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o) {
     float alpha2 = pow(roughness * roughness, 2);
 
     float w_idotn = dot(w_i, n);

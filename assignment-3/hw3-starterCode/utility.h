@@ -93,8 +93,6 @@ vec3 getRandom(vec3 min, vec3 max); // get a random vec3 (min, max)
 float calculateArea(vec3 a, vec3 b, vec3 c); // calculate area of the triangle with three points
 int compare(float f1, float f2); // compare f1 and f2
 
-struct ProgressInfo {
-};
 struct Pixel {
     ivec2 index;
     vec3 position;
@@ -194,13 +192,14 @@ protected:
     virtual Light* parseLight(FILE* file) = 0;
 };
 
+// phong shading
 class PhongScene : public Scene {
 public:
     PhongScene(int softShadowLevel);
 
     void setSoftShadowLevel(int softShadowLevel); // # light samples = 2 ^ softShadowLevel
     int load(const char* argv) override;
-	void clear() override;
+    void clear() override;
     char* getOutputFilename() override;
     string getProgressInfo() override;
 
@@ -215,13 +214,14 @@ protected:
     Light* parseLight(FILE* file) override;
 };
 
+// monte-carlo
 class OpticalScene : public Scene {
 public:
     OpticalScene(int numOfSampleRays);
 
     void setNumOfSampleRays(int num);
     int load(const char* argv) override;
-	void clear() override;
+    void clear() override;
     char* getOutputFilename() override;
     string getProgressInfo() override;
 
@@ -276,7 +276,7 @@ public:
     Material* interpolates(Material* m1, Material* m2, vec3 bary) override;
 
 private:
-    vec3 BRDF(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o);
+    vec3 calculateBrdfShading(float F0, vec3 Le, vec3 n, float pdf, vec3 p, vec3 w_i, vec3 w_o);
 };
 
 class Object {
